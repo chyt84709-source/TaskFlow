@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+build/
+build_mhm/
+New_EXE/
+dist/
+*.spec
+*.exe
+*.pyc
+.env
+data/
+node_modules/
