@@ -1,12 +1,13 @@
 # TaskFlow
 
-A Windows desktop prototype for a freelancing, micro-tasking, and e-commerce platform.
+A headless Node.js platform for freelancing, micro-tasking, and e-commerce.
 
-## Run from Visual Studio or a terminal
+## Run locally
 
-1. Install Python 3.10+ and make sure `py` is available.
-2. Run `install.bat` once.
-3. Run `start.bat` to launch the app.
+1. Install Node.js 20+.
+2. Copy `.env.example` to `.env` and configure PostgreSQL and provider credentials.
+3. Run `npm install`.
+4. Run `npm start` or `start.bat`.
 
 ## Included flows
 
@@ -18,11 +19,7 @@ A Windows desktop prototype for a freelancing, micro-tasking, and e-commerce pla
 
 The `login.html` file remains a visual preview, while `server.js` provides the deployment-shaped API, session boundary, PostgreSQL persistence, Google OAuth, Resend email, uploads, WebSocket chat, task verification, wallet ledger, disputes, notifications, and admin controls. See [DEPLOYMENT.md](DEPLOYMENT.md) for setup and production requirements.
 
-## Build the EXE
-
-Run `build_exe.bat`. The finished executable is `dist\\FrameSpeakStudio.exe`.
-
 ## Notes
 
-- The original desktop utility remains available through `main.py`; the web platform runs with Node.js 20+.
+- The application has no graphical desktop entry point and is safe to run on a headless server.
 - Never credit real users from client-side timing alone; production task verification must be server-side and backed by provider/webhook evidence.

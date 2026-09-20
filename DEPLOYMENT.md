@@ -15,7 +15,7 @@ npm install
 npm start
 ```
 
-Open `http://localhost:3000`. The server serves the existing `login.html` from the Desktop folder and exposes the API from the same origin.
+Open `http://localhost:3000`. The headless Node server serves `login.html` and the API from the same origin.
 
 ## 3. Production requirements
 

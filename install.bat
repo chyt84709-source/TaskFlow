@@ -1,9 +1,6 @@
 @echo off
 setlocal
-py -m venv .venv
-call .venv\Scripts\activate.bat
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+npm.cmd install
 echo.
-echo Dependencies installed. Run start.bat to launch the app.
+echo Dependencies installed. Configure .env, then run start.bat to launch the headless server.
 pause
