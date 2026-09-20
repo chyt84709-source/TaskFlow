@@ -41,4 +41,4 @@ Open `http://localhost:3000`. The headless Node server serves `login.html` and t
 - `POST /api/admin/login`, `GET /api/admin/overview`
 - `POST /api/admin/disputes/:id/resolve`, `POST /api/admin/listings/:id/pause`
 
-The browser page keeps a local-file demo gate for previewing the UI. When served by this Node application, Google OAuth, admin authentication, phone authentication, PostgreSQL persistence, and Resend welcome email use the backend endpoints.
+The browser page uses the same backend endpoints for Google OAuth, admin authentication, email authentication, PostgreSQL persistence, uploads, and Resend email.

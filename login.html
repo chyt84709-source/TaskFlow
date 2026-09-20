@@ -1,283 +1,35 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="TaskFlow: video tasks, freelance services, and a trusted marketplace.">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>TaskFlow | Work that moves</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap');
-    :root { --ink:#18231f; --muted:#718079; --line:#dce5df; --paper:#f7f9f6; --white:#fff; --green:#1f5d49; --green-dark:#123b30; --mint:#dceee5; --gold:#e7b65d; --coral:#df8068; --blue:#dce9f0; }
-    * { box-sizing:border-box; }
-    body { margin:0; min-height:100vh; color:var(--ink); background:var(--paper); font-family:'Manrope',sans-serif; }
-    button,input,select { font:inherit; }
-    button { cursor:pointer; }
-    .page { min-height:100vh; display:grid; grid-template-columns:minmax(420px, .9fr) minmax(560px, 1.1fr); overflow:hidden; }
-    .auth-side { position:relative; padding:38px clamp(28px,5vw,76px); display:flex; flex-direction:column; justify-content:space-between; background:#f7f9f6; }
-    .brand { display:flex; align-items:center; gap:10px; font-weight:800; letter-spacing:-.04em; font-size:22px; }
-    .brand-mark { width:30px; height:30px; display:grid; place-items:center; color:#fff; border-radius:9px; background:var(--green); font-size:15px; }
-    .eyebrow { color:var(--green); font:500 11px 'DM Mono',monospace; letter-spacing:.12em; text-transform:uppercase; }
-    .auth-copy { max-width:440px; margin:7vh 0 32px; }
-    h1 { max-width:500px; margin:14px 0 18px; font-size:clamp(36px,4.5vw,60px); line-height:1.02; letter-spacing:-.065em; }
-    .auth-copy p { max-width:410px; color:var(--muted); font-size:15px; line-height:1.7; }
-    .auth-card { width:min(100%,430px); padding:24px; border:1px solid var(--line); border-radius:20px; background:rgba(255,255,255,.7); box-shadow:0 16px 50px rgba(24,35,31,.07); }
-    .tabs { display:grid; grid-template-columns:1fr 1fr 1fr; gap:4px; padding:4px; margin-bottom:22px; border-radius:10px; background:#edf2ee; }
-    .tab { border:0; border-radius:7px; padding:10px 6px; background:transparent; color:var(--muted); font-size:12px; font-weight:700; }
-    .tab.active { color:var(--ink); background:#fff; box-shadow:0 2px 7px rgba(24,35,31,.08); }
-    .form-panel { display:none; }
-    .form-panel.active { display:block; animation:rise .35s ease both; }
-    @keyframes rise { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
-    .field { margin:14px 0; }
-    label { display:block; margin-bottom:7px; color:var(--muted); font-size:11px; font-weight:700; }
-    input,select { width:100%; padding:13px 14px; outline:none; border:1px solid var(--line); border-radius:10px; color:var(--ink); background:#fff; }
-    input:focus,select:focus { border-color:var(--green); box-shadow:0 0 0 3px rgba(31,93,73,.1); }
-    .button { display:inline-flex; align-items:center; justify-content:center; gap:8px; width:100%; border:0; border-radius:10px; padding:13px 16px; font-size:12px; font-weight:800; transition:.2s ease; }
-    .button:hover { transform:translateY(-1px); }
-    .button.primary { color:#fff; background:var(--green); }
-    .button.secondary { color:var(--green-dark); background:var(--mint); }
-    .button.google { color:var(--ink); border:1px solid var(--line); background:#fff; }
-    .button.link { width:auto; padding:0; color:var(--green); background:transparent; font-size:11px; }
-    .or { display:flex; align-items:center; gap:10px; margin:17px 0; color:#9aa79f; font:10px 'DM Mono',monospace; text-transform:uppercase; }
-    .or:before,.or:after { content:''; height:1px; flex:1; background:var(--line); }
-    .form-row { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-    .role-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-    .role { padding:11px; border:1px solid var(--line); border-radius:10px; color:var(--muted); background:#fff; text-align:left; }
-    .role strong { display:block; margin-bottom:3px; color:var(--ink); font-size:11px; }
-    .role small { font-size:10px; }
-    .role.selected { border-color:var(--green); background:var(--mint); }
-    .fine { margin:14px 0 0; color:#89958e; font-size:10px; line-height:1.6; }
-    .fine a { color:var(--green); }
-    .footnote { color:#8d9992; font:10px 'DM Mono',monospace; }
-    .preview-side { position:relative; padding:34px clamp(24px,4vw,68px); overflow:hidden; color:#fff; background:var(--green-dark); }
-    .preview-side:before { content:''; position:absolute; width:480px; height:480px; right:-190px; top:-150px; border-radius:50%; background:#255e4c; opacity:.7; }
-    .preview-side:after { content:''; position:absolute; width:220px; height:220px; left:-110px; bottom:-90px; border:1px solid rgba(231,182,93,.35); border-radius:50%; }
-    .preview-top,.preview-content { position:relative; z-index:1; }
-    .preview-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:9vh; }
-    .preview-nav { display:flex; gap:22px; color:#a9c4b8; font-size:11px; }
-    .preview-nav span.active { color:#fff; }
-    .secure { display:flex; align-items:center; gap:7px; color:#bad5c9; font:10px 'DM Mono',monospace; }
-    .preview-content { max-width:650px; }
-    .preview-content h2 { max-width:570px; margin:12px 0 14px; font-size:clamp(34px,4vw,58px); line-height:1; letter-spacing:-.065em; }
-    .preview-content > p { max-width:480px; margin:0 0 35px; color:#aec7bc; font-size:14px; line-height:1.7; }
-    .metrics { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:28px; }
-    .metric { padding:16px; border:1px solid rgba(255,255,255,.14); border-radius:13px; background:rgba(255,255,255,.07); }
-    .metric b { display:block; margin:5px 0; color:#fff; font-size:23px; letter-spacing:-.06em; }
-    .metric span { color:#a9c4b8; font:10px 'DM Mono',monospace; }
-    .workspace { padding:18px; border:1px solid rgba(255,255,255,.14); border-radius:17px; background:rgba(9,35,27,.5); backdrop-filter:blur(12px); }
-    .workspace-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
-    .workspace-head strong { font-size:13px; }
-    .workspace-head span { padding:6px 8px; border-radius:20px; color:#123b30; background:var(--gold); font:10px 'DM Mono',monospace; }
-    .activity { display:grid; grid-template-columns:1.15fr .85fr; gap:12px; }
-    .task-card,.side-card { padding:15px; border-radius:12px; background:#f5f8f5; color:var(--ink); }
-    .task-card { min-height:166px; }
-    .task-head { display:flex; justify-content:space-between; align-items:start; gap:10px; }
-    .task-head strong { font-size:12px; line-height:1.4; }
-    .tag { color:#27664f; font:9px 'DM Mono',monospace; text-transform:uppercase; }
-    .task-card p { margin:22px 0 18px; color:var(--muted); font-size:11px; line-height:1.5; }
-    .progress { height:6px; overflow:hidden; border-radius:8px; background:#dce6df; }
-    .progress i { display:block; width:68%; height:100%; border-radius:8px; background:var(--gold); }
-    .task-bottom { display:flex; justify-content:space-between; margin-top:9px; color:var(--muted); font-size:10px; }
-    .task-bottom b { color:var(--green); }
-    .side-card { display:flex; flex-direction:column; justify-content:space-between; }
-    .side-card h3 { margin:0; font-size:12px; }
-    .side-card p { margin:7px 0; color:var(--muted); font-size:10px; line-height:1.6; }
-    .side-card strong { color:var(--green); font-size:26px; letter-spacing:-.07em; }
-    .side-card button { border:0; padding:8px; border-radius:7px; color:#fff; background:var(--green); font-size:10px; font-weight:800; }
-    .language-select { width:auto; min-width:112px; padding:7px 9px; border-color:rgba(255,255,255,.2); border-radius:7px; color:#e7f2ec; background:rgba(255,255,255,.08); font-size:10px; }
-    .language-select option { color:var(--ink); background:#fff; }
-    .trust-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px; }
-    .trust-card { padding:15px; border:1px solid rgba(255,255,255,.14); border-radius:12px; background:rgba(255,255,255,.07); }
-    .trust-card h3 { margin:0 0 7px; color:#fff; font-size:12px; }
-    .trust-card p { margin:0 0 12px; color:#a9c4b8; font-size:10px; line-height:1.5; }
-    .stars { display:flex; gap:2px; margin-bottom:10px; }
-    .star { border:0; padding:0 2px; color:#607f70; background:transparent; font-size:18px; line-height:1; }
-    .star.active,.star:hover { color:var(--gold); }
-    .review-meta { display:flex; align-items:center; justify-content:space-between; color:#bad5c9; font:9px 'DM Mono',monospace; }
-    .dispute-row { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-    .status-pill { padding:5px 7px; border-radius:20px; color:#123b30; background:#cfe7da; font:9px 'DM Mono',monospace; white-space:nowrap; }
-    .admin-link { border:0; padding:0; color:var(--gold); background:transparent; font-size:10px; font-weight:800; }
-    .admin-open { border:1px solid rgba(231,182,93,.35); padding:7px 9px; border-radius:7px; color:var(--gold); background:rgba(231,182,93,.08); font:10px 'DM Mono',monospace; }
-    .modal { position:fixed; inset:0; z-index:20; display:none; place-items:center; padding:20px; background:rgba(9,24,18,.72); backdrop-filter:blur(9px); }
-    .modal.open { display:grid; }
-    .admin-modal { width:min(100%,470px); padding:27px; border:1px solid #314e42; border-radius:18px; color:#fff; background:#162d25; box-shadow:0 24px 80px rgba(0,0,0,.3); }
-    .admin-modal h2 { margin:8px 0 8px; font-size:25px; letter-spacing:-.05em; }
-    .admin-modal p { color:#a9c4b8; font-size:12px; line-height:1.6; }
-    .admin-modal label { color:#a9c4b8; }
-    .admin-modal input { color:#fff; border-color:#3d5e50; background:#10251e; }
-    .admin-head { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; }
-    .close-modal { border:0; color:#a9c4b8; background:transparent; font-size:20px; }
-    .admin-panel { width:min(100%,1050px); max-height:90vh; overflow:auto; padding:28px; border-radius:18px; color:var(--ink); background:#f7f9f6; box-shadow:0 24px 80px rgba(0,0,0,.3); }
-    .admin-panel .admin-head p { color:var(--muted); }
-    .admin-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:9px; margin:20px 0; }
-    .admin-stat { padding:14px; border:1px solid var(--line); border-radius:11px; background:#fff; }
-    .admin-stat span { color:var(--muted); font:9px 'DM Mono',monospace; }
-    .admin-stat b { display:block; margin-top:7px; font-size:22px; letter-spacing:-.06em; }
-    .admin-sections { display:grid; grid-template-columns:1.2fr .8fr; gap:12px; }
-    .admin-table,.admin-actions { padding:17px; border:1px solid var(--line); border-radius:12px; background:#fff; }
-    .admin-table h3,.admin-actions h3 { margin:0 0 13px; font-size:13px; }
-    .admin-row { display:grid; grid-template-columns:1.4fr .8fr .6fr auto; align-items:center; gap:10px; padding:11px 0; border-top:1px solid #edf1ee; font-size:10px; }
-    .admin-row strong { font-size:11px; }
-    .admin-row span { color:var(--muted); }
-    .admin-row button { border:0; padding:6px 8px; border-radius:6px; color:var(--green); background:var(--mint); font-size:9px; font-weight:800; }
-    .admin-actions button { margin:5px 0; }
-    .operator-rail { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px; }
-    .operator-card { padding:15px; border-radius:12px; color:var(--ink); background:#f5f8f5; }
-    .operator-card h3 { margin:0 0 10px; font-size:12px; }
-    .operator-card p { margin:0 0 10px; color:var(--muted); font-size:10px; line-height:1.5; }
-    .chart { display:flex; align-items:end; gap:5px; height:40px; margin:8px 0; }
-    .chart i { flex:1; min-height:8px; border-radius:4px 4px 2px 2px; background:var(--green); }
-    .chart i:nth-child(2),.chart i:nth-child(5) { background:var(--gold); }
-    .operator-line { display:flex; align-items:center; justify-content:space-between; gap:8px; color:var(--muted); font-size:10px; }
-    .operator-line strong { color:var(--green); }
-    .badge { display:inline-flex; align-items:center; gap:5px; padding:5px 7px; margin:2px 2px 0 0; border-radius:14px; color:#6f4e15; background:#fae7b9; font:9px 'DM Mono',monospace; }
-    .notify-dot { display:inline-block; width:6px; height:6px; margin-right:5px; border-radius:50%; background:var(--coral); }
-    .chat-box { display:flex; gap:6px; margin-top:10px; }
-    .chat-box input { min-width:0; padding:8px 9px; font-size:10px; }
-    .chat-box button { border:0; padding:0 9px; border-radius:7px; color:#fff; background:var(--green); font-size:10px; }
-    .file-button { position:relative; overflow:hidden; border:0; padding:7px 8px; border-radius:7px; color:var(--green-dark); background:var(--mint); font-size:10px; }
-    .file-button input { position:absolute; inset:0; opacity:0; cursor:pointer; }
-    .twofa { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px; margin-top:14px; border:1px solid var(--line); border-radius:10px; background:#f7faf7; }
-    .twofa strong { display:block; margin-bottom:3px; font-size:11px; }
-    .twofa span { color:var(--muted); font-size:10px; }
-    .mini-action { border:0; padding:7px 9px; border-radius:7px; color:var(--green-dark); background:var(--mint); font-size:10px; font-weight:800; white-space:nowrap; }
-    .split-controls { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:9px; }
-    .split-controls label { margin:0; font-size:9px; }
-    .split-controls input { padding:7px 8px; font-size:10px; }
-    @media (max-width:700px) { .admin-grid { grid-template-columns:1fr 1fr; } .admin-sections { grid-template-columns:1fr; } .admin-row { grid-template-columns:1.2fr .8fr auto; } .admin-row span:nth-child(2) { display:none; } }
-    .toast { position:fixed; right:22px; bottom:22px; z-index:10; max-width:300px; padding:14px 17px; border-radius:12px; color:#fff; background:#162820; box-shadow:0 14px 35px rgba(0,0,0,.2); font-size:12px; opacity:0; transform:translateY(10px); pointer-events:none; transition:.25s; }
-    .toast.show { opacity:1; transform:none; }
-    @media (max-width:900px) { .page { grid-template-columns:1fr; } .preview-side { min-height:720px; } .preview-top { margin-bottom:60px; } }
-    @media (max-width:560px) { .auth-side { padding:27px 20px 35px; } .preview-side { padding:28px 20px; } .preview-nav { display:none; } h1 { font-size:42px; } .metrics { gap:6px; } .metric { padding:11px 9px; } .metric b { font-size:18px; } .activity { grid-template-columns:1fr; } }
+    :root{font-family:Manrope,system-ui,sans-serif;color:#18231f;background:#f5f8f5;--green:#1f5d49;--dark:#123b30;--line:#dce5df;--muted:#718079;--mint:#dceee5;--gold:#e7b65d}*{box-sizing:border-box}body{margin:0}button,input,select{font:inherit}button{cursor:pointer}.page{min-height:100vh;display:grid;grid-template-columns:minmax(320px,.8fr) minmax(520px,1.2fr)}.auth{padding:clamp(24px,5vw,72px);display:flex;flex-direction:column;justify-content:space-between}.brand{font-size:22px;font-weight:800}.brand b{display:inline-grid;place-items:center;width:30px;height:30px;margin-right:8px;border-radius:8px;color:white;background:var(--green)}h1{max-width:520px;margin:12vh 0 14px;font-size:clamp(38px,5vw,64px);line-height:1;letter-spacing:-.06em}.muted{color:var(--muted);line-height:1.6}.card,.panel{padding:22px;border:1px solid var(--line);border-radius:14px;background:#fff;box-shadow:0 12px 35px #18231f0b}.auth-card{max-width:440px}.tabs,.row{display:flex;gap:8px}.tabs{margin-bottom:18px}.tabs button{flex:1;border:0;padding:10px;border-radius:8px;color:var(--muted);background:#edf2ee}.tabs button.active{color:var(--dark);background:var(--mint)}.field{margin:12px 0}label{display:block;margin-bottom:6px;color:var(--muted);font-size:12px;font-weight:700}input,select{width:100%;padding:12px;border:1px solid var(--line);border-radius:8px;background:white}.button{width:100%;padding:12px 15px;border:0;border-radius:8px;font-weight:800}.primary{color:#fff;background:var(--green)}.secondary{color:var(--dark);background:var(--mint)}.hidden{display:none!important}.preview{padding:clamp(24px,5vw,72px);color:#fff;background:var(--dark)}.preview h2{max-width:620px;margin:16vh 0 12px;font-size:clamp(38px,5vw,66px);line-height:1;letter-spacing:-.06em}.preview .muted{color:#b5cec2}.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:28px 0}.metric{padding:16px;border:1px solid #ffffff25;border-radius:10px;background:#ffffff0c}.metric b{display:block;margin:8px 0;font-size:26px;color:white}.metric span{font-size:11px;color:#b5cec2}.app{display:none;min-height:100vh;padding:28px;max-width:1180px;margin:auto}.app-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.list{display:grid;gap:8px}.item{padding:14px;border:1px solid var(--line);border-radius:10px;background:#fff}.item strong{display:block}.item small{color:var(--muted)}.toast{position:fixed;right:20px;bottom:20px;padding:13px 16px;border-radius:9px;color:#fff;background:#18231f;display:none}.toast.show{display:block}@media(max-width:850px){.page{grid-template-columns:1fr}.preview{min-height:520px}.preview h2{margin-top:8vh}.app{padding:18px}.grid{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
-  <main class="page">
-    <section class="auth-side">
-      <div>
-        <div class="form-row"><div class="brand"><span class="brand-mark">↗</span> taskflow</div><select class="language-select" id="language" aria-label="Language" style="color:var(--green); border-color:var(--line); background:#fff"><option value="en">English</option><option value="ur">اردو</option><option value="ar">العربية</option><option value="es">Español</option></select></div>
-        <div class="auth-copy">
-          <div class="eyebrow" data-i18n="eyebrow">One account. Every opportunity.</div>
-          <h1 data-i18n="heroTitle">Make your next move count.</h1>
-          <p data-i18n="heroCopy">Earn from verified video tasks, sell what you know, and discover products worth bringing home. One calm workspace for the whole marketplace.</p>
-        </div>
-        <div class="auth-card">
-          <div class="tabs" role="tablist">
-            <button class="tab active" data-panel="login" data-i18n="signIn">Sign in</button>
-            <button class="tab" data-panel="register" data-i18n="createAccount">Create account</button>
-            <button class="tab" data-panel="recover" data-i18n="recover">Recover</button>
-          </div>
-          <div class="form-panel active" id="login">
-            <button class="button google" data-action="google" data-i18n="google">◉ &nbsp; Continue with Google</button>
-            <div class="or">or use phone</div>
-            <div class="field"><label for="login-phone">Phone number</label><input id="login-phone" type="tel" placeholder="+1 555 000 2841" autocomplete="tel"></div>
-            <div class="form-row"><label><input type="checkbox" style="width:auto; margin-right:6px; accent-color:var(--green);"> Trust this device</label><button class="button link" data-switch="recover">Forgot password?</button></div>
-            <div class="twofa"><div><strong>Two-factor protection</strong><span>Phone code + authenticator challenge</span></div><button class="mini-action" data-action="twofa">Manage 2FA</button></div>
-            <button class="button primary" style="margin-top:18px" data-action="login">Send secure code <span>→</span></button>
-            <p class="fine">By continuing, you agree to our <a href="#">Terms</a> and <a href="#">Privacy Policy</a>.</p>
-          </div>
-          <div class="form-panel" id="register">
-            <div class="field"><label for="name">Your name</label><input id="name" placeholder="Amina Rahman" autocomplete="name"></div>
-            <div class="field"><label for="register-phone">Phone number</label><input id="register-phone" type="tel" placeholder="+1 555 000 2841" autocomplete="tel"></div>
-            <label>How will you use TaskFlow?</label>
-            <div class="role-grid"><button class="role selected" data-role="worker"><strong>Worker / seller</strong><small>Earn, sell, grow</small></button><button class="role" data-role="client"><strong>Client / buyer</strong><small>Hire, buy, promote</small></button></div>
-            <button class="button primary" style="margin-top:18px" data-action="register">Create secure account <span>→</span></button>
-            <p class="fine">We use phone verification and device checks to protect your wallet and identity.</p>
-          </div>
-          <div class="form-panel" id="recover">
-            <div class="eyebrow" style="margin:8px 0 10px">Account recovery</div>
-            <h3 style="margin:0 0 8px; font-size:20px; letter-spacing:-.04em">Get back to work.</h3>
-            <p class="fine" style="margin:0 0 14px">Enter your verified phone number and we will send a one-time recovery code.</p>
-            <div class="field"><label for="recover-phone">Verified phone number</label><input id="recover-phone" type="tel" placeholder="+1 555 000 2841"></div>
-            <button class="button primary" data-action="recover">Send recovery code <span>→</span></button>
-            <button class="button link" style="margin-top:18px" data-switch="login">Back to sign in</button>
-          </div>
-        </div>
-      </div>
-      <div class="footnote">TASKFLOW / PRIVATE BETA 01.26</div>
-    </section>
-    <section class="preview-side">
-      <div class="preview-top"><div class="brand" style="color:#fff"><span class="brand-mark" style="color:var(--green-dark);background:var(--gold)">↗</span> taskflow</div><div class="preview-nav"><span class="active">Overview</span><span>Earn</span><span>Freelance</span><span>Market</span></div><div class="secure"><button class="admin-open" data-open-admin>Admin console</button><span>□ protected workspace</span></div></div>
-      <div class="preview-content">
-        <div class="eyebrow" style="color:var(--gold)">The work marketplace</div>
-        <h2>Small tasks. Serious momentum.</h2>
-        <p>A transparent economy for people who make, sell, watch, and build. Every action is tracked. Every payout has a trail.</p>
-        <div class="metrics"><div class="metric"><span>IN ACTIVE TASKS</span><b>2,840</b><span>+18% this week</span></div><div class="metric"><span>PAID TO USERS</span><b>$84k</b><span>verified earnings</span></div><div class="metric"><span>TRUST SCORE</span><b>98.4%</b><span>platform average</span></div></div>
-        <div class="workspace"><div class="workspace-head"><strong>Good morning, Amina</strong><span>verified creator</span></div><div class="activity"><div class="task-card"><div class="task-head"><div><div class="tag">watch & earn / lifestyle</div><strong>Make your workspace feel calm</strong></div><b style="color:var(--green)">$0.80</b></div><p>Watch the full 2:10 video and answer one quick quality check to unlock your reward.</p><div class="progress"><i></i></div><div class="task-bottom"><span>01:28 / 02:10</span><b>68% verified</b></div></div><div class="side-card"><div><h3>Wallet balance</h3><p>Available to pay out</p><strong>$128.40</strong></div><button data-action="wallet">View wallet & activity</button></div></div><div class="trust-grid"><div class="trust-card"><h3>Review intelligence</h3><p>Verified delivery reviews build trust across tasks, services, and products.</p><div class="stars" aria-label="Rate your experience"><button class="star" data-rating="1">★</button><button class="star" data-rating="2">★</button><button class="star" data-rating="3">★</button><button class="star" data-rating="4">★</button><button class="star" data-rating="5">★</button></div><div class="review-meta"><span>4.9 average</span><span>2.4k verified reviews</span></div></div><div class="trust-card"><div class="dispute-row"><h3>Admin resolution desk</h3><span class="status-pill">2 cases monitored</span></div><p>Protected orders include evidence, mediation, and an auditable resolution timeline.</p><button class="admin-link" data-action="dispute">Open dispute center →</button></div></div><div class="operator-rail"><div class="operator-card"><h3>Performance pulse <span class="notify-dot"></span></h3><p>Seller and freelancer analytics, updated from verified activity.</p><div class="chart"><i style="height:34%"></i><i style="height:54%"></i><i style="height:43%"></i><i style="height:76%"></i><i style="height:91%"></i><i style="height:68%"></i><i style="height:100%"></i></div><div class="operator-line"><span>7-day earnings</span><strong>+$284.00 · +18%</strong></div><div class="operator-line"><span>Completion rate</span><strong>96.2%</strong></div></div><div class="operator-card"><h3>Momentum & alerts</h3><p>Rewards for reliable work, plus real-time account and transaction notifications.</p><span class="badge">★ Top rated</span><span class="badge">⚡ 25 tasks</span><span class="badge">✓ Verified seller</span><div class="operator-line" style="margin-top:10px"><span>Leaderboard position</span><strong>#08 this week</strong></div><div class="operator-line"><span><span class="notify-dot"></span>2 new wallet alerts</span><button class="admin-link" data-action="notifications">View all</button></div></div></div><div class="operator-rail"><div class="operator-card"><h3>Secure project chat</h3><p>Share delivery notes and files inside a protected order thread.</p><div class="chat-box"><input id="chat-message" placeholder="Write a message"><label class="file-button">Attach<input id="chat-file" type="file"></label><button data-action="chat">Send</button></div></div><div class="operator-card"><h3>Automated commission split</h3><p>Preview how a $100 order is distributed between creator, platform, and referral.</p><div class="split-controls"><label>Creator %<input id="creator-split" type="number" value="85" min="0" max="100"></label><label>Platform %<input id="platform-split" type="number" value="12" min="0" max="100"></label></div><div class="operator-line" style="margin-top:9px"><span>Referral / reserve</span><strong id="split-result">3% · $3.00</strong></div><button class="admin-link" style="margin-top:9px" data-action="split">Calculate payout split →</button></div></div></div>
-      </div>
-    </section>
+  <main class="page" id="landing">
+    <section class="auth"><div><div class="brand"><b>↗</b>taskflow</div><h1>Make your next move count.</h1><p class="muted">Earn from verified tasks, sell your skills, and discover useful products in one accountable marketplace.</p></div><div class="card auth-card"><div class="tabs"><button class="active" data-tab="signin">Sign in</button><button data-tab="register">Create account</button><button data-tab="admin">Admin</button></div><form id="signin"><div class="field"><label for="signin-email">Email address</label><input id="signin-email" type="email" required autocomplete="email"></div><button class="button primary" type="submit">Send verification code</button><button class="button secondary" type="button" id="google" style="margin-top:10px">Continue with Google</button><div id="signin-code-wrap" class="hidden"><div class="field"><label for="signin-code">Verification code</label><input id="signin-code" inputmode="numeric" maxlength="6"></div><button class="button primary" type="button" id="signin-verify">Verify and continue</button></div></form><form id="register" class="hidden"><div class="field"><label for="register-name">Your name</label><input id="register-name" required maxlength="100"></div><div class="field"><label for="register-email">Email address</label><input id="register-email" type="email" required autocomplete="email"></div><div class="field"><label for="register-role">Account type</label><select id="register-role"><option value="worker">Worker / seller</option><option value="client">Client / buyer</option></select></div><button class="button primary" type="submit">Create account</button><div id="register-code-wrap" class="hidden"><div class="field"><label for="register-code">Verification code</label><input id="register-code" inputmode="numeric" maxlength="6"></div><button class="button primary" type="button" id="register-verify">Verify and continue</button></div></form><form id="admin" class="hidden"><div class="field"><label for="admin-user">Username</label><input id="admin-user" required></div><div class="field"><label for="admin-password">Password</label><input id="admin-password" type="password" required></div><button class="button primary" type="submit">Open admin console</button></form></div></section>
+    <section class="preview"><div class="brand"><b style="color:var(--dark);background:var(--gold)">↗</b>taskflow</div><h2>Small tasks. Serious momentum.</h2><p class="muted">A transparent economy for people who make, sell, watch, and build. Every number below comes from the live platform.</p><div class="metrics"><div class="metric"><span>ACTIVE USERS</span><b id="public-users">0</b><span>registered accounts</span></div><div class="metric"><span>ACTIVE TASKS</span><b id="public-tasks">0</b><span>open opportunities</span></div><div class="metric"><span>ACTIVE LISTINGS</span><b id="public-listings">0</b><span>marketplace offers</span></div></div></section>
   </main>
-  <div class="toast" id="toast" role="status"></div>
-  <div class="modal" id="admin-login" aria-hidden="true">
-    <div class="admin-modal">
-      <div class="admin-head"><div><div class="eyebrow" style="color:var(--gold)">Restricted access</div><h2>Super-admin console</h2><p>Monitor users, transactions, task completion, listings, ratings, and disputes from one control room.</p></div><button class="close-modal" data-close-admin aria-label="Close">×</button></div>
-      <div class="field"><label for="admin-user">Username</label><input id="admin-user" autocomplete="username" placeholder="Super-admin username"></div>
-      <div class="field"><label for="admin-password">Password</label><input id="admin-password" type="password" autocomplete="current-password" placeholder="Super-admin password"></div>
-      <button class="button primary" data-admin-login>Unlock admin dashboard →</button>
-      <p class="fine">Local demo gate only. Production credentials must be stored and verified server-side with MFA, rate limiting, and audit logs.</p>
-    </div>
-  </div>
-  <div class="modal" id="admin-dashboard" aria-hidden="true">
-    <div class="admin-panel">
-      <div class="admin-head"><div><div class="eyebrow">Husnain / full control</div><h2 style="margin:8px 0 3px;font-size:28px;letter-spacing:-.06em">Platform command center</h2><p>Live operational view across the TaskFlow economy. Last sync: just now.</p></div><button class="close-modal" data-close-admin aria-label="Close" style="color:var(--muted)">×</button></div>
-      <div class="admin-grid"><div class="admin-stat"><span>ACTIVE USERS</span><b>18,642</b></div><div class="admin-stat"><span>ESCROW VOLUME</span><b>$284k</b></div><div class="admin-stat"><span>OPEN DISPUTES</span><b>23</b></div><div class="admin-stat"><span>FLAGGED LISTINGS</span><b>07</b></div></div>
-      <div class="admin-sections"><div class="admin-table"><h3>Needs attention</h3><div class="admin-row"><strong>Video campaign / Noma Home</strong><span>Task evidence</span><span class="status-pill">Review</span><button data-admin-action="review">Review</button></div><div class="admin-row"><strong>Order #TF-1842 / linen tote</strong><span>Buyer dispute</span><span class="status-pill">Open</span><button data-admin-action="resolve">Resolve</button></div><div class="admin-row"><strong>North Studio / landing page</strong><span>Rating anomaly</span><span class="status-pill">Flagged</span><button data-admin-action="inspect">Inspect</button></div><div class="admin-row"><strong>Seller account / @rayanx</strong><span>Identity check</span><span class="status-pill">Pending</span><button data-admin-action="verify">Verify</button></div></div><div class="admin-actions"><h3>Control actions</h3><button class="button secondary" data-admin-action="broadcast">Broadcast platform notice</button><button class="button secondary" data-admin-action="pause">Pause flagged listings</button><button class="button secondary" data-admin-action="export">Export audit report</button><button class="button primary" data-admin-action="payouts">Review payout queue</button></div></div>
-    </div>
-  </div>
-  <div class="modal" id="twofa-modal" aria-hidden="true">
-    <div class="admin-modal"><div class="admin-head"><div><div class="eyebrow" style="color:var(--gold)">Account security</div><h2>Two-factor authentication</h2><p>Use a phone code plus an authenticator challenge for sensitive actions such as payouts, profile changes, and admin access.</p></div><button class="close-modal" data-close-twofa aria-label="Close">×</button></div><div class="field"><label for="twofa-code">Authenticator code</label><input id="twofa-code" inputmode="numeric" maxlength="6" placeholder="000 000"></div><button class="button primary" data-enable-twofa>Enable protected sign-in →</button><p class="fine">Production implementation should use a server-issued challenge, recovery codes, device binding, and rate limits.</p></div>
-  </div>
+  <section class="app" id="app"><div class="app-head"><div><div class="brand"><b>↗</b>taskflow</div><p class="muted" id="welcome"></p></div><button class="button secondary" id="logout" style="width:auto">Sign out</button></div><div class="grid"><div class="panel"><h2>Tasks</h2><div id="tasks" class="list"></div><form id="task-form" class="hidden"><div class="field"><label>Title</label><input id="task-title" required></div><div class="field"><label>Video URL</label><input id="task-url" type="url" required></div><div class="row"><input id="task-seconds" type="number" min="5" value="60" required><input id="task-payout" type="number" min="1" value="100" required></div><button class="button primary" style="margin-top:8px">Post task</button></form></div><div class="panel"><h2>Marketplace</h2><div id="listings" class="list"></div><form id="listing-form" class="hidden"><div class="field"><label>Listing title</label><input id="listing-title" required></div><div class="field"><label>Type</label><select id="listing-type"><option>service</option><option>physical</option><option>digital</option><option>software</option></select></div><div class="field"><label>Price in cents</label><input id="listing-price" type="number" min="1" required></div><button class="button primary">Publish listing</button></form></div><div class="panel"><h2>Account</h2><p id="balance" class="muted">Sign in to load your wallet.</p><button class="button secondary" id="add-task">Post a task</button><button class="button secondary" id="add-listing" style="margin-top:8px">List an offer</button><div id="admin-data" class="hidden"><h3>Admin overview</h3><pre id="admin-json"></pre></div></div></div></section><div id="toast" class="toast"></div>
   <script>
-    const toast = document.getElementById('toast');
-    let toastTimer;
-    const translations = {
-      en: { eyebrow: 'One account. Every opportunity.', heroTitle: 'Make your next move count.', heroCopy: 'Earn from verified video tasks, sell what you know, and discover products worth bringing home. One calm workspace for the whole marketplace.', signIn: 'Sign in', createAccount: 'Create account', recover: 'Recover', google: '◉  Continue with Google' },
-      ur: { eyebrow: 'ایک اکاؤنٹ۔ ہر موقع۔', heroTitle: 'اپنا اگلا قدم کامیاب بنائیں۔', heroCopy: 'تصدیق شدہ ویڈیو ٹاسکس سے کمائیں، اپنی مہارت فروخت کریں، اور قابل اعتماد مصنوعات دریافت کریں۔', signIn: 'سائن اِن', createAccount: 'اکاؤنٹ بنائیں', recover: 'بحالی', google: '◉  گوگل کے ساتھ جاری رکھیں' },
-      ar: { eyebrow: 'حساب واحد. كل فرصة.', heroTitle: 'اجعل خطوتك القادمة مهمة.', heroCopy: 'اربح من مهام الفيديو الموثقة، وبع خبرتك، واكتشف منتجات تستحق الاقتناء في مساحة واحدة.', signIn: 'تسجيل الدخول', createAccount: 'إنشاء حساب', recover: 'استعادة', google: '◉  المتابعة عبر Google' },
-      es: { eyebrow: 'Una cuenta. Cada oportunidad.', heroTitle: 'Haz que tu próximo paso cuente.', heroCopy: 'Gana con tareas de vídeo verificadas, vende lo que sabes y descubre productos que merecen la pena.', signIn: 'Iniciar sesión', createAccount: 'Crear cuenta', recover: 'Recuperar', google: '◉  Continuar con Google' }
-    };
-    function notify(message) { toast.textContent = message; toast.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('show'), 3200); }
-    function showPanel(name) { document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab.dataset.panel === name)); document.querySelectorAll('.form-panel').forEach(panel => panel.classList.toggle('active', panel.id === name)); }
-    function changeLanguage(language) { const copy = translations[language]; document.documentElement.lang = language; document.querySelectorAll('[data-i18n]').forEach(element => { if (copy[element.dataset.i18n]) element.textContent = copy[element.dataset.i18n]; }); document.body.dir = language === 'ur' || language === 'ar' ? 'rtl' : 'ltr'; notify(language === 'ur' ? 'زبان اردو منتخب ہے۔' : language === 'ar' ? 'تم اختيار العربية.' : language === 'es' ? 'Idioma español seleccionado.' : 'English language selected.'); }
-    document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => showPanel(tab.dataset.panel)));
-    document.querySelectorAll('[data-switch]').forEach(button => button.addEventListener('click', () => showPanel(button.dataset.switch)));
-    document.querySelectorAll('.role').forEach(button => button.addEventListener('click', () => { document.querySelectorAll('.role').forEach(role => role.classList.remove('selected')); button.classList.add('selected'); }));
-    document.getElementById('language').addEventListener('change', event => changeLanguage(event.target.value));
-    document.querySelectorAll('.star').forEach(star => star.addEventListener('click', () => { const rating = Number(star.dataset.rating); document.querySelectorAll('.star').forEach(item => item.classList.toggle('active', Number(item.dataset.rating) <= rating)); notify(`Thanks for leaving a ${rating}-star review. Your verified feedback helps the community.`); }));
-    async function requestPhoneCode() { if (location.protocol === 'file:') { notify('Demo mode: a secure phone code would be sent now.'); return; } const phone = document.getElementById('login-phone').value.trim(); try { const response = await fetch('/api/auth/phone/request', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ phone }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Unable to request code'); notify(data.developmentCode ? `Development OTP: ${data.developmentCode}` : 'A secure phone code was sent.'); } catch (error) { notify(error.message); } }
-    document.querySelectorAll('[data-action]').forEach(button => button.addEventListener('click', () => {
-      const action = button.dataset.action;
-      if (action === 'google') notify('Google sign-in is ready for OAuth configuration.');
-      if (action === 'login') requestPhoneCode();
-      if (action === 'register') notify('Demo mode: your verified account setup is ready to continue.');
-      if (action === 'recover') notify('Demo mode: recovery code request created.');
-      if (action === 'wallet') notify('Wallet view: earnings, payouts, purchases, and audit history.');
-      if (action === 'dispute') notify('Admin dispute center: evidence review, mediation, and final resolution are tracked here.');
-      if (action === 'notifications') notify('Notification center: 2 wallet alerts and 1 new project message.');
-      if (action === 'chat') { const message = document.getElementById('chat-message').value.trim(); const file = document.getElementById('chat-file').files[0]; notify(message || file ? `Message queued${file ? ` with ${file.name}` : ''} for the protected project thread.` : 'Write a message or attach a file first.'); }
-      if (action === 'split') calculateSplit();
-      if (action === 'twofa') openTwofa();
-    }));
-    function calculateSplit() { const creator = Number(document.getElementById('creator-split').value) || 0; const platform = Number(document.getElementById('platform-split').value) || 0; const reserve = 100 - creator - platform; document.getElementById('split-result').textContent = reserve >= 0 ? `${reserve}% · $${reserve.toFixed(2)}` : 'Invalid split'; notify(reserve >= 0 ? `Commission split calculated: creator $${creator.toFixed(2)}, platform $${platform.toFixed(2)}, reserve $${reserve.toFixed(2)}.` : 'Commission percentages cannot exceed 100%.'); }
-    document.getElementById('creator-split').addEventListener('input', calculateSplit);
-    document.getElementById('platform-split').addEventListener('input', calculateSplit);
-    const adminLogin = document.getElementById('admin-login');
-    const adminDashboard = document.getElementById('admin-dashboard');
-    function openAdminLogin() { adminLogin.classList.add('open'); adminLogin.setAttribute('aria-hidden', 'false'); document.getElementById('admin-user').focus(); }
-    function closeAdmin() { adminLogin.classList.remove('open'); adminDashboard.classList.remove('open'); adminLogin.setAttribute('aria-hidden', 'true'); adminDashboard.setAttribute('aria-hidden', 'true'); }
-    document.querySelector('[data-open-admin]').addEventListener('click', openAdminLogin);
-    document.querySelectorAll('[data-close-admin]').forEach(button => button.addEventListener('click', closeAdmin));
-    document.querySelector('[data-admin-login]').addEventListener('click', async () => {
-      const username = document.getElementById('admin-user').value;
-      const password = document.getElementById('admin-password').value;
-      if (location.protocol === 'file:') { if (username === 'Husnain' && password === 'HusnainAdmin1112') { adminLogin.classList.remove('open'); adminDashboard.classList.add('open'); adminDashboard.setAttribute('aria-hidden', 'false'); notify('Super-admin dashboard unlocked in local demo mode.'); } else notify('Access denied. Check the super-admin credentials.'); return; }
-      try { const response = await fetch('/api/admin/login', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body:JSON.stringify({ username, password }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Access denied'); adminLogin.classList.remove('open'); adminDashboard.classList.add('open'); adminDashboard.setAttribute('aria-hidden', 'false'); notify(`Welcome, ${data.user.name}.`); } catch (error) { notify(error.message); }
-    });
-    document.querySelectorAll('[data-admin-action]').forEach(button => button.addEventListener('click', () => { const actions = { review:'Task evidence review opened.', resolve:'Dispute marked for administrative resolution.', inspect:'Rating and review audit opened.', verify:'Identity verification queue opened.', broadcast:'Platform notice composer opened.', pause:'Flagged listings paused pending review.', export:'Audit report export prepared.', payouts:'Payout queue opened for review.' }; notify(actions[button.dataset.adminAction]); }));
-    const twofaModal = document.getElementById('twofa-modal');
-    function openTwofa() { twofaModal.classList.add('open'); twofaModal.setAttribute('aria-hidden', 'false'); document.getElementById('twofa-code').focus(); }
-    function closeTwofa() { twofaModal.classList.remove('open'); twofaModal.setAttribute('aria-hidden', 'true'); }
-    document.querySelector('[data-close-twofa]').addEventListener('click', closeTwofa);
-    document.querySelector('[data-enable-twofa]').addEventListener('click', () => { const code = document.getElementById('twofa-code').value.trim(); if (/^\d{6}$/.test(code)) { closeTwofa(); notify('Two-factor protection enabled for this demo profile.'); } else notify('Enter the six-digit authenticator code to continue.'); });
+    const $=id=>document.getElementById(id);const toast=$('toast');let timer;
+    function notify(message){toast.textContent=message;toast.classList.add('show');clearTimeout(timer);timer=setTimeout(()=>toast.classList.remove('show'),3500)}
+    async function api(path,options={}){const response=await fetch(path,{credentials:'include',headers:{'Content-Type':'application/json',...(options.headers||{})},...options});const data=response.status===204?null:await response.json();if(!response.ok)throw new Error(data?.error||'Request failed');return data}
+    document.querySelectorAll('[data-tab]').forEach(button=>button.addEventListener('click',()=>{document.querySelectorAll('[data-tab]').forEach(item=>item.classList.toggle('active',item===button));['signin','register','admin'].forEach(id=>$(id).classList.toggle('hidden',id!==button.dataset.tab))}));
+    async function requestCode(email,name,role,wrap){await api('/api/auth/email/request',{method:'POST',body:JSON.stringify({email})});wrap.classList.remove('hidden');notify('Verification code sent to your email.');window.authRequest={email,name,role}}
+    $('signin').addEventListener('submit',async event=>{event.preventDefault();try{await requestCode($('signin-email').value.trim(),undefined,'worker',$('signin-code-wrap'))}catch(error){notify(error.message)}});
+    $('register').addEventListener('submit',async event=>{event.preventDefault();try{await requestCode($('register-email').value.trim(),$('register-name').value.trim(),$('register-role').value,$('register-code-wrap'))}catch(error){notify(error.message)}});
+    async function verify(formId,codeId){try{const request=window.authRequest;const data=await api('/api/auth/email/verify',{method:'POST',body:JSON.stringify({...request,code:$(codeId).value.trim()})});openApp(data.user)}catch(error){notify(error.message)}}
+    $('signin-verify').addEventListener('click',()=>verify('signin','signin-code'));$('register-verify').addEventListener('click',()=>verify('register','register-code'));$('google').addEventListener('click',()=>{window.location='/api/auth/google'});
+    $('admin').addEventListener('submit',async event=>{event.preventDefault();try{const data=await api('/api/admin/login',{method:'POST',body:JSON.stringify({username:$('admin-user').value,password:$('admin-password').value})});openApp(data.user);const overview=await api('/api/admin/overview');$('admin-data').classList.remove('hidden');$('admin-json').textContent=JSON.stringify(overview.stats,null,2)}catch(error){notify(error.message)}});
+    async function loadPublic(){try{const data=await api('/api/summary');$('public-users').textContent=data.users.toLocaleString();$('public-tasks').textContent=data.activeTasks.toLocaleString();$('public-listings').textContent=data.activeListings.toLocaleString()}catch(error){notify(error.message)}}
+    async function openApp(user){$('landing').style.display='none';$('app').style.display='block';$('welcome').textContent=`Signed in as ${user.name||user.email}`;try{const [tasks,listings,wallet]=await Promise.all([api('/api/tasks'),api('/api/listings'),api('/api/wallet').catch(()=>({balanceCents:0}))]);$('tasks').innerHTML=tasks.tasks.map(task=>`<div class="item"><strong>${escapeHtml(task.title)}</strong><small>${task.seconds}s · ${(task.payoutCents/100).toFixed(2)}</small></div>`).join('')||'<p class="muted">No active tasks yet.</p>';$('listings').innerHTML=listings.listings.map(item=>`<div class="item"><strong>${escapeHtml(item.title)}</strong><small>${item.type} · ${(item.priceCents/100).toFixed(2)}</small></div>`).join('')||'<p class="muted">No active listings yet.</p>';$('balance').textContent=`Wallet balance: $${(wallet.balanceCents/100).toFixed(2)}`}catch(error){notify(error.message)}}
+    function escapeHtml(value){return String(value).replace(/[&<>'"]/g,character=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[character]))}
+    $('logout').addEventListener('click',async()=>{await api('/api/auth/logout',{method:'POST'});location.reload()});$('add-task').addEventListener('click',()=>$('task-form').classList.toggle('hidden'));$('add-listing').addEventListener('click',()=>$('listing-form').classList.toggle('hidden'));
+    $('task-form').addEventListener('submit',async event=>{event.preventDefault();try{await api('/api/tasks',{method:'POST',body:JSON.stringify({title:$('task-title').value,videoUrl:$('task-url').value,seconds:Number($('task-seconds').value),payoutCents:Number($('task-payout').value)})});notify('Task published.');location.reload()}catch(error){notify(error.message)}});$('listing-form').addEventListener('submit',async event=>{event.preventDefault();try{await api('/api/listings',{method:'POST',body:JSON.stringify({title:$('listing-title').value,type:$('listing-type').value,priceCents:Number($('listing-price').value)})});notify('Listing published.');location.reload()}catch(error){notify(error.message)}});loadPublic();
   </script>
 </body>
 </html>
