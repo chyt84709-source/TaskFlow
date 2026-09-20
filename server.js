@@ -15,7 +15,7 @@ import { WebSocketServer } from 'ws';
 import { z } from 'zod';
 import pg from 'pg';
 import { OAuth2Client } from 'google-auth-library';
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 
 const { Pool } = pg;
 
@@ -26,15 +26,16 @@ fs.mkdirSync(uploadDir, { recursive: true });
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required.');
 const db = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : undefined });
 const googleClient = process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET ? new OAuth2Client(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET, process.env.GOOGLE_CALLBACK_URL) : null;
-const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
-const emailFrom = process.env.EMAIL_FROM;
+const smtpUser = process.env.SMTP_USER;
+const smtpPassword = process.env.SMTP_PASSWORD;
+const smtp = smtpUser && smtpPassword ? nodemailer.createTransport({ host: process.env.SMTP_HOST || 'smtp.gmail.com', port: Number(process.env.SMTP_PORT || 587), secure: Number(process.env.SMTP_PORT || 587) === 465, auth: { user: smtpUser, pass: smtpPassword } }) : null;
 const app = express();
 const server = http.createServer(app);
 const sockets = new Map();
 const adminUsername = process.env.SUPER_ADMIN_USERNAME;
 const adminPassword = process.env.SUPER_ADMIN_PASSWORD;
 if (!process.env.SESSION_SECRET || !adminUsername || !adminPassword) throw new Error('SESSION_SECRET, SUPER_ADMIN_USERNAME, and SUPER_ADMIN_PASSWORD are required.');
-if (process.env.NODE_ENV === 'production' && (!resend || !emailFrom)) throw new Error('RESEND_API_KEY and EMAIL_FROM are required in production.');
+if (process.env.NODE_ENV === 'production' && !smtp) throw new Error('SMTP_USER and SMTP_PASSWORD are required in production.');
 
 function hash(value) { return crypto.createHash('sha256').update(`${value}:${process.env.SESSION_SECRET || 'development-only'}`).digest('hex'); }
 function now() { return new Date().toISOString(); }
@@ -50,8 +51,8 @@ async function initializeSchema() {
 }
 
 function sendEmail({ to, subject, html }) {
-  if (!resend || !emailFrom || !to) return Promise.resolve();
-  return resend.emails.send({ from: emailFrom, to, subject, html });
+  if (!smtp || !to) return Promise.resolve();
+  return smtp.sendMail({ from: `TaskFlow <${smtpUser}>`, to, subject, html });
 }
 
 app.set('trust proxy', 1);
@@ -72,7 +73,7 @@ const reqOtp = new Map();
 app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'taskflow', time: now() }));
 app.get('/api/summary', async (_req, res, next) => { try { const [users, tasks, listings, paid] = await Promise.all([db.query('SELECT COUNT(*)::int AS count FROM users'), db.query("SELECT COUNT(*)::int AS count FROM tasks WHERE status='active'"), db.query("SELECT COUNT(*)::int AS count FROM listings WHERE status='active'"), db.query("SELECT COALESCE(SUM(amount_cents),0)::int AS total FROM transactions WHERE amount_cents > 0")]); res.json({ users: users.rows[0].count, activeTasks: tasks.rows[0].count, activeListings: listings.rows[0].count, paidCents: paid.rows[0].total }); } catch (error) { next(error); } });
 app.get('/api/me', (req, res) => res.json({ user: req.session.user || null }));
-app.post('/api/auth/email/request', async (req, res, next) => { try { const parsed = z.object({ email: z.string().email().max(320) }).safeParse(req.body); if (!parsed.success) return res.status(400).json({ error: 'Valid email address required' }); if (!resend || !emailFrom) return res.status(503).json({ error: 'Email verification is not configured' }); const code = issueOtp(parsed.data.email.toLowerCase()); await sendEmail({ to: parsed.data.email, subject: 'Your TaskFlow verification code', html: `<p>Your TaskFlow verification code is <strong>${code}</strong>.</p><p>This code expires in five minutes.</p>` }); res.json({ ok: true, expiresIn: 300 }); } catch (error) { next(error); } });
+app.post('/api/auth/email/request', async (req, res, next) => { try { const parsed = z.object({ email: z.string().email().max(320) }).safeParse(req.body); if (!parsed.success) return res.status(400).json({ error: 'Valid email address required' }); if (!smtp) return res.status(503).json({ error: 'Email verification is not configured' }); const code = issueOtp(parsed.data.email.toLowerCase()); await sendEmail({ to: parsed.data.email, subject: 'Your TaskFlow verification code', html: `<p>Your TaskFlow verification code is <strong>${code}</strong>.</p><p>This code expires in five minutes.</p>` }); res.json({ ok: true, expiresIn: 300 }); } catch (error) { next(error); } });
 app.post('/api/auth/email/verify', async (req, res, next) => { try { const parsed = z.object({ email: z.string().email().max(320), code: z.string().regex(/^\d{6}$/), name: z.string().min(1).max(100).optional(), role: z.enum(['worker', 'client']).default('worker') }).safeParse(req.body); if (!parsed.success) return res.status(400).json({ error: 'Invalid verification request' }); const email = parsed.data.email.toLowerCase(); const records = reqOtp.get(email); const digest = hash(parsed.data.code); if (!records?.has(digest) || records.get(digest) < Date.now()) return res.status(401).json({ error: 'Invalid or expired code' }); records.delete(digest); const result = await db.query('SELECT * FROM users WHERE email=$1', [email]); let user = result.rows[0]; if (!user) { user = { id: nanoid(), email, name: parsed.data.name || email.split('@')[0], role: parsed.data.role, trust_score: 0, two_factor: false, created_at: now() }; await db.query('INSERT INTO users (id,email,name,role,trust_score,two_factor,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)', [user.id, user.email, user.name, user.role, 0, false, user.created_at]); } req.session.user = { id: user.id, name: user.name, email: user.email, role: user.role, twoFactor: Boolean(user.two_factor), isAdmin: false }; res.json({ user: req.session.user }); } catch (error) { next(error); } });
 app.post('/api/auth/phone/request', (_req, res) => res.status(503).json({ error: 'Phone verification is not configured. Use email verification or configure a phone provider.' }));
 app.post('/api/auth/phone/verify', async (req, res, next) => { try { const parsed = z.object({ phone: z.string().min(7).max(20), code: z.string().regex(/^\d{6}$/), name: z.string().max(100).optional(), role: z.enum(['worker', 'client', 'admin']).default('worker') }).safeParse(req.body); if (!parsed.success) return res.status(400).json({ error: 'Invalid verification request' }); const records = reqOtp.get(parsed.data.phone); const digest = hash(parsed.data.code); if (!records?.has(digest) || records.get(digest) < Date.now()) return res.status(401).json({ error: 'Invalid or expired code' }); records.delete(digest); const result = await db.query('SELECT * FROM users WHERE phone=$1', [parsed.data.phone]); let user = result.rows[0]; if (!user) { user = { id: nanoid(), phone: parsed.data.phone, name: parsed.data.name || 'TaskFlow member', role: parsed.data.role, trust_score: 0, two_factor: false, created_at: now() }; await db.query('INSERT INTO users (id,phone,name,role,trust_score,two_factor,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)', [user.id, user.phone, user.name, user.role, 0, false, user.created_at]); } req.session.user = { id: user.id, name: user.name, role: user.role, twoFactor: Boolean(user.two_factor), isAdmin: false }; res.json({ user: req.session.user }); } catch (error) { next(error); } });

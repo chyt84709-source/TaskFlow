@@ -6,7 +6,7 @@ Railway is the recommended first host for this project because it provides a man
 
 Copy `.env.example` to `.env` for local development and replace every placeholder. Set `DATABASE_URL` to the PostgreSQL connection string supplied by your host. In production, put all values in the host's secret manager; do not commit `.env` or paste secrets into source control.
 
-Google Cloud Console must include the exact callback URL from `GOOGLE_CALLBACK_URL` as an authorized redirect URI. Resend requires a verified sending domain, and `EMAIL_FROM` must use that domain. Rotate any credentials that were previously shared in chat before adding the replacements.
+Google Cloud Console must include the exact callback URL from `GOOGLE_CALLBACK_URL` as an authorized redirect URI. Gmail SMTP requires a Google app password in `SMTP_PASSWORD`; do not use the normal Gmail account password. Set `SMTP_USER` to the Gmail address that should appear as `TaskFlow <SMTP_USER>` in outgoing mail. Rotate any credentials that were previously shared in chat before adding the replacements.
 
 ## 2. Install and run
 
@@ -23,7 +23,7 @@ Open `http://localhost:3000`. The headless Node server serves `login.html` and t
 - Use a long random `SESSION_SECRET`; set secure cookies and restrict `CORS_ORIGIN` to the real origin.
 - Use the managed PostgreSQL database configured by `DATABASE_URL`; the application initializes its schema at startup.
 - Configure Google OAuth before enabling login. Never ship development OTP responses.
-- Configure `RESEND_API_KEY` and `EMAIL_FROM` to send transactional welcome email after Google sign-in.
+- Configure `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`, `SMTP_USER`, and a Gmail app password in `SMTP_PASSWORD` for transactional email.
 - Add a managed object store for uploads and malware scanning before making file sharing public.
 - Use a broker-backed WebSocket layer for multiple instances.
 - Add payment-provider webhooks and idempotency keys before moving real funds.
@@ -41,4 +41,4 @@ Open `http://localhost:3000`. The headless Node server serves `login.html` and t
 - `POST /api/admin/login`, `GET /api/admin/overview`
 - `POST /api/admin/disputes/:id/resolve`, `POST /api/admin/listings/:id/pause`
 
-The browser page uses the same backend endpoints for Google OAuth, admin authentication, email authentication, PostgreSQL persistence, uploads, and Resend email.
+The browser page uses the same backend endpoints for Google OAuth, admin authentication, email authentication, PostgreSQL persistence, uploads, and Gmail SMTP email.

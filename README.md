@@ -17,7 +17,7 @@ A headless Node.js platform for freelancing, micro-tasking, and e-commerce.
 - Wallet with balance, activity history, and payout request state.
 - Profile with identity verification, two-factor status, and seller reputation.
 
-The `login.html` file remains a visual preview, while `server.js` provides the deployment-shaped API, session boundary, PostgreSQL persistence, Google OAuth, Resend email, uploads, WebSocket chat, task verification, wallet ledger, disputes, notifications, and admin controls. See [DEPLOYMENT.md](DEPLOYMENT.md) for setup and production requirements.
+The `login.html` file remains the browser client, while `server.js` provides the deployment-shaped API, session boundary, PostgreSQL persistence, Google OAuth, Gmail SMTP email, uploads, WebSocket chat, task verification, wallet ledger, disputes, notifications, and admin controls. See [DEPLOYMENT.md](DEPLOYMENT.md) for setup and production requirements.
 
 ## Notes
 
