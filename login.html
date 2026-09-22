@@ -364,6 +364,12 @@
       background: linear-gradient(135deg, #f4faf6, #edf5f0);
       border: 1px solid var(--line);
     }
+    .avatar-shell {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
     .avatar-badge {
       width: 62px;
       height: 62px;
@@ -374,6 +380,38 @@
       color: white;
       font-weight: 800;
       font-size: 1.1rem;
+      overflow: hidden;
+      background-size: cover;
+      background-position: center;
+    }
+    .avatar-edit {
+      position: absolute;
+      right: -6px;
+      bottom: -4px;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #123b30;
+      color: white;
+      display: grid;
+      place-items: center;
+      border: 2px solid #fff;
+      font-weight: 800;
+      cursor: pointer;
+      line-height: 1;
+    }
+    .premium-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #f5c76b, #f0b342);
+      color: #2f2608;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
     }
     .compact-grid {
       display: grid;
@@ -603,10 +641,15 @@
               <span class="tag">Premium</span>
             </div>
             <div class="profile-card">
-              <div class="avatar-badge">TF</div>
+              <div class="avatar-shell">
+                <div class="avatar-badge" id="profile-avatar-pip">TF</div>
+                <label class="avatar-edit" for="profile-avatar-upload" title="Edit profile photo">✎</label>
+                <input id="profile-avatar-upload" type="file" accept="image/*" class="hidden">
+              </div>
               <div>
                 <strong id="profile-name">TaskFlow member</strong>
                 <p id="profile-email" class="muted" style="margin: 6px 0 0;">member@taskflow.com</p>
+                <div id="profile-tier-pill" class="premium-badge" style="margin-top: 10px;">Standard</div>
               </div>
             </div>
             <div class="compact-grid">
@@ -920,6 +963,13 @@
                 <input id="profile-avatar" type="url" placeholder="https://example.com/avatar.jpg">
               </div>
               <div class="field">
+                <label>Account tier</label>
+                <select id="profile-tier">
+                  <option value="standard">Standard</option>
+                  <option value="premium">Premium</option>
+                </select>
+              </div>
+              <div class="field">
                 <label>Bio</label>
                 <textarea id="profile-bio" rows="4" placeholder="Tell buyers and clients about your expertise, experience, and service strengths."></textarea>
               </div>
@@ -933,10 +983,14 @@
               <span class="tag">Ready</span>
             </div>
             <div class="profile-card">
-              <div class="avatar-badge" id="profile-avatar-pip">TF</div>
+              <div class="avatar-shell">
+                <div class="avatar-badge" id="profile-avatar-pip-preview">TF</div>
+                <div class="avatar-edit" aria-hidden="true">✎</div>
+              </div>
               <div>
                 <strong id="display-name">TaskFlow member</strong>
                 <p id="display-email" class="muted" style="margin: 6px 0 0;">No email available</p>
+                <div id="display-tier" class="premium-badge" style="margin-top: 10px;">Standard</div>
               </div>
             </div>
             <div class="compact-grid">
@@ -978,21 +1032,30 @@
       const userEmail = user?.email || 'member@taskflow.com';
       const avatarUrl = profileData?.avatar_url || profileData?.avatarUrl || user?.avatar_url || user?.avatarUrl || '';
       const bio = profileData?.bio || user?.bio || '';
+      const subscriptionTier = user?.subscriptionTier || profileData?.subscription_tier || 'standard';
+      const tierLabel = subscriptionTier === 'premium' ? 'Premium' : 'Standard';
 
       $('welcome').textContent = userName;
       $('role-badge').textContent = (user?.role || 'worker').toUpperCase();
       $('profile-name').textContent = userName;
       $('profile-email').textContent = userEmail;
       $('profile-name-field').value = userName;
+      $('profile-tier').value = subscriptionTier;
       $('display-name').textContent = userName;
       $('display-email').textContent = userEmail;
+      $('display-tier').textContent = tierLabel;
+      $('profile-tier-pill').textContent = tierLabel;
       $('profile-bio').value = bio;
       $('profile-avatar').value = avatarUrl;
-      $('profile-avatar-pip').textContent = initialsFromName(userName);
-      $('profile-avatar-pip').style.backgroundImage = avatarUrl ? `url("${avatarUrl}")` : 'linear-gradient(135deg, #123b30 0%, #2a5a48 100%)';
-      $('profile-avatar-pip').style.backgroundSize = 'cover';
-      $('profile-avatar-pip').style.backgroundPosition = 'center';
-      $('profile-avatar-pip').style.color = avatarUrl ? 'transparent' : 'white';
+      ['profile-avatar-pip', 'profile-avatar-pip-preview'].forEach((id) => {
+        const element = $(id);
+        if (!element) return;
+        element.textContent = initialsFromName(userName);
+        element.style.backgroundImage = avatarUrl ? `url("${avatarUrl}")` : 'linear-gradient(135deg, #123b30 0%, #2a5a48 100%)';
+        element.style.backgroundSize = 'cover';
+        element.style.backgroundPosition = 'center';
+        element.style.color = avatarUrl ? 'transparent' : 'white';
+      });
     }
 
     async function hydrateProfile() {
@@ -1047,6 +1110,13 @@
       document.querySelectorAll('.page-section').forEach((section) => {
         section.classList.toggle('active', section.dataset.section === viewName);
       });
+    }
+
+    function syncAdminNavVisibility(user) {
+      const adminNav = document.querySelector('[data-view="admin"]');
+      if (!adminNav) return;
+      const isAdmin = user?.isAdmin || user?.role === 'admin';
+      adminNav.style.display = isAdmin ? 'block' : 'none';
     }
 
     document.querySelectorAll('.tab-btn').forEach((button) => {
@@ -1412,6 +1482,19 @@
           </div>
         `).join('') : '<p class="muted">No wallet activity yet.</p>';
 
+        if (currentUser?.isAdmin || currentUser?.role === 'admin') {
+          const adsApi = await api('/api/ads').catch(() => ({ ads: [] }));
+          const ads = adsApi.ads || [];
+          $('ads-tag').textContent = `${ads.length} active`;
+          $('ads-list').innerHTML = ads.length ? ads.slice(0, 6).map((ad) => `
+            <div class="item-card">
+              <h4>${escapeHtml(ad.title)}</h4>
+              <p>${escapeHtml(ad.placement || 'homepage-top')} • ${escapeHtml(ad.skip_allowed !== false ? 'skip enabled' : 'skip disabled')}</p>
+              <div class="item-row"><span>${Number(ad.duration_days || 7)} days</span><span class="tag">${escapeHtml(ad.status || 'active')}</span></div>
+            </div>
+          `).join('') : '<p class="muted">No ad placements are active.</p>';
+        }
+
         document.querySelectorAll('[data-buy]').forEach((button) => {
           button.addEventListener('click', async () => {
             const { buy, id, seller } = button.dataset;
@@ -1461,6 +1544,7 @@
       $('landing').classList.add('hidden');
       $('app').classList.remove('hidden');
       currentUser = user || currentUser;
+      syncAdminNavVisibility(currentUser);
       await hydrateProfile();
       await loadPublicStats();
       await loadDashboard();
@@ -1472,7 +1556,8 @@
         const payload = {
           name: $('profile-name-field').value.trim(),
           bio: $('profile-bio').value.trim(),
-          avatarUrl: $('profile-avatar').value.trim() || null
+          avatarUrl: $('profile-avatar').value.trim() || null,
+          subscriptionTier: $('profile-tier').value || 'standard'
         };
         await api('/api/profile', {
           method: 'PUT',
@@ -1480,6 +1565,60 @@
         });
         notify('Profile saved successfully.');
         await hydrateProfile();
+        await loadDashboard();
+      } catch (error) {
+        notify(error.message);
+      }
+    });
+
+    $('profile-avatar-upload').addEventListener('change', async (event) => {
+      const [file] = event.target.files || [];
+      if (!file) return;
+      try {
+        const formData = new FormData();
+        formData.append('files', file);
+        const uploadResponse = await fetch('/api/uploads', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${document.cookie.split(';').find((part) => part.trim().startsWith('taskflow.sid=')) || ''}` },
+          body: formData,
+          credentials: 'include'
+        });
+        const uploadData = await uploadResponse.json();
+        if (!uploadResponse.ok) throw new Error(uploadData.error || 'Profile image upload failed');
+        const uploadedUrl = uploadData.files?.[0]?.url || '';
+        if (uploadedUrl) {
+          $('profile-avatar').value = uploadedUrl;
+          await api('/api/profile', {
+            method: 'PUT',
+            body: JSON.stringify({ avatarUrl: uploadedUrl })
+          });
+          notify('Profile picture updated successfully.');
+          await hydrateProfile();
+        }
+      } catch (error) {
+        notify(error.message);
+      }
+    });
+
+    $('ads-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        await api('/api/ads', {
+          method: 'POST',
+          body: JSON.stringify({
+            title: $('ad-title').value.trim(),
+            description: 'Sponsored placement managed from the admin dashboard.',
+            category: 'Marketing',
+            location: $('ad-placement').value,
+            priceCents: 50000,
+            placement: $('ad-placement').value,
+            durationDays: Number($('ad-duration').value),
+            skipAllowed: $('ad-skip').value === 'true',
+            media: [$('ad-url').value.trim()]
+          })
+        });
+        notify('Advertisement slot created.');
+        $('ads-form').reset();
         await loadDashboard();
       } catch (error) {
         notify(error.message);
