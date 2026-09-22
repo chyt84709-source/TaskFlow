@@ -583,6 +583,7 @@
         </div>
         <div class="user-actions">
           <div class="pill" id="wallet-pill">$0.00</div>
+          <button type="button" class="ghost-btn" id="edit-profile-btn">Edit profile</button>
           <button type="button" class="ghost-btn" id="logout">Sign out</button>
         </div>
       </header>
@@ -956,12 +957,60 @@
     const $ = (id) => document.getElementById(id);
     const toast = $('toast');
     let toastTimer = null;
+    let currentUser = null;
 
     function notify(message) {
       toast.textContent = message;
       toast.classList.add('show');
       clearTimeout(toastTimer);
       toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    function initialsFromName(name) {
+      const cleanedName = String(name || '').trim();
+      if (!cleanedName) return 'TF';
+      const parts = cleanedName.split(/\s+/).slice(0, 2);
+      return parts.map((part) => part[0]?.toUpperCase() || '').join('') || 'TF';
+    }
+
+    function applyProfileToUi(user, profileData = null) {
+      const userName = user?.name || user?.email || 'TaskFlow member';
+      const userEmail = user?.email || 'member@taskflow.com';
+      const avatarUrl = profileData?.avatar_url || profileData?.avatarUrl || user?.avatar_url || user?.avatarUrl || '';
+      const bio = profileData?.bio || user?.bio || '';
+
+      $('welcome').textContent = userName;
+      $('role-badge').textContent = (user?.role || 'worker').toUpperCase();
+      $('profile-name').textContent = userName;
+      $('profile-email').textContent = userEmail;
+      $('profile-name-field').value = userName;
+      $('display-name').textContent = userName;
+      $('display-email').textContent = userEmail;
+      $('profile-bio').value = bio;
+      $('profile-avatar').value = avatarUrl;
+      $('profile-avatar-pip').textContent = initialsFromName(userName);
+      $('profile-avatar-pip').style.backgroundImage = avatarUrl ? `url("${avatarUrl}")` : 'linear-gradient(135deg, #123b30 0%, #2a5a48 100%)';
+      $('profile-avatar-pip').style.backgroundSize = 'cover';
+      $('profile-avatar-pip').style.backgroundPosition = 'center';
+      $('profile-avatar-pip').style.color = avatarUrl ? 'transparent' : 'white';
+    }
+
+    async function hydrateProfile() {
+      try {
+        const [meResponse, profileResponse] = await Promise.all([
+          api('/api/me').catch(() => ({ user: null })),
+          api('/api/profile').catch(() => ({ user: null }))
+        ]);
+
+        const profileUser = profileResponse?.user || meResponse?.user || currentUser;
+        if (!profileUser) return;
+
+        currentUser = profileUser;
+        const profileMeta = profileResponse?.user?.profile || null;
+        applyProfileToUi(currentUser, profileMeta);
+      } catch (error) {
+        console.error('Profile hydration failed:', error);
+      }
     }
 
     async function api(path, options = {}) {
@@ -1068,6 +1117,8 @@
     });
 
     $('google').addEventListener('click', () => window.location.href = '/api/auth/google');
+
+    $('edit-profile-btn').addEventListener('click', () => setActiveView('profile'));
 
     $('logout').addEventListener('click', async () => {
       try {
@@ -1409,13 +1460,8 @@
     async function openApp(user) {
       $('landing').classList.add('hidden');
       $('app').classList.remove('hidden');
-      $('welcome').textContent = user?.name || user?.email || 'Signed in';
-      $('role-badge').textContent = (user?.role || 'worker').toUpperCase();
-      $('profile-name').textContent = user?.name || user?.email || 'TaskFlow member';
-      $('profile-email').textContent = user?.email || 'member@taskflow.com';
-      $('profile-name-field').value = user?.name || '';
-      $('display-name').textContent = user?.name || 'TaskFlow member';
-      $('display-email').textContent = user?.email || 'No email available';
+      currentUser = user || currentUser;
+      await hydrateProfile();
       await loadPublicStats();
       await loadDashboard();
     }
@@ -1433,12 +1479,8 @@
           body: JSON.stringify(payload)
         });
         notify('Profile saved successfully.');
-        $('profile-name').textContent = payload.name || 'TaskFlow member';
-        $('display-name').textContent = payload.name || 'TaskFlow member';
-        if (payload.avatarUrl) {
-          $('profile-avatar-pip').textContent = '✓';
-          $('profile-avatar-pip').style.background = 'linear-gradient(135deg, #123b30 0%, #2a5a48 100%)';
-        }
+        await hydrateProfile();
+        await loadDashboard();
       } catch (error) {
         notify(error.message);
       }
