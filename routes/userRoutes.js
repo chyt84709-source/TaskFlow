@@ -38,7 +38,7 @@ router.get('/api/currency', requireUser, async (req, res, next) => {
 
 router.get('/api/referrals', requireUser, async (req, res, next) => {
   try {
-    const result = await db.query('SELECT referral_code AS "referralCode", referral_count AS "referralCount" FROM users WHERE id = $1', [req.session.user.id]);
+    const result = await db.query('SELECT referral_count AS "referralCode", referral_count AS "referralCount" FROM users WHERE id = $1', [req.session.user.id]);
     if (!result.rows[0]) return res.status(404).json({ error: 'User not found' });
     let referralCode = result.rows[0].referralCode;
     if (!referralCode) {
