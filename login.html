@@ -338,6 +338,87 @@
     .mini-btn.primary { background: var(--primary); color: white; }
     .mini-btn.danger { background: #fff1f3; color: var(--danger); }
     .wallet-panel { display: grid; gap: 14px; }
+    .page-section {
+      display: none;
+      gap: 18px;
+    }
+    .page-section.active {
+      display: grid;
+    }
+    .feature-strip {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+    .simple-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+    .profile-card {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 18px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #f4faf6, #edf5f0);
+      border: 1px solid var(--line);
+    }
+    .avatar-badge {
+      width: 62px;
+      height: 62px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, #123b30 0%, #2a5a48 100%);
+      color: white;
+      font-weight: 800;
+      font-size: 1.1rem;
+    }
+    .compact-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .mini-metric {
+      padding: 14px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: #fbfcfb;
+    }
+    .mini-metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 6px;
+    }
+    .mini-metric strong {
+      font-size: 1.2rem;
+      letter-spacing: -0.04em;
+    }
+    .ops-list {
+      display: grid;
+      gap: 12px;
+    }
+    .ops-item {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: #f8faf8;
+      border: 1px solid var(--line);
+      color: var(--primary-dark);
+    }
+    .upload-box {
+      border: 1px dashed #bfd8c8;
+      background: #f6faf7;
+      border-radius: 14px;
+      padding: 12px;
+    }
     .wallet-balance {
       padding: 18px;
       background: linear-gradient(135deg, #123b30 0%, #1e5c4b 100%);
@@ -479,12 +560,13 @@
     <aside class="sidebar">
       <div class="brand"><span class="brand-mark">↗</span>taskflow</div>
       <nav class="nav">
-        <button type="button" class="nav-btn active">Overview</button>
-        <button type="button" class="nav-btn">Tasks</button>
-        <button type="button" class="nav-btn">Marketplace</button>
-        <button type="button" class="nav-btn">Products</button>
-        <button type="button" class="nav-btn">Gigs</button>
-        <button type="button" class="nav-btn">Wallet</button>
+        <button type="button" class="nav-btn active" data-view="overview">Overview</button>
+        <button type="button" class="nav-btn" data-view="tasks">Tasks</button>
+        <button type="button" class="nav-btn" data-view="marketplace">Marketplace</button>
+        <button type="button" class="nav-btn" data-view="products">Products</button>
+        <button type="button" class="nav-btn" data-view="gigs">Gigs</button>
+        <button type="button" class="nav-btn" data-view="wallet">Wallet</button>
+        <button type="button" class="nav-btn" data-view="profile">Profile</button>
       </nav>
       <div class="sidebar-box">
         <div style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; opacity: 0.8; margin-bottom: 8px;">Account</div>
@@ -505,201 +587,364 @@
         </div>
       </header>
 
-      <section class="stats-grid" id="metrics-grid">
-        <div class="metric-card"><small>Wallet</small><strong id="balance-display">$0.00</strong></div>
-        <div class="metric-card"><small>Active Tasks</small><strong id="metric-tasks">0</strong></div>
-        <div class="metric-card"><small>Live Listings</small><strong id="metric-listings">0</strong></div>
-        <div class="metric-card"><small>Products</small><strong id="metric-products">0</strong></div>
+      <section class="page-section active" data-section="overview">
+        <section class="stats-grid" id="metrics-grid">
+          <div class="metric-card"><small>Wallet</small><strong id="balance-display">$0.00</strong></div>
+          <div class="metric-card"><small>Active Tasks</small><strong id="metric-tasks">0</strong></div>
+          <div class="metric-card"><small>Live Listings</small><strong id="metric-listings">0</strong></div>
+          <div class="metric-card"><small>Products</small><strong id="metric-products">0</strong></div>
+        </section>
+
+        <div class="feature-strip">
+          <div class="section-panel">
+            <div class="section-header">
+              <h3>Profile & trust</h3>
+              <span class="tag">Premium</span>
+            </div>
+            <div class="profile-card">
+              <div class="avatar-badge">TF</div>
+              <div>
+                <strong id="profile-name">TaskFlow member</strong>
+                <p id="profile-email" class="muted" style="margin: 6px 0 0;">member@taskflow.com</p>
+              </div>
+            </div>
+            <div class="compact-grid">
+              <div class="mini-metric"><span>Trust</span><strong>98%</strong></div>
+              <div class="mini-metric"><span>Wallet</span><strong id="wallet-mini">$0.00</strong></div>
+              <div class="mini-metric"><span>Fee</span><strong>Low</strong></div>
+              <div class="mini-metric"><span>Escrow</span><strong>Protected</strong></div>
+            </div>
+          </div>
+
+          <div class="section-panel">
+            <div class="section-header">
+              <h3>Operational controls</h3>
+              <span class="tag">Live</span>
+            </div>
+            <div class="ops-list">
+              <div class="ops-item"><span>Wallet security</span><strong>Enabled</strong></div>
+              <div class="ops-item"><span>Marketplace fees</span><strong>1% + 5% commission</strong></div>
+              <div class="ops-item"><span>Escrow verification</span><strong>Manual review</strong></div>
+              <div class="ops-item"><span>Profile media</span><strong>Optional</strong></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-layout">
+          <div class="section-panel">
+            <div class="section-header">
+              <h3>Tasks & opportunities</h3>
+              <span class="tag" id="task-count-tag">0 live</span>
+            </div>
+            <div class="meta-list" id="tasks-list"></div>
+          </div>
+
+          <div class="section-panel">
+            <div class="section-header">
+              <h3>Marketplace</h3>
+              <span class="tag" id="listing-count-tag">0 live</span>
+            </div>
+            <div class="meta-list" id="listings-list"></div>
+          </div>
+
+          <div class="section-panel">
+            <div class="section-header">
+              <h3>Products</h3>
+              <span class="tag" id="product-count-tag">0 live</span>
+            </div>
+            <div class="meta-list" id="products-list"></div>
+          </div>
+
+          <div class="section-panel">
+            <div class="section-header">
+              <h3>Gig marketplace</h3>
+              <span class="tag" id="gig-count-tag">0 live</span>
+            </div>
+            <div class="meta-list" id="gigs-list"></div>
+          </div>
+        </div>
       </section>
 
-      <section class="grid-layout">
-        <div class="section-panel">
-          <div class="section-header">
-            <h3>Post a task</h3>
-            <span class="tag">Verified</span>
-          </div>
-          <form id="task-form">
-            <div class="field">
-              <label>Task title</label>
-              <input id="task-title" required placeholder="Example: Buy 1,000 Instagram followers">
+      <section class="page-section" data-section="tasks">
+        <div class="simple-grid">
+          <div class="section-panel">
+            <div class="section-header">
+              <h3>Publish task</h3>
+              <span class="tag">Simple</span>
             </div>
-            <div class="field">
-              <label>Video or target URL</label>
-              <input id="task-url" type="url" required placeholder="https://example.com">
-            </div>
-            <div class="field">
-              <label>Target views / duration</label>
-              <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                <input id="task-seconds" type="number" min="5" value="60" required>
-                <input id="task-payout" type="number" min="1" value="100" required>
+            <form id="task-form">
+              <div class="field">
+                <label>Title</label>
+                <input id="task-title" required placeholder="Example: Create premium product promo video">
               </div>
-            </div>
-            <button type="submit" class="primary-btn full">Publish task</button>
-          </form>
-        </div>
-
-        <div class="section-panel">
-          <div class="section-header">
-            <h3>Sell a product</h3>
-            <span class="tag">Retail</span>
+              <div class="field">
+                <label>Video URL</label>
+                <input id="task-url" type="url" required placeholder="https://example.com/video.mp4">
+              </div>
+              <div class="field">
+                <label>Amount in dollars</label>
+                <input id="task-amount" type="number" min="1" step="0.01" value="50" required>
+              </div>
+              <div class="field">
+                <label>Description</label>
+                <textarea id="task-description" rows="4" required placeholder="Describe the task, target audience, success criteria, and required proof."></textarea>
+              </div>
+              <button type="submit" class="primary-btn full">Publish task</button>
+            </form>
           </div>
-          <form id="product-form">
-            <div class="field">
-              <label>Product title</label>
-              <input id="product-title" required placeholder="Smart phone or gadget">
-            </div>
-            <div class="field">
-              <label>Category</label>
-              <input id="product-category" required placeholder="Electronics, Home, Auto...">
-            </div>
-            <div class="field">
-              <label>Price (cents)</label>
-              <input id="product-price" type="number" min="1" value="2500" required>
-            </div>
-            <div class="field">
-              <label>Stock</label>
-              <input id="product-stock" type="number" min="1" value="10" required>
-            </div>
-            <div class="field">
-              <label>Media URL</label>
-              <input id="product-media" type="url" placeholder="https://images.example.com/product.jpg">
-            </div>
-            <button type="submit" class="primary-btn full">List product</button>
-          </form>
-        </div>
 
-        <div class="section-panel">
-          <div class="section-header">
-            <h3>Marketplace listing</h3>
-            <span class="tag">Buy & sell</span>
+          <div class="section-panel">
+            <div class="section-header">
+              <h3>Task overview</h3>
+              <span class="tag" id="task-view-tag">0 live</span>
+            </div>
+            <div class="meta-list" id="task-page-list"></div>
           </div>
-          <form id="listing-form">
-            <div class="field">
-              <label>Listing title</label>
-              <input id="listing-title" required placeholder="Used motorcycle, camera, laptop">
-            </div>
-            <div class="field">
-              <label>Type</label>
-              <select id="listing-type">
-                <option value="service">Service</option>
-                <option value="physical">Physical</option>
-                <option value="digital">Digital</option>
-                <option value="software">Software</option>
-              </select>
-            </div>
-            <div class="field">
-              <label>Price (cents)</label>
-              <input id="listing-price" type="number" min="1" value="5000" required>
-            </div>
-            <button type="submit" class="primary-btn full">Publish listing</button>
-          </form>
         </div>
+      </section>
 
-        <div class="section-panel">
-          <div class="section-header">
-            <h3>Offer a gig</h3>
-            <span class="tag">5% fee</span>
+      <section class="page-section" data-section="marketplace">
+        <div class="simple-grid">
+          <div class="section-panel">
+            <div class="section-header">
+              <h3>Marketplace listing</h3>
+              <span class="tag">Buy & sell</span>
+            </div>
+            <form id="listing-form">
+              <div class="field">
+                <label>Listing title</label>
+                <input id="listing-title" required placeholder="Used motorcycle, camera, laptop">
+              </div>
+              <div class="field">
+                <label>Type</label>
+                <select id="listing-type">
+                  <option value="service">Service</option>
+                  <option value="physical">Physical</option>
+                  <option value="digital">Digital</option>
+                  <option value="software">Software</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Price (cents)</label>
+                <input id="listing-price" type="number" min="1" value="5000" required>
+              </div>
+              <button type="submit" class="primary-btn full">Publish listing</button>
+            </form>
           </div>
-          <form id="gig-form">
-            <div class="field">
-              <label>Gig title</label>
-              <input id="gig-title" required placeholder="Landing page design, video edit, branding">
+
+          <div class="section-panel">
+            <div class="section-header">
+              <h3>Live market</h3>
+              <span class="tag" id="listing-view-tag">0 live</span>
             </div>
-            <div class="field">
-              <label>Category</label>
-              <input id="gig-category" required placeholder="Design, Video, Marketing">
-            </div>
-            <div class="field">
-              <label>Price (cents)</label>
-              <input id="gig-price" type="number" min="1" value="25000" required>
-            </div>
-            <div class="field">
-              <label>Delivery days</label>
-              <input id="gig-days" type="number" min="1" value="3" required>
-            </div>
-            <div class="field">
-              <label>Description</label>
-              <textarea id="gig-description" rows="3" required placeholder="Describe your offer, deliverables, and process."></textarea>
-            </div>
-            <button type="submit" class="primary-btn full">Create gig</button>
-          </form>
+            <div class="meta-list" id="listing-page-list"></div>
+          </div>
         </div>
+      </section>
 
-        <div class="section-panel">
-          <div class="section-header">
-            <h3>Wallet</h3>
-            <span class="tag">Secure</span>
+      <section class="page-section" data-section="products">
+        <div class="simple-grid">
+          <div class="section-panel">
+            <div class="section-header">
+              <h3>Sell a product</h3>
+              <span class="tag">Retail</span>
+            </div>
+            <form id="product-form">
+              <div class="field">
+                <label>Product title</label>
+                <input id="product-title" required placeholder="Premium smartwatch or desk accessory">
+              </div>
+              <div class="field">
+                <label>Category</label>
+                <input id="product-category" required placeholder="Electronics, Home, Auto..."><!-- no trailing quotes conflict -->
+              </div>
+              <div class="field">
+                <label>Price in dollars</label>
+                <input id="product-price" type="number" min="1" step="0.01" value="25" required>
+              </div>
+              <div class="field">
+                <label>Stock</label>
+                <input id="product-stock" type="number" min="1" value="10" required>
+              </div>
+              <div class="field">
+                <label>Description</label>
+                <textarea id="product-description" rows="3" required placeholder="Describe the product quality, use case, and included features."></textarea>
+              </div>
+              <div class="field">
+                <label>Product media</label>
+                <div class="upload-box">
+                  <input id="product-media-upload" type="file" accept="image/*,video/*" multiple>
+                </div>
+              </div>
+              <button type="submit" class="primary-btn full">List product</button>
+            </form>
           </div>
-          <div class="wallet-panel">
-            <div class="wallet-balance">
+
+          <div class="section-panel">
+            <div class="section-header">
+              <h3>Featured products</h3>
+              <span class="tag" id="product-view-tag">0 live</span>
+            </div>
+            <div class="meta-list" id="product-page-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="page-section" data-section="gigs">
+        <div class="simple-grid">
+          <div class="section-panel">
+            <div class="section-header">
+              <h3>Create gig</h3>
+              <span class="tag">5% fee</span>
+            </div>
+            <form id="gig-form">
+              <div class="field">
+                <label>Gig title</label>
+                <input id="gig-title" required placeholder="Landing page design, short-form video edit, branding package">
+              </div>
+              <div class="field">
+                <label>Category</label>
+                <select id="gig-category">
+                  <option value="Design">Design</option>
+                  <option value="Video">Video</option>
+                  <option value="Marketing">Marketing</option>
+                  <option value="Development">Development</option>
+                  <option value="Writing">Writing</option>
+                  <option value="Business">Business</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Price in dollars</label>
+                <input id="gig-price" type="number" min="1" step="0.01" value="120" required>
+              </div>
+              <div class="field">
+                <label>Delivery time (days)</label>
+                <input id="gig-days" type="number" min="1" value="3" required>
+              </div>
+              <div class="field">
+                <label>Description</label>
+                <textarea id="gig-description" rows="4" required placeholder="Describe the service, deliverables, process, and revisions included."></textarea>
+              </div>
+              <div class="field">
+                <label>Portfolio media</label>
+                <div class="upload-box">
+                  <input id="gig-portfolio-upload" type="file" accept="image/*,video/*" multiple>
+                </div>
+              </div>
+              <button type="submit" class="primary-btn full">Create gig</button>
+            </form>
+          </div>
+
+          <div class="section-panel">
+            <div class="section-header">
+              <h3>Gig marketplace</h3>
+              <span class="tag" id="gig-view-tag">0 live</span>
+            </div>
+            <div class="meta-list" id="gig-page-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="page-section" data-section="wallet">
+        <div class="simple-grid">
+          <div class="section-panel">
+            <div class="section-header">
+              <h3>Wallet</h3>
+              <span class="tag">Secure</span>
+            </div>
+            <div class="wallet-panel">
+              <div class="wallet-balance">
+                <div>
+                  <small style="opacity:0.75; text-transform: uppercase; letter-spacing: 0.1em;">Balance</small>
+                  <strong id="wallet-balance-main">$0.00</strong>
+                </div>
+                <div style="font-size: 12px; opacity: 0.85;">Protected</div>
+              </div>
+              <form id="deposit-form">
+                <div class="field">
+                  <label>Add funds (amount in cents)</label>
+                  <input id="deposit-amount" type="number" min="100" value="5000" required>
+                </div>
+                <button type="submit" class="secondary-btn full">Add wallet funds</button>
+              </form>
+              <form id="card-form">
+                <div class="field">
+                  <label>Cardholder</label>
+                  <input id="card-holder" required placeholder="Name on card">
+                </div>
+                <div class="field">
+                  <label>Brand</label>
+                  <input id="card-brand" required placeholder="Visa, MasterCard, Amex">
+                </div>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                  <div class="field">
+                    <label>Last 4</label>
+                    <input id="card-last4" required maxlength="4" placeholder="1234">
+                  </div>
+                  <div class="field">
+                    <label>Expiry</label>
+                    <input id="card-expiry" required placeholder="08/29">
+                  </div>
+                </div>
+                <button type="submit" class="ghost-btn full">Save payment method</button>
+              </form>
+              <div class="card-list" id="cards-list"></div>
+            </div>
+          </div>
+
+          <div class="section-panel">
+            <div class="section-header">
+              <h3>Wallet history</h3>
+              <span class="tag">Activity</span>
+            </div>
+            <div class="meta-list" id="wallet-history"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="page-section" data-section="profile">
+        <div class="simple-grid">
+          <div class="section-panel">
+            <div class="section-header">
+              <h3>Profile settings</h3>
+              <span class="tag">Optional</span>
+            </div>
+            <form id="profile-form">
+              <div class="field">
+                <label>Display name</label>
+                <input id="profile-name-field" required placeholder="Your full name">
+              </div>
+              <div class="field">
+                <label>Profile picture URL</label>
+                <input id="profile-avatar" type="url" placeholder="https://example.com/avatar.jpg">
+              </div>
+              <div class="field">
+                <label>Bio</label>
+                <textarea id="profile-bio" rows="4" placeholder="Tell buyers and clients about your expertise, experience, and service strengths."></textarea>
+              </div>
+              <button type="submit" class="primary-btn full">Save profile</button>
+            </form>
+          </div>
+
+          <div class="section-panel">
+            <div class="section-header">
+              <h3>Account preview</h3>
+              <span class="tag">Ready</span>
+            </div>
+            <div class="profile-card">
+              <div class="avatar-badge" id="profile-avatar-pip">TF</div>
               <div>
-                <small style="opacity:0.75; text-transform: uppercase; letter-spacing: 0.1em;">Balance</small>
-                <strong id="wallet-balance-main">$0.00</strong>
+                <strong id="display-name">TaskFlow member</strong>
+                <p id="display-email" class="muted" style="margin: 6px 0 0;">No email available</p>
               </div>
-              <div style="font-size: 12px; opacity: 0.85;">Protected</div>
             </div>
-            <form id="deposit-form">
-              <div class="field">
-                <label>Deposit amount (cents)</label>
-                <input id="deposit-amount" type="number" min="100" value="5000" required>
-              </div>
-              <button type="submit" class="secondary-btn full">Add wallet funds</button>
-            </form>
-            <form id="card-form">
-              <div class="field">
-                <label>Cardholder</label>
-                <input id="card-holder" required placeholder="Name on card">
-              </div>
-              <div class="field">
-                <label>Brand</label>
-                <input id="card-brand" required placeholder="Visa, MasterCard, Amex">
-              </div>
-              <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                <div class="field">
-                  <label>Last 4</label>
-                  <input id="card-last4" required maxlength="4" placeholder="1234">
-                </div>
-                <div class="field">
-                  <label>Expiry</label>
-                  <input id="card-expiry" required placeholder="08/29">
-                </div>
-              </div>
-              <button type="submit" class="ghost-btn full">Save card</button>
-            </form>
-            <div class="card-list" id="cards-list"></div>
+            <div class="compact-grid">
+              <div class="mini-metric"><span>Location</span><strong>Global</strong></div>
+              <div class="mini-metric"><span>Skills</span><strong>Marketplace</strong></div>
+              <div class="mini-metric"><span>Profile image</span><strong>Optional</strong></div>
+              <div class="mini-metric"><span>Status</span><strong>Active</strong></div>
+            </div>
           </div>
-        </div>
-
-        <div class="section-panel">
-          <div class="section-header">
-            <h3>Tasks & opportunities</h3>
-            <span class="tag" id="task-count-tag">0 live</span>
-          </div>
-          <div class="meta-list" id="tasks-list"></div>
-        </div>
-
-        <div class="section-panel">
-          <div class="section-header">
-            <h3>Marketplace</h3>
-            <span class="tag" id="listing-count-tag">0 live</span>
-          </div>
-          <div class="meta-list" id="listings-list"></div>
-        </div>
-
-        <div class="section-panel">
-          <div class="section-header">
-            <h3>Products</h3>
-            <span class="tag" id="product-count-tag">0 live</span>
-          </div>
-          <div class="meta-list" id="products-list"></div>
-        </div>
-
-        <div class="section-panel">
-          <div class="section-header">
-            <h3>Gig marketplace</h3>
-            <span class="tag" id="gig-count-tag">0 live</span>
-          </div>
-          <div class="meta-list" id="gigs-list"></div>
         </div>
       </section>
     </main>
@@ -746,8 +991,21 @@
       ['signin', 'register', 'admin'].forEach((name) => $(name).classList.toggle('hidden', name !== tabName));
     }
 
+    function setActiveView(viewName) {
+      document.querySelectorAll('.nav-btn').forEach((button) => {
+        button.classList.toggle('active', button.dataset.view === viewName);
+      });
+      document.querySelectorAll('.page-section').forEach((section) => {
+        section.classList.toggle('active', section.dataset.section === viewName);
+      });
+    }
+
     document.querySelectorAll('.tab-btn').forEach((button) => {
       button.addEventListener('click', () => toggleTab(button.dataset.tab));
+    });
+
+    document.querySelectorAll('.nav-btn').forEach((button) => {
+      button.addEventListener('click', () => setActiveView(button.dataset.view));
     });
 
     document.querySelectorAll('.toggle').forEach((button) => {
@@ -828,8 +1086,9 @@
           body: JSON.stringify({
             title: $('task-title').value,
             videoUrl: $('task-url').value,
-            seconds: Number($('task-seconds').value),
-            payoutCents: Number($('task-payout').value)
+            description: $('task-description').value,
+            amountDollars: Number($('task-amount').value),
+            seconds: 60
           })
         });
         notify('Task published successfully.');
@@ -842,16 +1101,31 @@
 
     $('product-form').addEventListener('submit', async (event) => {
       event.preventDefault();
+      const productFiles = $('product-media-upload').files;
+      let mediaUrls = [];
       try {
+        if (productFiles && productFiles.length) {
+          const formData = new FormData();
+          Array.from(productFiles).forEach((file) => formData.append('files', file));
+          const upload = await fetch('/api/uploads', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${document.cookie.split(';').find((part) => part.trim().startsWith('taskflow.sid=')) || ''}` },
+            body: formData,
+            credentials: 'include'
+          });
+          const uploadData = await upload.json();
+          mediaUrls = uploadData.files?.map((file) => file.url) || [];
+          if (!upload.ok) throw new Error(uploadData.error || 'Media upload failed');
+        }
         await api('/api/products', {
           method: 'POST',
           body: JSON.stringify({
             title: $('product-title').value,
-            description: 'New product listing on TaskFlow.',
+            description: $('product-description').value,
             category: $('product-category').value,
-            priceCents: Number($('product-price').value),
+            priceDollars: Number($('product-price').value),
             stock: Number($('product-stock').value),
-            media: [$('product-media').value].filter(Boolean)
+            media: mediaUrls
           })
         });
         notify('Product listed successfully.');
@@ -883,15 +1157,31 @@
 
     $('gig-form').addEventListener('submit', async (event) => {
       event.preventDefault();
+      const gigFiles = $('gig-portfolio-upload').files;
+      let portfolioMedia = [];
       try {
+        if (gigFiles && gigFiles.length) {
+          const formData = new FormData();
+          Array.from(gigFiles).forEach((file) => formData.append('files', file));
+          const upload = await fetch('/api/uploads', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${document.cookie.split(';').find((part) => part.trim().startsWith('taskflow.sid=')) || ''}` },
+            body: formData,
+            credentials: 'include'
+          });
+          const uploadData = await upload.json();
+          portfolioMedia = uploadData.files?.map((file) => file.url) || [];
+          if (!upload.ok) throw new Error(uploadData.error || 'Portfolio upload failed');
+        }
         await api('/api/gigs', {
           method: 'POST',
           body: JSON.stringify({
             title: $('gig-title').value,
             description: $('gig-description').value,
             category: $('gig-category').value,
-            priceCents: Number($('gig-price').value),
-            deliveryDays: Number($('gig-days').value)
+            priceDollars: Number($('gig-price').value),
+            deliveryDays: Number($('gig-days').value),
+            portfolioMedia
           })
         });
         notify('Gig published successfully.');
@@ -972,10 +1262,15 @@
         $('balance-display').textContent = formatMoney(walletBalance);
         $('wallet-balance-main').textContent = formatMoney(walletBalance);
         $('wallet-pill').textContent = formatMoney(walletBalance);
+        $('wallet-mini').textContent = formatMoney(walletBalance);
         $('task-count-tag').textContent = `${taskItems.length} live`;
         $('listing-count-tag').textContent = `${listingItems.length} live`;
         $('product-count-tag').textContent = `${productItems.length} live`;
         $('gig-count-tag').textContent = `${gigItems.length} live`;
+        $('task-view-tag').textContent = `${taskItems.length} live`;
+        $('listing-view-tag').textContent = `${listingItems.length} live`;
+        $('product-view-tag').textContent = `${productItems.length} live`;
+        $('gig-view-tag').textContent = `${gigItems.length} live`;
 
         $('tasks-list').innerHTML = taskItems.length ? taskItems.slice(0, 6).map((task) => `
           <div class="item-card">
@@ -992,6 +1287,14 @@
           </div>
         `).join('') : '<p class="muted">No active tasks yet.</p>';
 
+        $('task-page-list').innerHTML = taskItems.length ? taskItems.slice(0, 6).map((task) => `
+          <div class="item-card"><h4>${escapeHtml(task.title)}</h4><p>${escapeHtml(task.description || 'Task details pending.')}</p><div class="item-row"><span>${Number(task.seconds || 0)} sec</span><span class="tag">${formatMoney(task.payoutCents || 0)}</span></div></div>
+        `).join('') : '<p class="muted">No tasks created yet.</p>';
+
+        $('listing-page-list').innerHTML = listingItems.length ? listingItems.slice(0, 6).map((item) => `
+          <div class="item-card"><h4>${escapeHtml(item.title)}</h4><p>${escapeHtml(item.type || 'Listing')}</p><div class="item-row"><span>${escapeHtml(item.type)}</span><span class="tag">${formatMoney(item.priceCents || 0)}</span></div></div>
+        `).join('') : '<p class="muted">No listings available.</p>';
+
         $('listings-list').innerHTML = listingItems.length ? listingItems.slice(0, 6).map((item) => `
           <div class="item-card">
             <h4>${escapeHtml(item.title)}</h4>
@@ -1006,6 +1309,10 @@
           </div>
         `).join('') : '<p class="muted">No listings currently active.</p>';
 
+        $('product-page-list').innerHTML = productItems.length ? productItems.slice(0, 6).map((item) => `
+          <div class="item-card"><h4>${escapeHtml(item.title)}</h4><p>${escapeHtml(item.category || 'General')}</p><div class="item-row"><span>${Number(item.stock || 0)} in stock</span><span class="tag">${formatMoney(item.price_cents || item.priceCents || 0)}</span></div></div>
+        `).join('') : '<p class="muted">No products yet.</p>';
+
         $('products-list').innerHTML = productItems.length ? productItems.slice(0, 6).map((item) => `
           <div class="item-card">
             <h4>${escapeHtml(item.title)}</h4>
@@ -1019,6 +1326,10 @@
             </div>
           </div>
         `).join('') : '<p class="muted">No products yet.</p>';
+
+        $('gig-page-list').innerHTML = gigItems.length ? gigItems.slice(0, 6).map((item) => `
+          <div class="item-card"><h4>${escapeHtml(item.title)}</h4><p>${escapeHtml(item.category || 'General')}</p><div class="item-row"><span>${Number(item.delivery_days || item.deliveryDays || 0)} days</span><span class="tag">${formatMoney(item.price_cents || item.priceCents || 0)}</span></div></div>
+        `).join('') : '<p class="muted">No gigs available.</p>';
 
         $('gigs-list').innerHTML = gigItems.length ? gigItems.slice(0, 6).map((item) => `
           <div class="item-card">
@@ -1041,6 +1352,14 @@
             <small>${escapeHtml(card.holder_name || 'Cardholder')} • ${escapeHtml(card.expiry || '00/00')}</small>
           </div>
         `).join('') : '<p class="muted">No saved cards yet.</p>';
+
+        const walletHistory = wallet.transactions || [];
+        $('wallet-history').innerHTML = walletHistory.length ? walletHistory.slice(0, 8).map((entry) => `
+          <div class="item-card">
+            <h4>${escapeHtml(entry.kind || 'Transaction')}</h4>
+            <div class="item-row"><span>${escapeHtml(entry.status || 'recorded')}</span><span class="tag">${formatMoney(entry.amount_cents || entry.amountCents || 0)}</span></div>
+          </div>
+        `).join('') : '<p class="muted">No wallet activity yet.</p>';
 
         document.querySelectorAll('[data-buy]').forEach((button) => {
           button.addEventListener('click', async () => {
@@ -1092,9 +1411,42 @@
       $('app').classList.remove('hidden');
       $('welcome').textContent = user?.name || user?.email || 'Signed in';
       $('role-badge').textContent = (user?.role || 'worker').toUpperCase();
+      $('profile-name').textContent = user?.name || user?.email || 'TaskFlow member';
+      $('profile-email').textContent = user?.email || 'member@taskflow.com';
+      $('profile-name-field').value = user?.name || '';
+      $('display-name').textContent = user?.name || 'TaskFlow member';
+      $('display-email').textContent = user?.email || 'No email available';
       await loadPublicStats();
       await loadDashboard();
     }
+
+    $('profile-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        const payload = {
+          name: $('profile-name-field').value.trim(),
+          bio: $('profile-bio').value.trim(),
+          avatarUrl: $('profile-avatar').value.trim() || null
+        };
+        await api('/api/profile', {
+          method: 'PUT',
+          body: JSON.stringify(payload)
+        });
+        notify('Profile saved successfully.');
+        $('profile-name').textContent = payload.name || 'TaskFlow member';
+        $('display-name').textContent = payload.name || 'TaskFlow member';
+        if (payload.avatarUrl) {
+          $('profile-avatar-pip').textContent = '✓';
+          $('profile-avatar-pip').style.background = 'linear-gradient(135deg, #123b30 0%, #2a5a48 100%)';
+        }
+      } catch (error) {
+        notify(error.message);
+      }
+    });
+
+    document.querySelectorAll('.nav-btn').forEach((button) => {
+      button.addEventListener('click', () => setActiveView(button.dataset.view));
+    });
 
     loadPublicStats();
   </script>
