@@ -42,4 +42,10 @@ export async function updateTrustScoreOnSuccessfulTransaction(userId) {
   const result = await db.query('SELECT trust_score FROM users WHERE id = $1', [userId]);
   if (!result.rows[0]) return;
   await db.query('UPDATE users SET trust_score = COALESCE(trust_score, 100) WHERE id = $1', [userId]);
+  await db.query(`UPDATE users AS referrer SET referral_count = referrer.referral_count + 1
+    FROM referrals
+    WHERE referrals.referred_user_id = $1
+      AND referrals.referrer_id = referrer.id
+      AND referrals.status = 'pending'`, [userId]);
+  await db.query("UPDATE referrals SET status = 'verified', verified_at = NOW() WHERE referred_user_id = $1 AND status = 'pending'", [userId]);
 }

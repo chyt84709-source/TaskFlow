@@ -808,6 +808,20 @@
             </div>
             <p class="muted" id="premium-help" style="margin-top:14px;">The fee is converted using your selected country. Your wallet must contain the converted amount.</p>
             <p class="muted">Verified referrals: <strong id="premium-referral-count">0 / 10</strong></p>
+            <div id="referral-share-panel" class="upload-box hidden" style="margin-top:14px;">
+              <label for="referral-link">Your unique referral link</label>
+              <div class="row-actions">
+                <input id="referral-link" type="url" readonly>
+                <button type="button" class="ghost-btn" id="copy-referral-link">Copy</button>
+              </div>
+              <div class="row-actions">
+                <a class="mini-btn" id="share-facebook" target="_blank" rel="noopener">Facebook</a>
+                <a class="mini-btn" id="share-whatsapp" target="_blank" rel="noopener">WhatsApp</a>
+                <a class="mini-btn" id="share-twitter" target="_blank" rel="noopener">Twitter</a>
+                <a class="mini-btn" id="share-gmail" target="_blank" rel="noopener">Gmail</a>
+              </div>
+              <button type="button" class="primary-btn full" id="check-referrals-btn" style="margin-top:12px;">Check referrals and activate</button>
+            </div>
           </div>
         </div>
       </section>
@@ -1360,7 +1374,8 @@
             email: $('register-email').value.trim(),
             password: $('register-password').value,
             name: $('register-name').value.trim(),
-            role: $('register-role').value
+            role: $('register-role').value,
+            referralCode: new URLSearchParams(window.location.search).get('ref') || undefined
           })
         });
         openApp(data.user);
@@ -1406,7 +1421,33 @@
     }
 
     $('premium-fee-btn').addEventListener('click', () => activatePremium('fee'));
-    $('premium-referral-btn').addEventListener('click', () => activatePremium('referrals'));
+    $('premium-referral-btn').addEventListener('click', async () => {
+      try {
+        const result = await api('/api/referrals');
+        $('referral-link').value = result.referralUrl;
+        $('premium-referral-count').textContent = `${Math.min(10, Number(result.referralCount || 0))} / 10`;
+        $('referral-share-panel').classList.remove('hidden');
+        const encodedUrl = encodeURIComponent(result.referralUrl);
+        const shareText = encodeURIComponent('Join me on TaskFlow and unlock more opportunities.');
+        $('share-facebook').href = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
+        $('share-whatsapp').href = `https://wa.me/?text=${shareText}%20${encodedUrl}`;
+        $('share-twitter').href = `https://twitter.com/intent/tweet?text=${shareText}&url=${encodedUrl}`;
+        $('share-gmail').href = `https://mail.google.com/mail/?view=cm&fs=1&su=Join%20me%20on%20TaskFlow&body=${shareText}%20${encodedUrl}`;
+      } catch (error) {
+        notify(error.message);
+      }
+    });
+    $('copy-referral-link').addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText($('referral-link').value);
+        notify('Referral link copied.');
+      } catch (error) {
+        $('referral-link').select();
+        document.execCommand('copy');
+        notify('Referral link copied.');
+      }
+    });
+    $('check-referrals-btn').addEventListener('click', () => activatePremium('referrals'));
     $('profile-country').addEventListener('change', (event) => {
       $('premium-fee').textContent = formatMoney(500, event.target.value);
     });

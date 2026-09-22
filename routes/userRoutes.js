@@ -36,6 +36,22 @@ router.get('/api/currency', requireUser, async (req, res, next) => {
   }
 });
 
+router.get('/api/referrals', requireUser, async (req, res, next) => {
+  try {
+    const result = await db.query('SELECT referral_code AS "referralCode", referral_count AS "referralCount" FROM users WHERE id = $1', [req.session.user.id]);
+    if (!result.rows[0]) return res.status(404).json({ error: 'User not found' });
+    let referralCode = result.rows[0].referralCode;
+    if (!referralCode) {
+      referralCode = nanoid(16);
+      await db.query('UPDATE users SET referral_code = $1 WHERE id = $2', [referralCode, req.session.user.id]);
+    }
+    const origin = `${req.protocol}://${req.get('host')}`;
+    res.json({ referralCode, referralCount: Number(result.rows[0].referralCount || 0), referralUrl: `${origin}/?ref=${encodeURIComponent(referralCode)}` });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post('/api/premium/upgrade', requireUser, async (req, res, next) => {
   try {
     const parsed = z.object({ method: z.enum(['fee', 'referrals']).default('fee') }).safeParse(req.body);
