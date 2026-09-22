@@ -82,10 +82,7 @@ export async function initializeSchema() {
 }
 
 export async function seedDemoData() {
-  const categoryCount = await db.query('SELECT COUNT(*)::int AS count FROM categories');
-  if (categoryCount.rows[0].count === 0) {
-    await db.query("INSERT INTO categories (id,name,parent_id,created_at) VALUES ('cat-tech','Technology',NULL,$1),('cat-home','Home',NULL,$1),('cat-services','Services',NULL,$1)", [new Date().toISOString()]);
-  }
+  // Production starts with empty marketplace and wallet state.
 }
 
 export function now() {
