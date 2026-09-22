@@ -1048,7 +1048,7 @@
               <form id="deposit-form">
                 <div class="field">
                   <label>Add funds (amount in cents)</label>
-                  <input id="deposit-amount" type="number" min="100" value="5000" required>
+                  <input id="deposit-amount" type="number" min="100" placeholder="Amount in cents" required>
                 </div>
                 <button type="submit" class="secondary-btn full">Add wallet funds</button>
               </form>
@@ -1069,11 +1069,11 @@
                   </select>
                 </div>
                 <div class="field">
-                  <label>Network</label>
-                  <div id="stripe-card-element" class="upload-box">Secure card fields load after Cloudflare verification.</div>
+                  <label>Card number, expiry, and CVV</label>
+                  <div id="stripe-card-element" class="upload-box">Secure Stripe fields load after Cloudflare verification.</div>
                 </div>
                 <div class="cf-turnstile" id="card-turnstile"></div>
-                <button type="submit" class="ghost-btn full">Send verification code</button>
+                <button type="submit" class="ghost-btn full">Save Card</button>
               </form>
               <form id="card-otp-form" class="hidden">
                 <div class="field"><label>Email verification code</label><input id="card-otp" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" required placeholder="6-digit code"></div>
