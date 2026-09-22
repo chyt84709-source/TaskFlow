@@ -68,6 +68,41 @@ async function initializeSchema() {
   await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT; ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT; ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT; ALTER TABLE users ADD COLUMN IF NOT EXISTS location TEXT; ALTER TABLE tasks ADD COLUMN IF NOT EXISTS instructions TEXT; ALTER TABLE tasks ADD COLUMN IF NOT EXISTS deadline_at TIMESTAMPTZ; ALTER TABLE tasks ADD COLUMN IF NOT EXISTS accepted_by TEXT; ALTER TABLE tasks ADD COLUMN IF NOT EXISTS proof_url TEXT; ALTER TABLE tasks ADD COLUMN IF NOT EXISTS qualification TEXT; ALTER TABLE listings ADD COLUMN IF NOT EXISTS description TEXT; ALTER TABLE listings ADD COLUMN IF NOT EXISTS category TEXT; ALTER TABLE listings ADD COLUMN IF NOT EXISTS location TEXT; ALTER TABLE gigs ADD COLUMN IF NOT EXISTS portfolio TEXT; ALTER TABLE gigs ADD COLUMN IF NOT EXISTS seller_level TEXT; ALTER TABLE gigs ADD COLUMN IF NOT EXISTS basic_price_cents INTEGER; ALTER TABLE gigs ADD COLUMN IF NOT EXISTS standard_price_cents INTEGER; ALTER TABLE gigs ADD COLUMN IF NOT EXISTS premium_price_cents INTEGER;`);
 }
 
+async function seedDemoData() {
+  const [taskCount, listingCount, productCount, adCount, gigCount, categoryCount] = await Promise.all([
+    db.query('SELECT COUNT(*)::int AS count FROM tasks'),
+    db.query('SELECT COUNT(*)::int AS count FROM listings'),
+    db.query('SELECT COUNT(*)::int AS count FROM products'),
+    db.query('SELECT COUNT(*)::int AS count FROM ads'),
+    db.query('SELECT COUNT(*)::int AS count FROM gigs'),
+    db.query('SELECT COUNT(*)::int AS count FROM categories')
+  ]);
+
+  if (categoryCount.rows[0].count === 0) {
+    await db.query("INSERT INTO categories (id,name,parent_id,created_at) VALUES ('cat-tech','Technology',NULL,$1),('cat-home','Home',NULL,$1),('cat-services','Services',NULL,$1)", [now()]);
+  }
+
+  if (taskCount.rows[0].count === 0) {
+    await db.query("INSERT INTO tasks (id,client_id,title,video_url,seconds,payout_cents,status,created_at) VALUES ('demo-task-1','demo-user','Buy Gemini pro version','https://example.com/demo.mp4',60,100,'active',$1),('demo-task-2','demo-user','Create product demo video','https://example.com/demo2.mp4',180,220,'active',$1)", [now()]);
+  }
+
+  if (listingCount.rows[0].count === 0) {
+    await db.query("INSERT INTO listings (id,seller_id,title,type,price_cents,status,created_at) VALUES ('demo-listing-1','demo-user','iPhone 13 case','physical',2500,'active',$1),('demo-listing-2','demo-user','Design logo pack','digital',3200,'active',$1)", [now()]);
+  }
+
+  if (productCount.rows[0].count === 0) {
+    await db.query("INSERT INTO products (id,vendor_id,title,description,category,price_cents,stock,media,created_at) VALUES ('demo-product-1','demo-user','Smartwatch Pro','Premium smartwatch with fitness tracking','Technology',49900,12,'[\"https://images.unsplash.com/photo-1546868871-7041f2a55e12\"]',$1),('demo-product-2','demo-user','Minimal Desk Lamp','Warm LED lamp for office and study setup','Home',18900,18,'[\"https://images.unsplash.com/photo-1505693416388-ac5ce068fe85\"]',$1)", [now()]);
+  }
+
+  if (adCount.rows[0].count === 0) {
+    await db.query("INSERT INTO ads (id,seller_id,title,description,category,price_cents,location,media,status,created_at) VALUES ('demo-ad-1','demo-user','Used gaming laptop','High-performance gaming laptop in great condition','Technology',520000,'Lahore','[\"https://images.unsplash.com/photo-1496181133206-80ce9b88a853\"]','active',$1),('demo-ad-2','demo-user','2-bedroom apartment sublet','Clean apartment for rent with parking and balcony','Home',280000,'Karachi','[\"https://images.unsplash.com/photo-1484154218962-a197022b5858\"]','active',$1)", [now()]);
+  }
+
+  if (gigCount.rows[0].count === 0) {
+    await db.query("INSERT INTO gigs (id,seller_id,title,description,category,price_cents,delivery_days,status,created_at) VALUES ('demo-gig-1','demo-user','Landing page design','I will design a premium SaaS landing page in a modern style','Services',42000,5,'active',$1),('demo-gig-2','demo-user','Short-form video edits','Professional cuts and captions for your reels and shorts','Services',26000,3,'active',$1)", [now()]);
+  }
+}
+
 async function sendOtpEmail({ to, code }) {
   if (!emailEnabled || !to) return;
 
@@ -175,4 +210,7 @@ app.use((error, _req, res, _next) => { console.error(error); res.status(500).jso
 
 const wss = new WebSocketServer({ server, path: '/ws' });
 wss.on('connection', (socket, request) => { const token = new URL(request.url, `http://${request.headers.host}`).searchParams.get('thread'); if (!token) return socket.close(1008, 'Thread required'); if (!sockets.has(token)) sockets.set(token, new Set()); sockets.get(token).add(socket); socket.on('message', raw => { let message; try { message = JSON.parse(raw.toString()); } catch { return; } const outgoing = JSON.stringify({ ...message, createdAt: now() }); for (const peer of sockets.get(token) || []) if (peer.readyState === 1) peer.send(outgoing); }); socket.on('close', () => sockets.get(token)?.delete(socket)); });
-initializeSchema().then(() => server.listen(port, '0.0.0.0', () => console.log(`TaskFlow listening on http://0.0.0.0:${port}`))).catch(error => { console.error('PostgreSQL initialization failed:', error); process.exitCode = 1; });
+initializeSchema()
+  .then(() => seedDemoData())
+  .then(() => server.listen(port, '0.0.0.0', () => console.log(`TaskFlow listening on http://0.0.0.0:${port}`)))
+  .catch(error => { console.error('PostgreSQL initialization failed:', error); process.exitCode = 1; });
