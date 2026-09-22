@@ -1046,13 +1046,7 @@
                 </div>
                 <div style="font-size: 12px; opacity: 0.85;">Protected</div>
               </div>
-              <form id="deposit-form">
-                <div class="field">
-                  <label>Add funds (amount in cents)</label>
-                  <input id="deposit-amount" type="number" min="100" placeholder="Amount in cents" required>
-                </div>
-                <button type="submit" class="secondary-btn full">Add wallet funds</button>
-              </form>
+              <p class="muted">Wallet balances are created from verified platform transactions only.</p>
             </div>
           </div>
           <div class="wallet-tab-panel hidden" data-wallet-panel="payment-methods">
@@ -1631,21 +1625,6 @@
         });
         notify('Gig published successfully.');
         $('gig-form').reset();
-        await loadDashboard();
-      } catch (error) {
-        notify(error.message);
-      }
-    });
-
-    $('deposit-form').addEventListener('submit', async (event) => {
-      event.preventDefault();
-      try {
-        await api('/api/wallet/deposit', {
-          method: 'POST',
-          body: JSON.stringify({ amountCents: Number($('deposit-amount').value), source: 'wallet' })
-        });
-        notify('Wallet topped up.');
-        $('deposit-form').reset();
         await loadDashboard();
       } catch (error) {
         notify(error.message);
