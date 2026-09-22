@@ -20,11 +20,16 @@
     }
     * { box-sizing: border-box; }
     html, body { margin: 0; font-family: Inter, "Segoe UI", sans-serif; background: var(--bg); color: var(--primary-dark); }
-    body { min-height: 100vh; }
+    body { min-height: 100vh; overflow-x: hidden; }
     button, input, select, textarea { font: inherit; }
     button { cursor: pointer; }
     input, select, textarea { width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: white; color: var(--primary-dark); }
+    textarea { resize: vertical; }
     a { color: inherit; text-decoration: none; }
+    .trust-empty {
+      color: #c7d0ce;
+      text-shadow: 0 0 0 rgba(255,255,255,0.35);
+    }
     .hidden { display: none !important; }
     .page {
       min-height: 100vh;
@@ -270,6 +275,9 @@
       border-radius: 18px;
       padding: 18px;
       box-shadow: 0 10px 24px rgba(18, 59, 48, 0.03);
+      min-width: 0;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
     .section-header {
       display: flex;
@@ -291,6 +299,9 @@
       border: 1px solid var(--line);
       border-radius: 14px;
       background: linear-gradient(180deg, #fefefe 0%, #f8faf9 100%);
+      min-width: 0;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
     .item-card h4 {
       margin: 0 0 6px;
@@ -505,7 +516,66 @@
       .page { grid-template-columns: 1fr; }
       .panel-shell { order: -1; }
       .app-shell { grid-template-columns: 1fr; }
-      .stats-grid, .grid-layout { grid-template-columns: 1fr; }
+      .stats-grid, .grid-layout, .simple-grid, .feature-strip { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 640px) {
+      .main { padding: 16px; }
+      .topbar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .user-actions {
+        flex-wrap: wrap;
+        justify-content: stretch;
+      }
+      .user-actions > * {
+        flex: 1 1 calc(50% - 8px);
+        min-width: 0;
+      }
+      .search-box { max-width: none; }
+      .profile-card {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .wallet-balance {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+      }
+      .card-list { grid-template-columns: 1fr; }
+      .credit-card strong { letter-spacing: 0.12em; }
+      .section-header {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .compact-grid, .simple-grid, .grid-layout {
+        grid-template-columns: 1fr;
+      }
+      .field label {
+        letter-spacing: 0.05em;
+      }
+      .auth-card {
+        padding: 18px 16px;
+      }
+      .tabs {
+        grid-template-columns: 1fr;
+      }
+      .mini-stat strong {
+        font-size: 1.5rem;
+      }
+      .item-row, .ops-item {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .row-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+      }
+      .mini-btn {
+        width: 100%;
+      }
     }
   </style>
 </head>
@@ -605,6 +675,7 @@
         <button type="button" class="nav-btn" data-view="gigs">Gigs</button>
         <button type="button" class="nav-btn" data-view="wallet">Wallet</button>
         <button type="button" class="nav-btn" data-view="profile">Profile</button>
+        <button type="button" class="nav-btn" data-view="admin" style="display:none;">Admin</button>
       </nav>
       <div class="sidebar-box">
         <div style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; opacity: 0.8; margin-bottom: 8px;">Account</div>
@@ -621,6 +692,7 @@
         </div>
         <div class="user-actions">
           <div class="pill" id="wallet-pill">$0.00</div>
+          <button type="button" class="ghost-btn" id="premium-upgrade-btn">Upgrade to Premium</button>
           <button type="button" class="ghost-btn" id="edit-profile-btn">Edit profile</button>
           <button type="button" class="ghost-btn" id="logout">Sign out</button>
         </div>
@@ -653,9 +725,9 @@
               </div>
             </div>
             <div class="compact-grid">
-              <div class="mini-metric"><span>Trust</span><strong>98%</strong></div>
+              <div class="mini-metric"><span>Trust</span><strong id="profile-trust-score">—</strong></div>
               <div class="mini-metric"><span>Wallet</span><strong id="wallet-mini">$0.00</strong></div>
-              <div class="mini-metric"><span>Fee</span><strong>Low</strong></div>
+              <div class="mini-metric"><span>Country</span><strong id="profile-country-label">US</strong></div>
               <div class="mini-metric"><span>Escrow</span><strong>Protected</strong></div>
             </div>
           </div>
@@ -963,6 +1035,20 @@
                 <input id="profile-avatar" type="url" placeholder="https://example.com/avatar.jpg">
               </div>
               <div class="field">
+                <label>Country</label>
+                <select id="profile-country">
+                  <option value="US">United States</option>
+                  <option value="PK">Pakistan</option>
+                  <option value="IN">India</option>
+                  <option value="AE">United Arab Emirates</option>
+                  <option value="GB">United Kingdom</option>
+                  <option value="CA">Canada</option>
+                  <option value="SA">Saudi Arabia</option>
+                  <option value="BD">Bangladesh</option>
+                  <option value="NG">Nigeria</option>
+                </select>
+              </div>
+              <div class="field">
                 <label>Account tier</label>
                 <select id="profile-tier">
                   <option value="standard">Standard</option>
@@ -994,11 +1080,64 @@
               </div>
             </div>
             <div class="compact-grid">
-              <div class="mini-metric"><span>Location</span><strong>Global</strong></div>
-              <div class="mini-metric"><span>Skills</span><strong>Marketplace</strong></div>
+              <div class="mini-metric"><span>Trust</span><strong id="display-trust">—</strong></div>
+              <div class="mini-metric"><span>Country</span><strong id="display-country">US</strong></div>
               <div class="mini-metric"><span>Profile image</span><strong>Optional</strong></div>
               <div class="mini-metric"><span>Status</span><strong>Active</strong></div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="page-section" data-section="admin">
+        <div class="simple-grid">
+          <div class="section-panel">
+            <div class="section-header">
+              <h3>Third-party ads</h3>
+              <span class="tag" id="ads-tag">0 active</span>
+            </div>
+            <form id="ads-form">
+              <div class="field">
+                <label>Campaign title</label>
+                <input id="ad-title" required placeholder="Brand spotlight campaign">
+              </div>
+              <div class="field">
+                <label>Category</label>
+                <input id="ad-category" required placeholder="Marketing, Technology, Travel...">
+              </div>
+              <div class="field">
+                <label>Placement</label>
+                <select id="ad-placement">
+                  <option value="homepage-top">Homepage top</option>
+                  <option value="sidebar">Sidebar</option>
+                  <option value="featured">Featured row</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Duration (days)</label>
+                <input id="ad-duration" type="number" min="1" max="365" value="7" required>
+              </div>
+              <div class="field">
+                <label>Skip allowed</label>
+                <select id="ad-skip">
+                  <option value="true">Yes</option>
+                  <option value="false">No</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Media URL</label>
+                <input id="ad-url" type="url" placeholder="https://example.com/banner.jpg">
+              </div>
+              <button type="submit" class="primary-btn full">Create ad slot</button>
+            </form>
+          </div>
+
+          <div class="section-panel">
+            <div class="section-header">
+              <h3>Ad manager</h3>
+              <span class="tag">Live inventory</span>
+            </div>
+            <div class="meta-list" id="ads-list"></div>
           </div>
         </div>
       </section>
@@ -1027,23 +1166,44 @@
       return parts.map((part) => part[0]?.toUpperCase() || '').join('') || 'TF';
     }
 
+    function formatMoney(cents, countryCode = currentUser?.country || 'US') {
+      const rateMap = { US: 1, PK: 278, IN: 83, AE: 3.67, GB: 0.79, CA: 1.36, SA: 3.75, BD: 108, NG: 1500 };
+      const rate = rateMap[countryCode] || 1;
+      const symbolMap = { US: '$', PK: '₨', IN: '₹', AE: 'د.إ', GB: '£', CA: 'C$', SA: '﷼', BD: '৳', NG: '₦' };
+      const symbol = symbolMap[countryCode] || '$';
+      const value = (Number(cents || 0) / 100) * rate;
+      const display = Number.isInteger(value) ? value.toLocaleString(undefined, { maximumFractionDigits: 0 }) : value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return `${symbol}${display}`;
+    }
+
     function applyProfileToUi(user, profileData = null) {
       const userName = user?.name || user?.email || 'TaskFlow member';
       const userEmail = user?.email || 'member@taskflow.com';
       const avatarUrl = profileData?.avatar_url || profileData?.avatarUrl || user?.avatar_url || user?.avatarUrl || '';
       const bio = profileData?.bio || user?.bio || '';
+      const countryCode = String(user?.country || 'US').toUpperCase();
       const subscriptionTier = user?.subscriptionTier || profileData?.subscription_tier || 'standard';
       const tierLabel = subscriptionTier === 'premium' ? 'Premium' : 'Standard';
+      const trustValue = user?.trustScore ?? user?.trust_score ?? null;
+      const trustLabel = trustValue == null ? '—' : `${Math.max(0, Number(trustValue))}%`;
+      const trustIsEmpty = trustValue == null;
 
       $('welcome').textContent = userName;
       $('role-badge').textContent = (user?.role || 'worker').toUpperCase();
       $('profile-name').textContent = userName;
       $('profile-email').textContent = userEmail;
       $('profile-name-field').value = userName;
+      $('profile-country').value = countryCode;
       $('profile-tier').value = subscriptionTier;
       $('display-name').textContent = userName;
       $('display-email').textContent = userEmail;
       $('display-tier').textContent = tierLabel;
+      $('display-trust').textContent = trustLabel;
+      $('profile-trust-score').textContent = trustLabel;
+      $('profile-trust-score').classList.toggle('trust-empty', trustIsEmpty);
+      $('display-trust').classList.toggle('trust-empty', trustIsEmpty);
+      $('profile-country-label').textContent = countryCode;
+      $('display-country').textContent = countryCode;
       $('profile-tier-pill').textContent = tierLabel;
       $('profile-bio').value = bio;
       $('profile-avatar').value = avatarUrl;
@@ -1088,10 +1248,6 @@
       const data = response.status === 204 ? null : await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data?.error || 'Request failed');
       return data;
-    }
-
-    function formatMoney(cents) {
-      return `$${(Number(cents || 0) / 100).toFixed(2)}`;
     }
 
     function escapeHtml(value) {
@@ -1189,6 +1345,22 @@
     $('google').addEventListener('click', () => window.location.href = '/api/auth/google');
 
     $('edit-profile-btn').addEventListener('click', () => setActiveView('profile'));
+
+    $('premium-upgrade-btn').addEventListener('click', async () => {
+      try {
+        const result = await api('/api/premium/upgrade', {
+          method: 'POST',
+          body: JSON.stringify({ tier: 'premium' })
+        });
+        if (result.ok) {
+          notify('Premium membership activated successfully.');
+          await hydrateProfile();
+          await loadDashboard();
+        }
+      } catch (error) {
+        notify(error.message);
+      }
+    });
 
     $('logout').addEventListener('click', async () => {
       try {
@@ -1556,6 +1728,7 @@
         const payload = {
           name: $('profile-name-field').value.trim(),
           bio: $('profile-bio').value.trim(),
+          country: $('profile-country').value || 'US',
           avatarUrl: $('profile-avatar').value.trim() || null,
           subscriptionTier: $('profile-tier').value || 'standard'
         };
@@ -1627,6 +1800,20 @@
 
     document.querySelectorAll('.nav-btn').forEach((button) => {
       button.addEventListener('click', () => setActiveView(button.dataset.view));
+    });
+
+    document.getElementById('global-search')?.addEventListener('input', async (event) => {
+      const q = String(event.target.value || '').trim();
+      if (!q) return;
+      try {
+        const data = await api(`/api/search?q=${encodeURIComponent(q)}`);
+        const total = (data.products || []).length + (data.listings || []).length + (data.gigs || []).length + (data.tasks || []).length;
+        if (total === 0) {
+          notify('No matching items found.');
+        }
+      } catch (error) {
+        console.error('Search failed:', error);
+      }
     });
 
     loadPublicStats();
