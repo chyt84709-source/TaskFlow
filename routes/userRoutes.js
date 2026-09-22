@@ -3,7 +3,7 @@ import multer from 'multer';
 import Stripe from 'stripe';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
-import { db, getCurrencyMeta, hash, issueOtp, normalizeCountry, reqOtp } from '../config/database.js';
+import { calculateInternationalTax, db, getCurrencyMeta, getRegionalPaymentMethods, hash, issueOtp, normalizeCountry, reqOtp } from '../config/database.js';
 import { requireUser } from '../utils/helpers.js';
 import { decryptImage, processAndEncryptImage, readEncryptedImage, saveEncryptedImage } from '../services/media.js';
 
@@ -65,6 +65,17 @@ router.get('/api/currency', requireUser, async (req, res, next) => {
     const country = normalizeCountry(result.rows[0]?.country || req.session.user.country || 'US');
     const meta = getCurrencyMeta(country);
     res.json({ country, code: meta.code, symbol: meta.symbol, rate: meta.rate });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/api/payment-options', requireUser, async (req, res, next) => {
+  try {
+    const result = await db.query('SELECT country FROM users WHERE id=$1', [req.session.user.id]);
+    const country = normalizeCountry(result.rows[0]?.country || req.session.user.country || 'US');
+    const tax = calculateInternationalTax(500, country);
+    res.json({ country, paymentMethods: getRegionalPaymentMethods(country), internationalTaxRate: tax.taxRate, taxesApply: tax.isInternational });
   } catch (error) {
     next(error);
   }
@@ -200,19 +211,22 @@ router.post('/api/premium/upgrade', requireUser, async (req, res, next) => {
     if (!user) return res.status(404).json({ error: 'User not found' });
     if (user.subscription_tier === 'premium') return res.json({ ok: true, tier: 'premium', source: 'already-active' });
 
-    const meta = getCurrencyMeta(user.country || req.session.user.country || 'US');
-    const premiumFeeCents = Math.round(500 * meta.rate);
+    const country = normalizeCountry(user.country || req.session.user.country || 'US');
+    const meta = getCurrencyMeta(country);
+    const premiumBaseCents = Math.round(500 * meta.rate);
+    const premiumTax = calculateInternationalTax(premiumBaseCents, country);
+    const premiumFeeCents = premiumBaseCents + premiumTax.taxCents;
     if (parsed.data.method === 'referrals') {
       if (Number(user.referral_count || 0) < 10) return res.status(400).json({ error: 'Complete 10 verified referrals to unlock Premium.' });
     } else {
       const balanceResult = await db.query("SELECT COALESCE(SUM(CASE WHEN kind IN ('payout', 'product_purchase', 'gig_purchase', 'task_purchase', 'marketplace_purchase', 'premium_upgrade') THEN -amount_cents ELSE amount_cents END), 0)::int AS balance FROM transactions WHERE user_id = $1 AND status IN ('paid', 'completed', 'approved', 'success')", [req.session.user.id]);
       if (Number(balanceResult.rows[0]?.balance || 0) < premiumFeeCents) return res.status(400).json({ error: `Add ${meta.symbol}${(premiumFeeCents / 100).toLocaleString()} to your wallet before upgrading.` });
-      await db.query('INSERT INTO transactions (id,user_id,kind,amount_cents,status,metadata,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)', [nanoid(), req.session.user.id, 'premium_upgrade', premiumFeeCents, 'paid', { baseUsdCents: 500, currency: meta.code, rate: meta.rate }, new Date().toISOString()]);
+      await db.query('INSERT INTO transactions (id,user_id,kind,amount_cents,status,metadata,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)', [nanoid(), req.session.user.id, 'premium_upgrade', premiumFeeCents, 'paid', { baseUsdCents: 500, currency: meta.code, rate: meta.rate, taxCents: premiumTax.taxCents, internationalTax: premiumTax.isInternational }, new Date().toISOString()]);
     }
 
     await db.query('UPDATE users SET subscription_tier = $1, premium_source = $2, premium_activated_at = $3 WHERE id = $4', ['premium', parsed.data.method, new Date().toISOString(), req.session.user.id]);
     req.session.user.subscriptionTier = 'premium';
-    res.json({ ok: true, tier: 'premium', source: parsed.data.method, feeCents: parsed.data.method === 'fee' ? premiumFeeCents : 0, currency: meta.code, rate: meta.rate, benefits: ['Account boost', 'Premium profile badge', 'Marketplace discounts'] });
+    res.json({ ok: true, tier: 'premium', source: parsed.data.method, feeCents: parsed.data.method === 'fee' ? premiumFeeCents : 0, taxCents: parsed.data.method === 'fee' ? premiumTax.taxCents : 0, currency: meta.code, rate: meta.rate, benefits: ['Account boost', 'Premium profile badge', 'Marketplace discounts'] });
   } catch (error) {
     next(error);
   }
@@ -225,13 +239,17 @@ router.post('/api/premium/checkout', requireUser, async (req, res, next) => {
     const user = userResult.rows[0];
     if (!user) return res.status(404).json({ error: 'User not found' });
     if (user.subscription_tier === 'premium') return res.json({ ok: true, tier: 'premium', alreadyActive: true });
+    const country = normalizeCountry(user.country || req.session.user.country || 'US');
     const origin = process.env.APP_BASE_URL || `${req.protocol}://${req.get('host')}`;
+    const tax = calculateInternationalTax(500, country);
+    const paymentMethods = getRegionalPaymentMethods(country);
     const checkoutSession = await stripe.checkout.sessions.create({
       mode: 'payment',
       customer_email: user.email || undefined,
       client_reference_id: req.session.user.id,
-      line_items: [{ price_data: { currency: 'usd', product_data: { name: 'TaskFlow Premium membership', description: 'Account boost, Premium badge, and marketplace discounts.' }, unit_amount: 500 }, quantity: 1 }],
-      metadata: { userId: req.session.user.id, baseUsdCents: '500', country: normalizeCountry(user.country || 'US') },
+      payment_method_types: paymentMethods.length ? paymentMethods : ['card'],
+      line_items: [{ price_data: { currency: 'usd', product_data: { name: 'TaskFlow Premium membership', description: 'Account boost, Premium badge, and marketplace discounts.' }, unit_amount: 500 }, quantity: 1 }, ...(tax.taxCents ? [{ price_data: { currency: 'usd', product_data: { name: 'International transaction tax' }, unit_amount: tax.taxCents }, quantity: 1 }] : [])],
+      metadata: { userId: req.session.user.id, baseUsdCents: '500', taxCents: String(tax.taxCents), country, paymentMethods: paymentMethods.join(',') },
       success_url: `${origin}/#premium&payment=success`,
       cancel_url: `${origin}/#premium&payment=cancelled`,
     });

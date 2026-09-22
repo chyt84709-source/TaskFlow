@@ -1033,6 +1033,7 @@
               <div class="mini-metric"><span>Email</span><strong id="billing-email">Not set</strong></div>
               <div class="mini-metric"><span>Country</span><strong id="billing-country">US</strong></div>
               <div class="mini-metric"><span>Currency</span><strong id="billing-currency">USD</strong></div>
+              <div class="mini-metric"><span>Regional methods</span><strong id="billing-methods">Card</strong></div>
               <div class="mini-metric"><span>Payment verification</span><strong>Cloudflare + OTP</strong></div>
             </div>
           </div>
@@ -1822,6 +1823,8 @@
         $('billing-country').textContent = currentUser?.country || 'US';
         const currency = await api('/api/currency').catch(() => ({ code: 'USD' }));
         $('billing-currency').textContent = currency.code || 'USD';
+        const paymentOptions = await api('/api/payment-options').catch(() => ({ paymentMethods: ['card'] }));
+        $('billing-methods').textContent = (paymentOptions.paymentMethods || ['card']).join(', ');
 
         const walletHistory = wallet.transactions || [];
         $('wallet-history').innerHTML = walletHistory.length ? walletHistory.slice(0, 8).map((entry) => `

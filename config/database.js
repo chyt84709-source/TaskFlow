@@ -43,6 +43,32 @@ export function normalizeCountry(country) {
   return COUNTRY_CURRENCY[code] ? code : 'US';
 }
 
+export const PLATFORM_COUNTRY = normalizeCountry(process.env.PLATFORM_COUNTRY || 'US');
+export const INTERNATIONAL_TAX_RATE = Math.min(0.25, Math.max(0, Number(process.env.INTERNATIONAL_TAX_RATE || 0.05)));
+
+export function calculateInternationalTax(amountCents, country) {
+  const isInternational = normalizeCountry(country) !== PLATFORM_COUNTRY;
+  const taxCents = isInternational ? Math.round(Number(amountCents) * INTERNATIONAL_TAX_RATE) : 0;
+  return { taxCents, isInternational, taxRate: isInternational ? INTERNATIONAL_TAX_RATE : 0 };
+}
+
+export function getRegionalPaymentMethods(country) {
+  const code = normalizeCountry(country);
+  const configured = String(process.env.STRIPE_PAYMENT_METHOD_TYPES || 'card,link').split(',').map((method) => method.trim()).filter(Boolean);
+  const regional = {
+    US: ['card', 'link'],
+    GB: ['card', 'link'],
+    AE: ['card', 'link'],
+    PK: ['card'],
+    IN: ['card', 'link'],
+    CA: ['card', 'link'],
+    SA: ['card', 'link'],
+    BD: ['card'],
+    NG: ['card'],
+  };
+  return [...new Set((regional[code] || ['card']).filter((method) => configured.includes(method)))];
+}
+
 export function getCurrencyMeta(country) {
   return COUNTRY_CURRENCY[normalizeCountry(country)] || COUNTRY_CURRENCY.US;
 }

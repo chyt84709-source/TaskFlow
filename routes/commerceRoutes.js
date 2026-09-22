@@ -1,7 +1,7 @@
 import express from 'express';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
-import { db, normalizeCountry } from '../config/database.js';
+import { calculateInternationalTax, db, normalizeCountry } from '../config/database.js';
 import { ensureWalletReady, requireUser, updateTrustScoreOnSuccessfulTransaction } from '../utils/helpers.js';
 
 const router = express.Router();
@@ -54,14 +54,18 @@ router.post('/api/products/:id/purchase', requireUser, async (req, res, next) =>
     if (!product.rows[0]) return res.status(404).json({ error: 'Product not found' });
 
     const quantity = parsed.data.quantity;
-    const amountCents = Number(product.rows[0].price_cents) * quantity;
+    const subtotalCents = Number(product.rows[0].price_cents) * quantity;
+    const countryResult = await db.query('SELECT country FROM users WHERE id=$1', [req.session.user.id]);
+    const tax = calculateInternationalTax(subtotalCents, countryResult.rows[0]?.country || req.session.user.country);
+    const taxCents = tax.taxCents;
+    const amountCents = subtotalCents + taxCents;
     await ensureWalletReady(req.session.user.id, amountCents);
     const feeCents = Math.round(amountCents * 0.01);
     const order = { id: nanoid(), productId: req.params.id, buyerId: req.session.user.id, sellerId: product.rows[0].vendor_id, quantity, amountCents, feeCents, notes: parsed.data.notes || null, createdAt: new Date().toISOString() };
     await db.query('INSERT INTO product_orders (id,product_id,buyer_id,seller_id,quantity,amount_cents,fee_cents,status,notes,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [order.id, order.productId, order.buyerId, order.sellerId, order.quantity, order.amountCents, order.feeCents, 'paid', order.notes, order.createdAt]);
-    await db.query('INSERT INTO transactions (id,user_id,kind,amount_cents,status,metadata,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)', [nanoid(), order.buyerId, 'product_purchase', order.amountCents, 'paid', { productId: order.productId, quantity, feeCents: order.feeCents }, new Date().toISOString()]);
+    await db.query('INSERT INTO transactions (id,user_id,kind,amount_cents,status,metadata,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)', [nanoid(), order.buyerId, 'product_purchase', order.amountCents, 'paid', { productId: order.productId, quantity, subtotalCents, taxCents, internationalTax: tax.isInternational, feeCents: order.feeCents }, new Date().toISOString()]);
     await updateTrustScoreOnSuccessfulTransaction(order.buyerId);
-    res.status(201).json({ order, totalCents: order.amountCents, feeCents: order.feeCents, netCents: order.amountCents - order.feeCents });
+    res.status(201).json({ order, subtotalCents, taxCents, totalCents: order.amountCents, feeCents: order.feeCents, netCents: order.amountCents - order.feeCents });
   } catch (error) {
     next(error);
   }
@@ -115,11 +119,14 @@ router.post('/api/checkout/cart', requireUser, async (req, res, next) => {
   try {
     const result = await db.query(`SELECT ci.quantity, p.price_cents AS "priceCents" FROM cart_items ci JOIN products p ON p.id = ci.product_id WHERE ci.user_id = $1`, [req.session.user.id]);
     const subtotalCents = result.rows.reduce((sum, row) => sum + row.quantity * row.priceCents, 0);
+    const countryResult = await db.query('SELECT country FROM users WHERE id=$1', [req.session.user.id]);
+    const tax = calculateInternationalTax(subtotalCents, countryResult.rows[0]?.country || req.session.user.country);
     const feeCents = Math.round(subtotalCents * 0.05);
-    const totalCents = subtotalCents + feeCents;
-    await db.query('INSERT INTO transactions (id,user_id,kind,amount_cents,status,metadata,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)', [nanoid(), req.session.user.id, 'marketplace_purchase', totalCents, 'paid', { feeCents, subtotalCents, source: 'cart' }, new Date().toISOString()]);
+    const totalCents = subtotalCents + feeCents + tax.taxCents;
+    await ensureWalletReady(req.session.user.id, totalCents);
+    await db.query('INSERT INTO transactions (id,user_id,kind,amount_cents,status,metadata,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)', [nanoid(), req.session.user.id, 'marketplace_purchase', totalCents, 'paid', { feeCents, subtotalCents, taxCents: tax.taxCents, internationalTax: tax.isInternational, source: 'cart' }, new Date().toISOString()]);
     await db.query('DELETE FROM cart_items WHERE user_id=$1', [req.session.user.id]);
-    res.json({ subtotalCents, feeCents, totalCents, platformFeePercent: 5 });
+    res.json({ subtotalCents, feeCents, taxCents: tax.taxCents, totalCents, platformFeePercent: 5 });
   } catch (error) {
     next(error);
   }
@@ -200,14 +207,17 @@ router.post('/api/gigs/:id/purchase', requireUser, async (req, res, next) => {
     const gig = await db.query('SELECT * FROM gigs WHERE id=$1 AND status=$2', [req.params.id, 'active']);
     if (!gig.rows[0]) return res.status(404).json({ error: 'Gig not found' });
 
-    const amountCents = Number(gig.rows[0].price_cents);
+    const subtotalCents = Number(gig.rows[0].price_cents);
+    const countryResult = await db.query('SELECT country FROM users WHERE id=$1', [req.session.user.id]);
+    const tax = calculateInternationalTax(subtotalCents, countryResult.rows[0]?.country || req.session.user.country);
+    const amountCents = subtotalCents + tax.taxCents;
     await ensureWalletReady(req.session.user.id, amountCents);
     const feeCents = Math.round(amountCents * 0.05);
     const order = { id: nanoid(), gigId: req.params.id, buyerId: req.session.user.id, sellerId: gig.rows[0].seller_id, packageName: parsed.data.packageName, amountCents, feeCents, notes: parsed.data.notes || null, createdAt: new Date().toISOString() };
     await db.query('INSERT INTO gig_orders (id,gig_id,buyer_id,seller_id,package_name,amount_cents,fee_cents,status,notes,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [order.id, order.gigId, order.buyerId, order.sellerId, order.packageName, order.amountCents, order.feeCents, 'paid', order.notes, order.createdAt]);
-    await db.query('INSERT INTO transactions (id,user_id,kind,amount_cents,status,metadata,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)', [nanoid(), order.buyerId, 'gig_purchase', order.amountCents, 'paid', { gigId: order.gigId, packageName: order.packageName, feeCents: order.feeCents }, new Date().toISOString()]);
+    await db.query('INSERT INTO transactions (id,user_id,kind,amount_cents,status,metadata,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)', [nanoid(), order.buyerId, 'gig_purchase', order.amountCents, 'paid', { gigId: order.gigId, packageName: order.packageName, subtotalCents, taxCents: tax.taxCents, internationalTax: tax.isInternational, feeCents: order.feeCents }, new Date().toISOString()]);
     await updateTrustScoreOnSuccessfulTransaction(order.buyerId);
-    res.status(201).json({ order, totalCents: order.amountCents, feeCents: order.feeCents, netCents: order.amountCents - order.feeCents });
+    res.status(201).json({ order, subtotalCents, taxCents: tax.taxCents, totalCents: order.amountCents, feeCents: order.feeCents, netCents: order.amountCents - order.feeCents });
   } catch (error) {
     next(error);
   }

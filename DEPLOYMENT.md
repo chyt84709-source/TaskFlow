@@ -10,6 +10,8 @@ Set `APP_BASE_URL`, `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, and `STRIPE_W
 
 Set `CLOUDFLARE_TURNSTILE_SITE_KEY` and `CLOUDFLARE_TURNSTILE_SECRET_KEY` for wallet payment-method verification. The server rejects card requests when Turnstile verification is missing or invalid.
 
+Set `PLATFORM_COUNTRY` and `INTERNATIONAL_TAX_RATE` for tax policy. Taxes apply only when the user's normalized country differs from `PLATFORM_COUNTRY`. Set `STRIPE_PAYMENT_METHOD_TYPES` to the Stripe payment methods enabled in your account; regional options are filtered against that allowlist.
+
 Google Cloud Console must include the exact callback URL from `GOOGLE_CALLBACK_URL` as an authorized redirect URI. Configure Resend using `RESEND_API_KEY` and a verified sender such as `RESEND_FROM_EMAIL=onboarding@resend.dev` or your own verified custom domain. Store the API key in Railway or your host secret manager and rotate any credentials that were previously shared in chat before adding the replacements.
 
 ## 2. Install and run
