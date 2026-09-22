@@ -6,7 +6,9 @@ Railway is the recommended first host for this project because it provides a man
 
 Copy `.env.example` to `.env` for local development and replace every placeholder. Set `DATABASE_URL` to the PostgreSQL connection string supplied by your host. In production, put all values in the host's secret manager; do not commit `.env` or paste secrets into source control.
 
-Set `APP_BASE_URL`, `STRIPE_SECRET_KEY`, and `STRIPE_WEBHOOK_SECRET` for Premium Checkout. Register `POST /api/payments/stripe/webhook` in Stripe and enable the `checkout.session.completed` event. Set a separate random `UPLOAD_ENCRYPTION_KEY`; changing it later makes existing encrypted media unreadable.
+Set `APP_BASE_URL`, `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, and `STRIPE_WEBHOOK_SECRET` for Premium Checkout and hosted card verification. Register `POST /api/payments/stripe/webhook` in Stripe and enable the `checkout.session.completed` event. Set a separate random `UPLOAD_ENCRYPTION_KEY`; changing it later makes existing encrypted media unreadable.
+
+Set `CLOUDFLARE_TURNSTILE_SITE_KEY` and `CLOUDFLARE_TURNSTILE_SECRET_KEY` for wallet payment-method verification. The server rejects card requests when Turnstile verification is missing or invalid.
 
 Google Cloud Console must include the exact callback URL from `GOOGLE_CALLBACK_URL` as an authorized redirect URI. Configure Resend using `RESEND_API_KEY` and a verified sender such as `RESEND_FROM_EMAIL=onboarding@resend.dev` or your own verified custom domain. Store the API key in Railway or your host secret manager and rotate any credentials that were previously shared in chat before adding the replacements.
 

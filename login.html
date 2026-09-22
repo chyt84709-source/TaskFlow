@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>TaskFlow | Unified Platform</title>
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  <script src="https://js.stripe.com/v3/" defer></script>
   <style>
     :root {
       --bg: #f3f7f4;
@@ -1007,12 +1009,34 @@
       </section>
 
       <section class="page-section" data-section="wallet">
-        <div class="simple-grid">
-          <div class="section-panel">
-            <div class="section-header">
+        <div class="section-panel">
+          <div class="section-header">
+            <div>
               <h3>Wallet</h3>
-              <span class="tag">Secure</span>
+              <p class="muted" style="margin:4px 0 0;">Manage your balances, billing records, and verified payment methods.</p>
             </div>
+            <span class="tag">Secure</span>
+          </div>
+          <div class="tabs wallet-tabs">
+            <button type="button" class="tab-btn active" data-wallet-tab="billing-history">Billing History</button>
+            <button type="button" class="tab-btn" data-wallet-tab="billing-info">Billing Info</button>
+            <button type="button" class="tab-btn" data-wallet-tab="balances">Balances</button>
+            <button type="button" class="tab-btn" data-wallet-tab="payment-methods">Payment Methods</button>
+          </div>
+          <div class="wallet-tab-panel" data-wallet-panel="billing-history">
+            <div class="section-header"><h3>Billing history</h3><span class="tag">Actual transactions</span></div>
+            <div class="meta-list" id="wallet-history"></div>
+          </div>
+          <div class="wallet-tab-panel hidden" data-wallet-panel="billing-info">
+            <div class="section-header"><h3>Billing info</h3><span class="tag">Account</span></div>
+            <div class="compact-grid">
+              <div class="mini-metric"><span>Email</span><strong id="billing-email">Not set</strong></div>
+              <div class="mini-metric"><span>Country</span><strong id="billing-country">US</strong></div>
+              <div class="mini-metric"><span>Currency</span><strong id="billing-currency">USD</strong></div>
+              <div class="mini-metric"><span>Payment verification</span><strong>Cloudflare + OTP</strong></div>
+            </div>
+          </div>
+          <div class="wallet-tab-panel hidden" data-wallet-panel="balances">
             <div class="wallet-panel">
               <div class="wallet-balance">
                 <div>
@@ -1028,37 +1052,35 @@
                 </div>
                 <button type="submit" class="secondary-btn full">Add wallet funds</button>
               </form>
+            </div>
+          </div>
+          <div class="wallet-tab-panel hidden" data-wallet-panel="payment-methods">
+            <div class="wallet-panel">
               <form id="card-form">
                 <div class="field">
                   <label>Cardholder</label>
                   <input id="card-holder" required placeholder="Name on card">
                 </div>
                 <div class="field">
-                  <label>Brand</label>
-                  <input id="card-brand" required placeholder="Visa, MasterCard, Amex">
+                  <label>Card type</label>
+                  <select id="card-type" required>
+                    <option value="credit">Credit card</option>
+                    <option value="debit">Debit card</option>
+                  </select>
                 </div>
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                  <div class="field">
-                    <label>Last 4</label>
-                    <input id="card-last4" required maxlength="4" placeholder="1234">
-                  </div>
-                  <div class="field">
-                    <label>Expiry</label>
-                    <input id="card-expiry" required placeholder="08/29">
-                  </div>
+                <div class="field">
+                  <label>Network</label>
+                  <div id="stripe-card-element" class="upload-box">Secure card fields load after Cloudflare verification.</div>
                 </div>
-                <button type="submit" class="ghost-btn full">Save payment method</button>
+                <div class="cf-turnstile" id="card-turnstile"></div>
+                <button type="submit" class="ghost-btn full">Send verification code</button>
+              </form>
+              <form id="card-otp-form" class="hidden">
+                <div class="field"><label>Email verification code</label><input id="card-otp" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" required placeholder="6-digit code"></div>
+                <button type="submit" class="primary-btn full">Verify and add card</button>
               </form>
               <div class="card-list" id="cards-list"></div>
             </div>
-          </div>
-
-          <div class="section-panel">
-            <div class="section-header">
-              <h3>Wallet history</h3>
-              <span class="tag">Activity</span>
-            </div>
-            <div class="meta-list" id="wallet-history"></div>
           </div>
         </div>
       </section>
@@ -1200,6 +1222,12 @@
     const toast = $('toast');
     let toastTimer = null;
     let currentUser = null;
+    let cardVerificationId = null;
+    let turnstileWidgetId = null;
+    let turnstileToken = '';
+    let stripeClient = null;
+    let stripeElements = null;
+    let stripeCardElement = null;
 
     function notify(message) {
       toast.textContent = message;
@@ -1337,7 +1365,36 @@
       button.addEventListener('click', () => setActiveView(button.dataset.view));
     });
 
+    document.querySelectorAll('[data-wallet-tab]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const tabName = button.dataset.walletTab;
+        document.querySelectorAll('[data-wallet-tab]').forEach((tab) => tab.classList.toggle('active', tab === button));
+        document.querySelectorAll('[data-wallet-panel]').forEach((panel) => panel.classList.toggle('hidden', panel.dataset.walletPanel !== tabName));
+        if (tabName === 'payment-methods') renderCardTurnstile();
+      });
+    });
+
     window.addEventListener('hashchange', () => setActiveView(window.location.hash.slice(1) || 'overview'));
+
+    async function renderCardTurnstile() {
+      const container = $('card-turnstile');
+      if (!container || turnstileWidgetId !== null || !window.turnstile) return;
+      const config = await api('/api/client-config').catch(() => ({ turnstileSiteKey: '' }));
+      if (!config.turnstileSiteKey) return notify('Cloudflare verification is not configured.');
+      turnstileWidgetId = window.turnstile.render(container, {
+        sitekey: config.turnstileSiteKey,
+        callback: (token) => { turnstileToken = token; },
+        'expired-callback': () => { turnstileToken = ''; },
+        'error-callback': () => { turnstileToken = ''; notify('Cloudflare verification failed.'); },
+      });
+      const stripeConfig = await api('/api/client-config').catch(() => ({ stripePublishableKey: '' }));
+      if (stripeConfig.stripePublishableKey && window.Stripe && !stripeClient) {
+        stripeClient = window.Stripe(stripeConfig.stripePublishableKey);
+        stripeElements = stripeClient.elements();
+        stripeCardElement = stripeElements.create('card');
+        stripeCardElement.mount('#stripe-card-element');
+      }
+    }
 
     document.querySelectorAll('.toggle').forEach((button) => {
       button.addEventListener('click', () => {
@@ -1597,18 +1654,39 @@
     $('card-form').addEventListener('submit', async (event) => {
       event.preventDefault();
       try {
-        await api('/api/wallet/cards', {
+        if (!turnstileToken) return notify('Complete the Cloudflare security check first.');
+        if (!stripeClient || !stripeCardElement) return notify('Secure Stripe card fields are not ready.');
+        const result = await api('/api/wallet/cards/request-verification', {
           method: 'POST',
           body: JSON.stringify({
             holderName: $('card-holder').value,
-            cardBrand: $('card-brand').value,
-            last4: $('card-last4').value,
-            expiry: $('card-expiry').value
+            cardType: $('card-type').value,
+            turnstileToken
           })
         });
-        notify('Card saved successfully.');
+        const stripeResult = await stripeClient.confirmCardSetup(result.clientSecret, { payment_method: { card: stripeCardElement, billing_details: { name: $('card-holder').value } } });
+        if (stripeResult.error) throw new Error(stripeResult.error.message);
+        await api('/api/wallet/cards/confirm-setup', { method: 'POST', body: JSON.stringify({ verificationId: result.verificationId, paymentMethodId: stripeResult.setupIntent.payment_method }) });
+        cardVerificationId = result.verificationId;
+        $('card-otp-form').classList.remove('hidden');
+        notify('Verification code sent to your email.');
+      } catch (error) {
+        notify(error.message);
+      }
+    });
+
+    $('card-otp-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        if (!cardVerificationId) return notify('Request a verification code first.');
+        await api('/api/wallet/cards/confirm-verification', { method: 'POST', body: JSON.stringify({ verificationId: cardVerificationId, code: $('card-otp').value }) });
+        cardVerificationId = null;
+        turnstileToken = '';
         $('card-form').reset();
+        $('card-otp-form').classList.add('hidden');
+        if (turnstileWidgetId !== null && window.turnstile) window.turnstile.reset(turnstileWidgetId);
         await loadDashboard();
+        notify('Payment method verified and added.');
       } catch (error) {
         notify(error.message);
       }
@@ -1734,11 +1812,16 @@
 
         $('cards-list').innerHTML = (cards.cards || []).length ? (cards.cards || []).map((card) => `
           <div class="credit-card">
-            <small>${escapeHtml(card.card_brand || 'Card')}</small>
+            <small>${escapeHtml(card.card_type || 'credit').toUpperCase()} • ${escapeHtml(card.card_brand || 'Card')}</small>
             <strong>•••• ${escapeHtml(card.last4 || '0000')}</strong>
             <small>${escapeHtml(card.holder_name || 'Cardholder')} • ${escapeHtml(card.expiry || '00/00')}</small>
           </div>
         `).join('') : '<p class="muted">No saved cards yet.</p>';
+
+        $('billing-email').textContent = currentUser?.email || 'Not set';
+        $('billing-country').textContent = currentUser?.country || 'US';
+        const currency = await api('/api/currency').catch(() => ({ code: 'USD' }));
+        $('billing-currency').textContent = currency.code || 'USD';
 
         const walletHistory = wallet.transactions || [];
         $('wallet-history').innerHTML = walletHistory.length ? walletHistory.slice(0, 8).map((entry) => `
