@@ -1,33 +1,1102 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>TaskFlow | Work that moves</title>
+  <title>TaskFlow | Unified Platform</title>
   <style>
-    :root{font-family:Manrope,system-ui,sans-serif;color:#18231f;background:#f5f8f5;--green:#1f5d49;--dark:#123b30;--line:#dce5df;--muted:#718079;--mint:#dceee5;--gold:#e7b65d}*{box-sizing:border-box}body{margin:0}button,input,select{font:inherit}button{cursor:pointer}.page{min-height:100vh;display:grid;grid-template-columns:minmax(320px,.8fr) minmax(520px,1.2fr)}.auth{padding:clamp(24px,5vw,72px);display:flex;flex-direction:column;justify-content:space-between}.brand{font-size:22px;font-weight:800}.brand b{display:inline-grid;place-items:center;width:30px;height:30px;margin-right:8px;border-radius:8px;color:white;background:var(--green)}h1{max-width:520px;margin:12vh 0 14px;font-size:clamp(38px,5vw,64px);line-height:1;letter-spacing:-.06em}.muted{color:var(--muted);line-height:1.6}.card,.panel{padding:22px;border:1px solid var(--line);border-radius:14px;background:#fff;box-shadow:0 12px 35px #18231f0b}.auth-card{max-width:440px}.tabs,.row{display:flex;gap:8px}.tabs{margin-bottom:18px}.tabs button{flex:1;border:0;padding:10px;border-radius:8px;color:var(--muted);background:#edf2ee}.tabs button.active{color:var(--dark);background:var(--mint)}.field{margin:12px 0}label{display:block;margin-bottom:6px;color:var(--muted);font-size:12px;font-weight:700}input,select{width:100%;padding:12px;border:1px solid var(--line);border-radius:8px;background:white}.button{width:100%;padding:12px 15px;border:0;border-radius:8px;font-weight:800}.primary{color:#fff;background:var(--green)}.secondary{color:var(--dark);background:var(--mint)}.hidden{display:none!important}.preview{padding:clamp(24px,5vw,72px);color:#fff;background:var(--dark)}.preview h2{max-width:620px;margin:16vh 0 12px;font-size:clamp(38px,5vw,66px);line-height:1;letter-spacing:-.06em}.preview .muted{color:#b5cec2}.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:28px 0}.metric{padding:16px;border:1px solid #ffffff25;border-radius:10px;background:#ffffff0c}.metric b{display:block;margin:8px 0;font-size:26px;color:white}.metric span{font-size:11px;color:#b5cec2}.app{display:none;min-height:100vh;padding:28px;max-width:1180px;margin:auto}.app-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.list{display:grid;gap:8px}.item{padding:14px;border:1px solid var(--line);border-radius:10px;background:#fff}.item strong{display:block}.item small{color:var(--muted)}.toast{position:fixed;right:20px;bottom:20px;padding:13px 16px;border-radius:9px;color:#fff;background:#18231f;display:none}.toast.show{display:block}@media(max-width:850px){.page{grid-template-columns:1fr}.preview{min-height:520px}.preview h2{margin-top:8vh}.app{padding:18px}.grid{grid-template-columns:1fr}}
+    :root {
+      --bg: #f3f7f4;
+      --panel: #ffffff;
+      --line: #dfe9e2;
+      --primary: #1f5d49;
+      --primary-dark: #123b30;
+      --primary-soft: #e8f3ed;
+      --muted: #677a72;
+      --accent: #f5c76b;
+      --danger: #d9485f;
+      --shadow: 0 18px 46px rgba(18, 59, 48, 0.09);
+      --radius: 20px;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; font-family: Inter, "Segoe UI", sans-serif; background: var(--bg); color: var(--primary-dark); }
+    body { min-height: 100vh; }
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; }
+    input, select, textarea { width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: white; color: var(--primary-dark); }
+    a { color: inherit; text-decoration: none; }
+    .hidden { display: none !important; }
+    .page {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      align-items: stretch;
+      background: linear-gradient(135deg, #edf5f0 0%, #f7faf8 100%);
+    }
+    .auth-side {
+      padding: clamp(28px, 5vw, 72px);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      background: rgba(255,255,255,0.28);
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 1.4rem;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+    }
+    .brand-mark {
+      width: 32px;
+      height: 32px;
+      border-radius: 10px;
+      display: inline-grid;
+      place-items: center;
+      font-weight: 800;
+      color: white;
+      background: var(--primary);
+    }
+    .hero-copy { max-width: 560px; }
+    .hero-copy h1 {
+      margin: 48px 0 16px;
+      font-size: clamp(2.6rem, 5vw, 5rem);
+      line-height: 0.94;
+      letter-spacing: -0.06em;
+      font-weight: 900;
+    }
+    .muted { color: var(--muted); line-height: 1.6; }
+    .stats-strip {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(90px, 1fr));
+      gap: 12px;
+      margin-top: 28px;
+      max-width: 560px;
+    }
+    .mini-stat {
+      background: rgba(255,255,255,0.4);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px 18px;
+    }
+    .mini-stat span { display: block; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+    .mini-stat strong { display: block; font-size: 2rem; margin-top: 8px; }
+    .panel-shell {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: clamp(22px, 4vw, 60px);
+      background: linear-gradient(160deg, #123b30 0%, #1d4c3a 100%);
+    }
+    .auth-card {
+      width: min(460px, 100%);
+      background: rgba(255,255,255,0.95);
+      border: 1px solid rgba(255,255,255,0.24);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 24px;
+    }
+    .tabs {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+    .tab-btn {
+      border: 1px solid var(--line);
+      background: #f2f6f3;
+      color: var(--muted);
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-weight: 700;
+    }
+    .tab-btn.active {
+      background: var(--primary-soft);
+      color: var(--primary-dark);
+      border-color: #cfe4d7;
+    }
+    form { display: block; }
+    .field { margin-bottom: 14px; }
+    .field label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      font-weight: 700;
+    }
+    .input-wrap { position: relative; }
+    .input-wrap .toggle {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      border: none;
+      background: transparent;
+      color: var(--primary);
+      font-weight: 700;
+      padding: 6px 8px;
+    }
+    .primary-btn, .secondary-btn, .ghost-btn {
+      border: none;
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-weight: 800;
+      transition: transform 0.15s ease;
+    }
+    .primary-btn { background: var(--primary); color: white; }
+    .secondary-btn { background: var(--primary-soft); color: var(--primary-dark); }
+    .ghost-btn { background: #eef2ee; color: var(--primary-dark); }
+    .primary-btn:hover, .secondary-btn:hover, .ghost-btn:hover { transform: translateY(-1px); }
+    .full { width: 100%; }
+    .tiny-link {
+      display: inline-block;
+      margin: 6px 0 12px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+    .app-shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      background: #f5f7f5;
+    }
+    .sidebar {
+      background: #0f2a22;
+      color: white;
+      padding: 26px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .sidebar .brand { color: white; }
+    .nav {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .nav-btn {
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.04);
+      color: rgba(255,255,255,0.9);
+      border-radius: 12px;
+      padding: 12px 14px;
+      text-align: left;
+      font-weight: 700;
+    }
+    .nav-btn.active {
+      background: rgba(255,255,255,0.12);
+      border-color: rgba(255,255,255,0.18);
+    }
+    .sidebar-box {
+      margin-top: auto;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      padding: 14px;
+    }
+    .main {
+      padding: 28px;
+    }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 26px;
+    }
+    .search-box {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 0 14px;
+      max-width: 560px;
+      height: 50px;
+    }
+    .search-box input {
+      border: none;
+      padding: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+    .user-actions { display: flex; align-items: center; gap: 12px; }
+    .pill {
+      border-radius: 999px;
+      background: var(--primary-soft);
+      color: var(--primary-dark);
+      padding: 10px 14px;
+      font-weight: 700;
+      border: 1px solid #cfe4d7;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(180px, 1fr));
+      gap: 14px;
+      margin-bottom: 22px;
+    }
+    .metric-card {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 12px 32px rgba(20, 29, 24, 0.03);
+    }
+    .metric-card small {
+      display: block;
+      font-size: 12px;
+      letter-spacing: 0.09em;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+    .metric-card strong {
+      display: block;
+      margin-top: 10px;
+      font-size: clamp(1.5rem, 2vw, 2.4rem);
+      letter-spacing: -0.05em;
+    }
+    .grid-layout {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+    .section-panel {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 10px 24px rgba(18, 59, 48, 0.03);
+    }
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .section-header h3 {
+      margin: 0;
+      font-size: 1.1rem;
+      letter-spacing: -0.04em;
+    }
+    .meta-list {
+      display: grid;
+      gap: 12px;
+    }
+    .item-card {
+      padding: 14px 14px 12px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: linear-gradient(180deg, #fefefe 0%, #f8faf9 100%);
+    }
+    .item-card h4 {
+      margin: 0 0 6px;
+      font-size: 1rem;
+      letter-spacing: -0.03em;
+    }
+    .item-card p {
+      margin: 0 0 10px;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.5;
+    }
+    .item-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.88rem;
+      color: var(--muted);
+    }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      background: var(--primary-soft);
+      color: var(--primary);
+      font-weight: 700;
+      padding: 7px 10px;
+      font-size: 0.78rem;
+    }
+    .row-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+    .mini-btn {
+      border-radius: 10px;
+      padding: 9px 12px;
+      font-weight: 700;
+      border: none;
+      background: #eef3ef;
+      color: var(--primary-dark);
+    }
+    .mini-btn.primary { background: var(--primary); color: white; }
+    .mini-btn.danger { background: #fff1f3; color: var(--danger); }
+    .wallet-panel { display: grid; gap: 14px; }
+    .wallet-balance {
+      padding: 18px;
+      background: linear-gradient(135deg, #123b30 0%, #1e5c4b 100%);
+      border-radius: 18px;
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: var(--shadow);
+    }
+    .wallet-balance strong {
+      font-size: clamp(1.7rem, 2vw, 2.5rem);
+      display: block;
+      letter-spacing: -0.06em;
+    }
+    .card-list {
+      display: grid;
+      gap: 10px;
+    }
+    .credit-card {
+      padding: 16px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #0e2a24 0%, #2a5a48 100%);
+      color: white;
+      box-shadow: var(--shadow);
+    }
+    .credit-card small { opacity: 0.8; }
+    .credit-card strong { display: block; margin: 14px 0 10px; font-size: 1.5rem; letter-spacing: 0.18em; }
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #0f2a22;
+      color: white;
+      padding: 12px 16px;
+      border-radius: 12px;
+      opacity: 0;
+      transform: translateY(12px);
+      transition: 0.2s ease;
+      pointer-events: none;
+      z-index: 999;
+      box-shadow: var(--shadow);
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    @media (max-width: 980px) {
+      .page { grid-template-columns: 1fr; }
+      .panel-shell { order: -1; }
+      .app-shell { grid-template-columns: 1fr; }
+      .stats-grid, .grid-layout { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
   <main class="page" id="landing">
-    <section class="auth"><div><div class="brand"><b>↗</b>taskflow</div><h1>Make your next move count.</h1><p class="muted">Earn from verified tasks, sell your skills, and discover useful products in one accountable marketplace.</p></div><div class="card auth-card"><div class="tabs"><button class="active" data-tab="signin">Sign in</button><button data-tab="register">Create account</button><button data-tab="admin">Admin</button></div><form id="signin"><div class="field"><label for="signin-email">Email address</label><input id="signin-email" type="email" required autocomplete="email"></div><div class="field"><label for="signin-password">Password</label><input id="signin-password" type="password" required autocomplete="current-password"></div><div class="field" style="margin-top:-4px"><a href="/forgot-password" style="color:var(--green);text-decoration:none;font-weight:700;display:inline-block;margin-top:4px">Forgot Password?</a></div><button class="button primary" type="submit">Sign in</button><button class="button secondary" type="button" id="google" style="margin-top:10px">Continue with Google</button></form><form id="register" class="hidden"><div class="field"><label for="register-name">Your name</label><input id="register-name" required maxlength="100"></div><div class="field"><label for="register-email">Email address</label><input id="register-email" type="email" required autocomplete="email"></div><div class="field"><label for="register-password">Password</label><input id="register-password" type="password" required minlength="6" autocomplete="new-password"></div><div class="field"><label for="register-role">Account type</label><select id="register-role"><option value="worker">Worker / seller</option><option value="client">Client / buyer</option></select></div><button class="button primary" type="submit">Create account</button></form><form id="admin" class="hidden"><div class="field"><label for="admin-user">Username</label><input id="admin-user" required></div><div class="field"><label for="admin-password">Password</label><input id="admin-password" type="password" required></div><button class="button primary" type="submit">Open admin console</button></form></div></section>
-    <section class="preview"><div class="brand"><b style="color:var(--dark);background:var(--gold)">↗</b>taskflow</div><h2>Small tasks. Serious momentum.</h2><p class="muted">A transparent economy for people who make, sell, watch, and build. Every number below comes from the live platform.</p><div class="metrics"><div class="metric"><span>ACTIVE USERS</span><b id="public-users">0</b><span>registered accounts</span></div><div class="metric"><span>ACTIVE TASKS</span><b id="public-tasks">0</b><span>open opportunities</span></div><div class="metric"><span>ACTIVE LISTINGS</span><b id="public-listings">0</b><span>marketplace offers</span></div></div></section>
+    <section class="auth-side">
+      <div>
+        <div class="brand"><span class="brand-mark">↗</span>taskflow</div>
+        <div class="hero-copy">
+          <h1>Make your next move count.</h1>
+          <p class="muted">A unified marketplace for verified tasks, commerce, services, influence campaigns, and wallet-based payouts.</p>
+        </div>
+        <div class="stats-strip">
+          <div class="mini-stat"><span>Users</span><strong id="public-users">0</strong></div>
+          <div class="mini-stat"><span>Tasks</span><strong id="public-tasks">0</strong></div>
+          <div class="mini-stat"><span>Listings</span><strong id="public-listings">0</strong></div>
+        </div>
+      </div>
+    </section>
+    <section class="panel-shell">
+      <div class="auth-card">
+        <div class="tabs">
+          <button type="button" class="tab-btn active" data-tab="signin">Sign in</button>
+          <button type="button" class="tab-btn" data-tab="register">Create</button>
+          <button type="button" class="tab-btn" data-tab="admin">Admin</button>
+        </div>
+
+        <form id="signin">
+          <div class="field">
+            <label for="signin-email">Email address</label>
+            <input id="signin-email" type="email" required autocomplete="email" placeholder="name@example.com">
+          </div>
+          <div class="field">
+            <label for="signin-password">Password</label>
+            <div class="input-wrap">
+              <input id="signin-password" type="password" required autocomplete="current-password" placeholder="Enter your password">
+              <button type="button" class="toggle" data-target="signin-password">Show</button>
+            </div>
+          </div>
+          <a href="/forgot-password" class="tiny-link">Forgot Password?</a>
+          <button type="submit" class="primary-btn full">Sign in</button>
+          <button type="button" class="secondary-btn full" id="google" style="margin-top: 10px;">Continue with Google</button>
+        </form>
+
+        <form id="register" class="hidden">
+          <div class="field">
+            <label for="register-name">Your name</label>
+            <input id="register-name" required maxlength="100" placeholder="Full name">
+          </div>
+          <div class="field">
+            <label for="register-email">Email address</label>
+            <input id="register-email" type="email" required autocomplete="email" placeholder="name@example.com">
+          </div>
+          <div class="field">
+            <label for="register-password">Password</label>
+            <div class="input-wrap">
+              <input id="register-password" type="password" required minlength="6" autocomplete="new-password" placeholder="Create password">
+              <button type="button" class="toggle" data-target="register-password">Show</button>
+            </div>
+          </div>
+          <div class="field">
+            <label for="register-role">Account type</label>
+            <select id="register-role">
+              <option value="worker">Worker / seller</option>
+              <option value="client">Client / buyer</option>
+            </select>
+          </div>
+          <button type="submit" class="primary-btn full">Create account</button>
+        </form>
+
+        <form id="admin" class="hidden">
+          <div class="field">
+            <label for="admin-user">Username</label>
+            <input id="admin-user" required>
+          </div>
+          <div class="field">
+            <label for="admin-password">Password</label>
+            <div class="input-wrap">
+              <input id="admin-password" type="password" required>
+              <button type="button" class="toggle" data-target="admin-password">Show</button>
+            </div>
+          </div>
+          <button type="submit" class="primary-btn full">Open admin console</button>
+        </form>
+      </div>
+    </section>
   </main>
-  <section class="app" id="app"><div class="app-head"><div><div class="brand"><b>↗</b>taskflow</div><p class="muted" id="welcome"></p></div><button class="button secondary" id="logout" style="width:auto">Sign out</button></div><div class="grid"><div class="panel"><h2>Tasks</h2><div id="tasks" class="list"></div><form id="task-form" class="hidden"><div class="field"><label>Title</label><input id="task-title" required></div><div class="field"><label>Video URL</label><input id="task-url" type="url" required></div><div class="row"><input id="task-seconds" type="number" min="5" value="60" required><input id="task-payout" type="number" min="1" value="100" required></div><button class="button primary" style="margin-top:8px">Post task</button></form></div><div class="panel"><h2>Marketplace</h2><div id="listings" class="list"></div><form id="listing-form" class="hidden"><div class="field"><label>Listing title</label><input id="listing-title" required></div><div class="field"><label>Type</label><select id="listing-type"><option>service</option><option>physical</option><option>digital</option><option>software</option></select></div><div class="field"><label>Price in cents</label><input id="listing-price" type="number" min="1" required></div><button class="button primary">Publish listing</button></form></div><div class="panel"><h2>Account</h2><p id="balance" class="muted">Sign in to load your wallet.</p><button class="button secondary" id="add-task">Post a task</button><button class="button secondary" id="add-listing" style="margin-top:8px">List an offer</button><div id="admin-data" class="hidden"><h3>Admin overview</h3><pre id="admin-json"></pre></div></div><div class="panel"><h2>Products</h2><div id="products" class="list"></div><form id="product-form" class="hidden"><div class="field"><label>Product title</label><input id="product-title" required></div><div class="field"><label>Category</label><input id="product-category" required></div><div class="field"><label>Media URL</label><input id="product-media" type="url" placeholder="https://..."></div><div class="row"><input id="product-price" type="number" min="1" value="500" required><input id="product-stock" type="number" min="0" value="10" required></div><div class="field"><label>Description</label><textarea id="product-description" rows="3" required></textarea></div><button class="button primary">Publish product</button></form></div><div class="panel"><h2>Ads</h2><div id="ads" class="list"></div><form id="ad-form" class="hidden"><div class="field"><label>Ad title</label><input id="ad-title" required></div><div class="field"><label>Category</label><input id="ad-category" required></div><div class="field"><label>Location</label><input id="ad-location" required></div><div class="field"><label>Price in cents</label><input id="ad-price" type="number" min="1" required></div><div class="field"><label>Description</label><textarea id="ad-description" rows="3" required></textarea></div><button class="button primary">Post ad</button></form></div><div class="panel"><h2>Gigs</h2><div id="gigs" class="list"></div><form id="gig-form" class="hidden"><div class="field"><label>Gig title</label><input id="gig-title" required></div><div class="field"><label>Category</label><input id="gig-category" required></div><div class="field"><label>Price in cents</label><input id="gig-price" type="number" min="1" required></div><div class="field"><label>Delivery days</label><input id="gig-days" type="number" min="1" value="3" required></div><div class="field"><label>Description</label><textarea id="gig-description" rows="3" required></textarea></div><button class="button primary">Create gig</button></form></div></div></section><div id="toast" class="toast"></div>
+
+  <div id="app" class="app-shell hidden">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark">↗</span>taskflow</div>
+      <nav class="nav">
+        <button type="button" class="nav-btn active">Overview</button>
+        <button type="button" class="nav-btn">Tasks</button>
+        <button type="button" class="nav-btn">Marketplace</button>
+        <button type="button" class="nav-btn">Products</button>
+        <button type="button" class="nav-btn">Gigs</button>
+        <button type="button" class="nav-btn">Wallet</button>
+      </nav>
+      <div class="sidebar-box">
+        <div style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; opacity: 0.8; margin-bottom: 8px;">Account</div>
+        <div id="welcome" style="font-weight: 700; margin-bottom: 8px;">Signed in</div>
+        <div id="role-badge" class="tag">Member</div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="search-box">
+          <span style="font-size: 1.1rem; margin-right: 8px;">⌕</span>
+          <input id="global-search" type="text" placeholder="Search tasks, listings, products, gigs...">
+        </div>
+        <div class="user-actions">
+          <div class="pill" id="wallet-pill">$0.00</div>
+          <button type="button" class="ghost-btn" id="logout">Sign out</button>
+        </div>
+      </header>
+
+      <section class="stats-grid" id="metrics-grid">
+        <div class="metric-card"><small>Wallet</small><strong id="balance-display">$0.00</strong></div>
+        <div class="metric-card"><small>Active Tasks</small><strong id="metric-tasks">0</strong></div>
+        <div class="metric-card"><small>Live Listings</small><strong id="metric-listings">0</strong></div>
+        <div class="metric-card"><small>Products</small><strong id="metric-products">0</strong></div>
+      </section>
+
+      <section class="grid-layout">
+        <div class="section-panel">
+          <div class="section-header">
+            <h3>Post a task</h3>
+            <span class="tag">Verified</span>
+          </div>
+          <form id="task-form">
+            <div class="field">
+              <label>Task title</label>
+              <input id="task-title" required placeholder="Example: Buy 1,000 Instagram followers">
+            </div>
+            <div class="field">
+              <label>Video or target URL</label>
+              <input id="task-url" type="url" required placeholder="https://example.com">
+            </div>
+            <div class="field">
+              <label>Target views / duration</label>
+              <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                <input id="task-seconds" type="number" min="5" value="60" required>
+                <input id="task-payout" type="number" min="1" value="100" required>
+              </div>
+            </div>
+            <button type="submit" class="primary-btn full">Publish task</button>
+          </form>
+        </div>
+
+        <div class="section-panel">
+          <div class="section-header">
+            <h3>Sell a product</h3>
+            <span class="tag">Retail</span>
+          </div>
+          <form id="product-form">
+            <div class="field">
+              <label>Product title</label>
+              <input id="product-title" required placeholder="Smart phone or gadget">
+            </div>
+            <div class="field">
+              <label>Category</label>
+              <input id="product-category" required placeholder="Electronics, Home, Auto...">
+            </div>
+            <div class="field">
+              <label>Price (cents)</label>
+              <input id="product-price" type="number" min="1" value="2500" required>
+            </div>
+            <div class="field">
+              <label>Stock</label>
+              <input id="product-stock" type="number" min="1" value="10" required>
+            </div>
+            <div class="field">
+              <label>Media URL</label>
+              <input id="product-media" type="url" placeholder="https://images.example.com/product.jpg">
+            </div>
+            <button type="submit" class="primary-btn full">List product</button>
+          </form>
+        </div>
+
+        <div class="section-panel">
+          <div class="section-header">
+            <h3>Marketplace listing</h3>
+            <span class="tag">Buy & sell</span>
+          </div>
+          <form id="listing-form">
+            <div class="field">
+              <label>Listing title</label>
+              <input id="listing-title" required placeholder="Used motorcycle, camera, laptop">
+            </div>
+            <div class="field">
+              <label>Type</label>
+              <select id="listing-type">
+                <option value="service">Service</option>
+                <option value="physical">Physical</option>
+                <option value="digital">Digital</option>
+                <option value="software">Software</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Price (cents)</label>
+              <input id="listing-price" type="number" min="1" value="5000" required>
+            </div>
+            <button type="submit" class="primary-btn full">Publish listing</button>
+          </form>
+        </div>
+
+        <div class="section-panel">
+          <div class="section-header">
+            <h3>Offer a gig</h3>
+            <span class="tag">5% fee</span>
+          </div>
+          <form id="gig-form">
+            <div class="field">
+              <label>Gig title</label>
+              <input id="gig-title" required placeholder="Landing page design, video edit, branding">
+            </div>
+            <div class="field">
+              <label>Category</label>
+              <input id="gig-category" required placeholder="Design, Video, Marketing">
+            </div>
+            <div class="field">
+              <label>Price (cents)</label>
+              <input id="gig-price" type="number" min="1" value="25000" required>
+            </div>
+            <div class="field">
+              <label>Delivery days</label>
+              <input id="gig-days" type="number" min="1" value="3" required>
+            </div>
+            <div class="field">
+              <label>Description</label>
+              <textarea id="gig-description" rows="3" required placeholder="Describe your offer, deliverables, and process."></textarea>
+            </div>
+            <button type="submit" class="primary-btn full">Create gig</button>
+          </form>
+        </div>
+
+        <div class="section-panel">
+          <div class="section-header">
+            <h3>Wallet</h3>
+            <span class="tag">Secure</span>
+          </div>
+          <div class="wallet-panel">
+            <div class="wallet-balance">
+              <div>
+                <small style="opacity:0.75; text-transform: uppercase; letter-spacing: 0.1em;">Balance</small>
+                <strong id="wallet-balance-main">$0.00</strong>
+              </div>
+              <div style="font-size: 12px; opacity: 0.85;">Protected</div>
+            </div>
+            <form id="deposit-form">
+              <div class="field">
+                <label>Deposit amount (cents)</label>
+                <input id="deposit-amount" type="number" min="100" value="5000" required>
+              </div>
+              <button type="submit" class="secondary-btn full">Add wallet funds</button>
+            </form>
+            <form id="card-form">
+              <div class="field">
+                <label>Cardholder</label>
+                <input id="card-holder" required placeholder="Name on card">
+              </div>
+              <div class="field">
+                <label>Brand</label>
+                <input id="card-brand" required placeholder="Visa, MasterCard, Amex">
+              </div>
+              <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                <div class="field">
+                  <label>Last 4</label>
+                  <input id="card-last4" required maxlength="4" placeholder="1234">
+                </div>
+                <div class="field">
+                  <label>Expiry</label>
+                  <input id="card-expiry" required placeholder="08/29">
+                </div>
+              </div>
+              <button type="submit" class="ghost-btn full">Save card</button>
+            </form>
+            <div class="card-list" id="cards-list"></div>
+          </div>
+        </div>
+
+        <div class="section-panel">
+          <div class="section-header">
+            <h3>Tasks & opportunities</h3>
+            <span class="tag" id="task-count-tag">0 live</span>
+          </div>
+          <div class="meta-list" id="tasks-list"></div>
+        </div>
+
+        <div class="section-panel">
+          <div class="section-header">
+            <h3>Marketplace</h3>
+            <span class="tag" id="listing-count-tag">0 live</span>
+          </div>
+          <div class="meta-list" id="listings-list"></div>
+        </div>
+
+        <div class="section-panel">
+          <div class="section-header">
+            <h3>Products</h3>
+            <span class="tag" id="product-count-tag">0 live</span>
+          </div>
+          <div class="meta-list" id="products-list"></div>
+        </div>
+
+        <div class="section-panel">
+          <div class="section-header">
+            <h3>Gig marketplace</h3>
+            <span class="tag" id="gig-count-tag">0 live</span>
+          </div>
+          <div class="meta-list" id="gigs-list"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
   <script>
-    const $=id=>document.getElementById(id);const toast=$('toast');let timer;
-    function notify(message){toast.textContent=message;toast.classList.add('show');clearTimeout(timer);timer=setTimeout(()=>toast.classList.remove('show'),3500)}
-    async function api(path,options={}){const response=await fetch(path,{credentials:'include',headers:{'Content-Type':'application/json',...(options.headers||{})},...options});const data=response.status===204?null:await response.json();if(!response.ok)throw new Error(data?.error||'Request failed');return data}
-    document.querySelectorAll('[data-tab]').forEach(button=>button.addEventListener('click',()=>{document.querySelectorAll('[data-tab]').forEach(item=>item.classList.toggle('active',item===button));['signin','register','admin'].forEach(id=>$(id).classList.toggle('hidden',id!==button.dataset.tab));window.authRequest=null;}));
-    $('signin').addEventListener('submit',async event=>{event.preventDefault();try{const data=await api('/api/auth/login',{method:'POST',body:JSON.stringify({email:$('signin-email').value.trim(),password:$('signin-password').value})});openApp(data.user)}catch(error){notify(error.message)}});
-    $('register').addEventListener('submit',async event=>{event.preventDefault();try{const data=await api('/api/auth/signup',{method:'POST',body:JSON.stringify({email:$('register-email').value.trim(),password:$('register-password').value,name:$('register-name').value.trim(),role:$('register-role').value})});openApp(data.user)}catch(error){notify(error.message)}});
-    $('google').addEventListener('click',()=>{window.location='/api/auth/google'});
-    $('admin').addEventListener('submit',async event=>{event.preventDefault();try{const data=await api('/api/admin/login',{method:'POST',body:JSON.stringify({username:$('admin-user').value,password:$('admin-password').value})});openApp(data.user);const overview=await api('/api/admin/overview');$('admin-data').classList.remove('hidden');$('admin-json').textContent=JSON.stringify(overview.stats,null,2)}catch(error){notify(error.message)}});
-    async function loadPublic(){try{const data=await api('/api/summary');$('public-users').textContent=data.users.toLocaleString();$('public-tasks').textContent=data.activeTasks.toLocaleString();$('public-listings').textContent=data.activeListings.toLocaleString()}catch(error){notify(error.message)}}
-    async function openApp(user){$('landing').style.display='none';$('app').style.display='block';$('welcome').textContent=`Signed in as ${user.name||user.email}`;try{const [tasks,listings,wallet,products,ads,gigs]=await Promise.all([api('/api/tasks'),api('/api/listings'),api('/api/wallet').catch(()=>({balanceCents:0})),api('/api/products').catch(()=>({products:[]})),api('/api/ads').catch(()=>({ads:[]})),api('/api/gigs').catch(()=>({gigs:[]}))]);$('tasks').innerHTML=tasks.tasks.map(task=>`<div class="item"><strong>${escapeHtml(task.title)}</strong><small>${task.seconds}s · ${(task.payoutCents/100).toFixed(2)}</small></div>`).join('')||'<p class="muted">No active tasks yet.</p>';$('listings').innerHTML=listings.listings.map(item=>`<div class="item"><strong>${escapeHtml(item.title)}</strong><small>${item.type} · ${(item.priceCents/100).toFixed(2)}</small></div>`).join('')||'<p class="muted">No active listings yet.</p>';$('products').innerHTML=products.products.map(item=>`<div class="item"><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.category)} · ${(item.price_cents/100).toFixed(2)}</small></div>`).join('')||'<p class="muted">No products yet.</p>';$('ads').innerHTML=ads.ads.map(item=>`<div class="item"><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.location)} · ${(item.price_cents/100).toFixed(2)}</small></div>`).join('')||'<p class="muted">No ads yet.</p>';$('gigs').innerHTML=gigs.gigs.map(item=>`<div class="item"><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.category)} · ${(item.price_cents/100).toFixed(2)}</small></div>`).join('')||'<p class="muted">No gigs yet.</p>';$('balance').textContent=`Wallet balance: $${(wallet.balanceCents/100).toFixed(2)}`}catch(error){notify(error.message)}}
-    function escapeHtml(value){return String(value).replace(/[&<>'"]/g,character=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[character]))}
-    $('logout').addEventListener('click',async()=>{await api('/api/auth/logout',{method:'POST'});location.reload()});$('add-task').addEventListener('click',()=>$('task-form').classList.toggle('hidden'));$('add-listing').addEventListener('click',()=>$('listing-form').classList.toggle('hidden'));
-    $('task-form').addEventListener('submit',async event=>{event.preventDefault();try{await api('/api/tasks',{method:'POST',body:JSON.stringify({title:$('task-title').value,videoUrl:$('task-url').value,seconds:Number($('task-seconds').value),payoutCents:Number($('task-payout').value)})});notify('Task published.');location.reload()}catch(error){notify(error.message)}});$('listing-form').addEventListener('submit',async event=>{event.preventDefault();try{await api('/api/listings',{method:'POST',body:JSON.stringify({title:$('listing-title').value,type:$('listing-type').value,priceCents:Number($('listing-price').value)})});notify('Listing published.');location.reload()}catch(error){notify(error.message)}});$('product-form').addEventListener('submit',async event=>{event.preventDefault();try{await api('/api/products',{method:'POST',body:JSON.stringify({title:$('product-title').value,description:$('product-description').value,category:$('product-category').value,priceCents:Number($('product-price').value),stock:Number($('product-stock').value),media:[$('product-media').value].filter(Boolean)})});notify('Product published.');location.reload()}catch(error){notify(error.message)}});$('ad-form').addEventListener('submit',async event=>{event.preventDefault();try{await api('/api/ads',{method:'POST',body:JSON.stringify({title:$('ad-title').value,description:$('ad-description').value,category:$('ad-category').value,location:$('ad-location').value,priceCents:Number($('ad-price').value),media:[]})});notify('Ad posted.');location.reload()}catch(error){notify(error.message)}});$('gig-form').addEventListener('submit',async event=>{event.preventDefault();try{await api('/api/gigs',{method:'POST',body:JSON.stringify({title:$('gig-title').value,description:$('gig-description').value,category:$('gig-category').value,priceCents:Number($('gig-price').value),deliveryDays:Number($('gig-days').value)})});notify('Gig created.');location.reload()}catch(error){notify(error.message)}});loadPublic();
+    const $ = (id) => document.getElementById(id);
+    const toast = $('toast');
+    let toastTimer = null;
+
+    function notify(message) {
+      toast.textContent = message;
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    async function api(path, options = {}) {
+      const response = await fetch(path, {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(options.headers || {})
+        },
+        ...options
+      });
+      const data = response.status === 204 ? null : await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error || 'Request failed');
+      return data;
+    }
+
+    function formatMoney(cents) {
+      return `$${(Number(cents || 0) / 100).toFixed(2)}`;
+    }
+
+    function escapeHtml(value) {
+      return String(value || '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[ch]));
+    }
+
+    function toggleTab(tabName) {
+      document.querySelectorAll('.tab-btn').forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tabName));
+      ['signin', 'register', 'admin'].forEach((name) => $(name).classList.toggle('hidden', name !== tabName));
+    }
+
+    document.querySelectorAll('.tab-btn').forEach((button) => {
+      button.addEventListener('click', () => toggleTab(button.dataset.tab));
+    });
+
+    document.querySelectorAll('.toggle').forEach((button) => {
+      button.addEventListener('click', () => {
+        const target = document.getElementById(button.dataset.target);
+        const isPassword = target.type === 'password';
+        target.type = isPassword ? 'text' : 'password';
+        button.textContent = isPassword ? 'Hide' : 'Show';
+      });
+    });
+
+    $('signin').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        const data = await api('/api/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({
+            email: $('signin-email').value.trim(),
+            password: $('signin-password').value
+          })
+        });
+        openApp(data.user);
+      } catch (error) {
+        notify(error.message);
+      }
+    });
+
+    $('register').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        const data = await api('/api/auth/signup', {
+          method: 'POST',
+          body: JSON.stringify({
+            email: $('register-email').value.trim(),
+            password: $('register-password').value,
+            name: $('register-name').value.trim(),
+            role: $('register-role').value
+          })
+        });
+        openApp(data.user);
+      } catch (error) {
+        notify(error.message);
+      }
+    });
+
+    $('admin').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        const data = await api('/api/admin/login', {
+          method: 'POST',
+          body: JSON.stringify({
+            username: $('admin-user').value,
+            password: $('admin-password').value
+          })
+        });
+        openApp(data.user);
+      } catch (error) {
+        notify(error.message);
+      }
+    });
+
+    $('google').addEventListener('click', () => window.location.href = '/api/auth/google');
+
+    $('logout').addEventListener('click', async () => {
+      try {
+        await api('/api/auth/logout', { method: 'POST' });
+        location.reload();
+      } catch (error) {
+        notify(error.message);
+      }
+    });
+
+    $('task-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        await api('/api/tasks', {
+          method: 'POST',
+          body: JSON.stringify({
+            title: $('task-title').value,
+            videoUrl: $('task-url').value,
+            seconds: Number($('task-seconds').value),
+            payoutCents: Number($('task-payout').value)
+          })
+        });
+        notify('Task published successfully.');
+        $('task-form').reset();
+        await loadDashboard();
+      } catch (error) {
+        notify(error.message);
+      }
+    });
+
+    $('product-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        await api('/api/products', {
+          method: 'POST',
+          body: JSON.stringify({
+            title: $('product-title').value,
+            description: 'New product listing on TaskFlow.',
+            category: $('product-category').value,
+            priceCents: Number($('product-price').value),
+            stock: Number($('product-stock').value),
+            media: [$('product-media').value].filter(Boolean)
+          })
+        });
+        notify('Product listed successfully.');
+        $('product-form').reset();
+        await loadDashboard();
+      } catch (error) {
+        notify(error.message);
+      }
+    });
+
+    $('listing-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        await api('/api/listings', {
+          method: 'POST',
+          body: JSON.stringify({
+            title: $('listing-title').value,
+            type: $('listing-type').value,
+            priceCents: Number($('listing-price').value)
+          })
+        });
+        notify('Listing published successfully.');
+        $('listing-form').reset();
+        await loadDashboard();
+      } catch (error) {
+        notify(error.message);
+      }
+    });
+
+    $('gig-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        await api('/api/gigs', {
+          method: 'POST',
+          body: JSON.stringify({
+            title: $('gig-title').value,
+            description: $('gig-description').value,
+            category: $('gig-category').value,
+            priceCents: Number($('gig-price').value),
+            deliveryDays: Number($('gig-days').value)
+          })
+        });
+        notify('Gig published successfully.');
+        $('gig-form').reset();
+        await loadDashboard();
+      } catch (error) {
+        notify(error.message);
+      }
+    });
+
+    $('deposit-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        await api('/api/wallet/deposit', {
+          method: 'POST',
+          body: JSON.stringify({ amountCents: Number($('deposit-amount').value), source: 'wallet' })
+        });
+        notify('Wallet topped up.');
+        $('deposit-form').reset();
+        await loadDashboard();
+      } catch (error) {
+        notify(error.message);
+      }
+    });
+
+    $('card-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        await api('/api/wallet/cards', {
+          method: 'POST',
+          body: JSON.stringify({
+            holderName: $('card-holder').value,
+            cardBrand: $('card-brand').value,
+            last4: $('card-last4').value,
+            expiry: $('card-expiry').value
+          })
+        });
+        notify('Card saved successfully.');
+        $('card-form').reset();
+        await loadDashboard();
+      } catch (error) {
+        notify(error.message);
+      }
+    });
+
+    async function loadPublicStats() {
+      try {
+        const data = await api('/api/summary');
+        $('public-users').textContent = data.users?.toLocaleString() || '0';
+        $('public-tasks').textContent = data.activeTasks?.toLocaleString() || '0';
+        $('public-listings').textContent = data.activeListings?.toLocaleString() || '0';
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
+    async function loadDashboard() {
+      try {
+        const [summary, tasks, listings, products, gigs, wallet, cards] = await Promise.all([
+          api('/api/summary').catch(() => ({ users: 0, activeTasks: 0, activeListings: 0 })),
+          api('/api/tasks').catch(() => ({ tasks: [] })),
+          api('/api/listings').catch(() => ({ listings: [] })),
+          api('/api/products').catch(() => ({ products: [] })),
+          api('/api/gigs').catch(() => ({ gigs: [] })),
+          api('/api/wallet').catch(() => ({ balanceCents: 0, transactions: [] })),
+          api('/api/wallet/cards').catch(() => ({ cards: [] }))
+        ]);
+
+        const taskItems = tasks.tasks || [];
+        const listingItems = listings.listings || [];
+        const productItems = products.products || [];
+        const gigItems = gigs.gigs || [];
+        const walletBalance = Number(wallet.balanceCents || 0);
+
+        $('metric-tasks').textContent = String(taskItems.length);
+        $('metric-listings').textContent = String(listingItems.length);
+        $('metric-products').textContent = String(productItems.length);
+        $('balance-display').textContent = formatMoney(walletBalance);
+        $('wallet-balance-main').textContent = formatMoney(walletBalance);
+        $('wallet-pill').textContent = formatMoney(walletBalance);
+        $('task-count-tag').textContent = `${taskItems.length} live`;
+        $('listing-count-tag').textContent = `${listingItems.length} live`;
+        $('product-count-tag').textContent = `${productItems.length} live`;
+        $('gig-count-tag').textContent = `${gigItems.length} live`;
+
+        $('tasks-list').innerHTML = taskItems.length ? taskItems.slice(0, 6).map((task) => `
+          <div class="item-card">
+            <h4>${escapeHtml(task.title)}</h4>
+            <p>${escapeHtml(task.videoUrl || 'Task is ready for completion')}</p>
+            <div class="item-row">
+              <span>${Number(task.seconds || 0)} sec</span>
+              <span class="tag">${formatMoney(task.payoutCents || 0)}</span>
+            </div>
+            <div class="row-actions">
+              <button type="button" class="mini-btn primary" data-buy="task" data-id="${task.id}">Buy task</button>
+              <button type="button" class="mini-btn" data-inspect="task" data-id="${task.id}">Review</button>
+            </div>
+          </div>
+        `).join('') : '<p class="muted">No active tasks yet.</p>';
+
+        $('listings-list').innerHTML = listingItems.length ? listingItems.slice(0, 6).map((item) => `
+          <div class="item-card">
+            <h4>${escapeHtml(item.title)}</h4>
+            <p>${escapeHtml(item.type || 'Listing')} • ${escapeHtml(item.status || 'Active')}</p>
+            <div class="item-row">
+              <span>${escapeHtml(item.type)}</span>
+              <span class="tag">${formatMoney(item.priceCents || 0)}</span>
+            </div>
+            <div class="row-actions">
+              <button type="button" class="mini-btn primary" data-buy="listing" data-id="${item.id}" data-seller="${item.seller_id || item.sellerId || ''}">Make offer</button>
+            </div>
+          </div>
+        `).join('') : '<p class="muted">No listings currently active.</p>';
+
+        $('products-list').innerHTML = productItems.length ? productItems.slice(0, 6).map((item) => `
+          <div class="item-card">
+            <h4>${escapeHtml(item.title)}</h4>
+            <p>${escapeHtml(item.category || 'General')} • ${Number(item.stock || 0)} in stock</p>
+            <div class="item-row">
+              <span>${escapeHtml(item.category)}</span>
+              <span class="tag">${formatMoney(item.price_cents || item.priceCents || 0)}</span>
+            </div>
+            <div class="row-actions">
+              <button type="button" class="mini-btn primary" data-buy="product" data-id="${item.id}">Buy now</button>
+            </div>
+          </div>
+        `).join('') : '<p class="muted">No products yet.</p>';
+
+        $('gigs-list').innerHTML = gigItems.length ? gigItems.slice(0, 6).map((item) => `
+          <div class="item-card">
+            <h4>${escapeHtml(item.title)}</h4>
+            <p>${escapeHtml(item.description || 'Professional service package')}</p>
+            <div class="item-row">
+              <span>${escapeHtml(item.category)}</span>
+              <span class="tag">${formatMoney(item.price_cents || item.priceCents || 0)}</span>
+            </div>
+            <div class="row-actions">
+              <button type="button" class="mini-btn primary" data-buy="gig" data-id="${item.id}">Book now</button>
+            </div>
+          </div>
+        `).join('') : '<p class="muted">No gigs available.</p>';
+
+        $('cards-list').innerHTML = (cards.cards || []).length ? (cards.cards || []).map((card) => `
+          <div class="credit-card">
+            <small>${escapeHtml(card.card_brand || 'Card')}</small>
+            <strong>•••• ${escapeHtml(card.last4 || '0000')}</strong>
+            <small>${escapeHtml(card.holder_name || 'Cardholder')} • ${escapeHtml(card.expiry || '00/00')}</small>
+          </div>
+        `).join('') : '<p class="muted">No saved cards yet.</p>';
+
+        document.querySelectorAll('[data-buy]').forEach((button) => {
+          button.addEventListener('click', async () => {
+            const { buy, id, seller } = button.dataset;
+            try {
+              if (buy === 'task') {
+                await api(`/api/tasks/${id}/purchase`, {
+                  method: 'POST',
+                  body: JSON.stringify({ quantity: 1, targetUrl: 'https://example.com/target', notes: 'Task purchase request' })
+                });
+              } else if (buy === 'product') {
+                await api(`/api/products/${id}/purchase`, {
+                  method: 'POST',
+                  body: JSON.stringify({ quantity: 1, notes: 'Product purchase request' })
+                });
+              } else if (buy === 'gig') {
+                await api(`/api/gigs/${id}/purchase`, {
+                  method: 'POST',
+                  body: JSON.stringify({ packageName: 'Standard', notes: 'Gig booking request' })
+                });
+              } else if (buy === 'listing') {
+                await api('/api/offers', {
+                  method: 'POST',
+                  body: JSON.stringify({
+                    listingId: id,
+                    sellerId: seller,
+                    amountCents: Number((listingItems.find((row) => row.id === id)?.priceCents) || 0),
+                    message: 'I am interested in this listing.'
+                  })
+                });
+              }
+              notify('Purchase request sent successfully.');
+              await loadDashboard();
+            } catch (error) {
+              notify(error.message);
+            }
+          });
+        });
+
+        const summaryCount = Number(summary.activeTasks || taskItems.length);
+        $('metric-tasks').textContent = String(summaryCount);
+      } catch (error) {
+        notify(error.message);
+      }
+    }
+
+    async function openApp(user) {
+      $('landing').classList.add('hidden');
+      $('app').classList.remove('hidden');
+      $('welcome').textContent = user?.name || user?.email || 'Signed in';
+      $('role-badge').textContent = (user?.role || 'worker').toUpperCase();
+      await loadPublicStats();
+      await loadDashboard();
+    }
+
+    loadPublicStats();
   </script>
 </body>
 </html>
