@@ -675,6 +675,7 @@
         <button type="button" class="nav-btn" data-view="gigs">Gigs</button>
         <button type="button" class="nav-btn" data-view="wallet">Wallet</button>
         <button type="button" class="nav-btn" data-view="profile">Profile</button>
+        <button type="button" class="nav-btn" data-view="premium">Premium</button>
         <button type="button" class="nav-btn" data-view="admin" style="display:none;">Admin</button>
       </nav>
       <div class="sidebar-box">
@@ -777,6 +778,36 @@
               <span class="tag" id="gig-count-tag">0 live</span>
             </div>
             <div class="meta-list" id="gigs-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="page-section" data-section="premium">
+        <div class="simple-grid">
+          <div class="section-panel">
+            <div class="section-header">
+              <h3>Premium membership</h3>
+              <span class="premium-badge">Account boost</span>
+            </div>
+            <p class="muted">Choose one activation path. Premium is recorded only after a successful wallet charge or ten verified referrals.</p>
+            <div class="compact-grid">
+              <div class="mini-metric"><span>Account boost</span><strong>Priority visibility</strong></div>
+              <div class="mini-metric"><span>Marketplace</span><strong>Member discounts</strong></div>
+              <div class="mini-metric"><span>Profile</span><strong>Premium badge</strong></div>
+              <div class="mini-metric"><span>Referral path</span><strong>10 referrals</strong></div>
+            </div>
+          </div>
+          <div class="section-panel">
+            <div class="section-header">
+              <h3>Activate Premium</h3>
+              <span class="tag" id="premium-status">Standard</span>
+            </div>
+            <div class="row-actions">
+              <button type="button" class="primary-btn" id="premium-fee-btn">Pay <span id="premium-fee">$5.00</span></button>
+              <button type="button" class="secondary-btn" id="premium-referral-btn">Use 10 referrals</button>
+            </div>
+            <p class="muted" id="premium-help" style="margin-top:14px;">The fee is converted using your selected country. Your wallet must contain the converted amount.</p>
+            <p class="muted">Verified referrals: <strong id="premium-referral-count">0 / 10</strong></p>
           </div>
         </div>
       </section>
@@ -1035,6 +1066,10 @@
                 <input id="profile-avatar" type="url" placeholder="https://example.com/avatar.jpg">
               </div>
               <div class="field">
+                <label>Phone number</label>
+                <input id="profile-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+92 300 1234567">
+              </div>
+              <div class="field">
                 <label>Country</label>
                 <select id="profile-country">
                   <option value="US">United States</option>
@@ -1050,7 +1085,7 @@
               </div>
               <div class="field">
                 <label>Account tier</label>
-                <select id="profile-tier">
+                <select id="profile-tier" disabled>
                   <option value="standard">Standard</option>
                   <option value="premium">Premium</option>
                 </select>
@@ -1193,7 +1228,11 @@
       $('profile-name').textContent = userName;
       $('profile-email').textContent = userEmail;
       $('profile-name-field').value = userName;
+      $('profile-phone').value = user?.phone || '';
       $('profile-country').value = countryCode;
+      $('premium-status').textContent = tierLabel;
+      $('premium-fee').textContent = formatMoney(500, countryCode);
+      $('premium-referral-count').textContent = `${Math.min(10, Number(user?.referral_count || user?.referralCount || 0))} / 10`;
       $('profile-tier').value = subscriptionTier;
       $('display-name').textContent = userName;
       $('display-email').textContent = userEmail;
@@ -1260,12 +1299,14 @@
     }
 
     function setActiveView(viewName) {
+      const normalizedView = document.querySelector(`[data-section="${viewName}"]`) ? viewName : 'overview';
       document.querySelectorAll('.nav-btn').forEach((button) => {
-        button.classList.toggle('active', button.dataset.view === viewName);
+        button.classList.toggle('active', button.dataset.view === normalizedView);
       });
       document.querySelectorAll('.page-section').forEach((section) => {
-        section.classList.toggle('active', section.dataset.section === viewName);
+        section.classList.toggle('active', section.dataset.section === normalizedView);
       });
+      if (window.location.hash !== `#${normalizedView}`) history.replaceState(null, '', `#${normalizedView}`);
     }
 
     function syncAdminNavVisibility(user) {
@@ -1282,6 +1323,8 @@
     document.querySelectorAll('.nav-btn').forEach((button) => {
       button.addEventListener('click', () => setActiveView(button.dataset.view));
     });
+
+    window.addEventListener('hashchange', () => setActiveView(window.location.hash.slice(1) || 'overview'));
 
     document.querySelectorAll('.toggle').forEach((button) => {
       button.addEventListener('click', () => {
@@ -1346,20 +1389,26 @@
 
     $('edit-profile-btn').addEventListener('click', () => setActiveView('profile'));
 
-    $('premium-upgrade-btn').addEventListener('click', async () => {
+    $('premium-upgrade-btn').addEventListener('click', () => setActiveView('premium'));
+
+    async function activatePremium(method) {
       try {
-        const result = await api('/api/premium/upgrade', {
-          method: 'POST',
-          body: JSON.stringify({ tier: 'premium' })
-        });
+        const result = await api('/api/premium/upgrade', { method: 'POST', body: JSON.stringify({ method }) });
         if (result.ok) {
           notify('Premium membership activated successfully.');
           await hydrateProfile();
           await loadDashboard();
+          setActiveView('premium');
         }
       } catch (error) {
         notify(error.message);
       }
+    }
+
+    $('premium-fee-btn').addEventListener('click', () => activatePremium('fee'));
+    $('premium-referral-btn').addEventListener('click', () => activatePremium('referrals'));
+    $('profile-country').addEventListener('change', (event) => {
+      $('premium-fee').textContent = formatMoney(500, event.target.value);
     });
 
     $('logout').addEventListener('click', async () => {
@@ -1720,6 +1769,7 @@
       await hydrateProfile();
       await loadPublicStats();
       await loadDashboard();
+      setActiveView(window.location.hash.slice(1) || 'overview');
     }
 
     $('profile-form').addEventListener('submit', async (event) => {
@@ -1727,10 +1777,10 @@
       try {
         const payload = {
           name: $('profile-name-field').value.trim(),
+          phone: $('profile-phone').value.trim(),
           bio: $('profile-bio').value.trim(),
           country: $('profile-country').value || 'US',
-          avatarUrl: $('profile-avatar').value.trim() || null,
-          subscriptionTier: $('profile-tier').value || 'standard'
+          avatarUrl: $('profile-avatar').value.trim() || null
         };
         await api('/api/profile', {
           method: 'PUT',

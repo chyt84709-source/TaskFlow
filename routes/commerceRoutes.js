@@ -2,7 +2,7 @@ import express from 'express';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import { db, normalizeCountry } from '../config/database.js';
-import { requireUser } from '../utils/helpers.js';
+import { ensureWalletReady, requireUser, updateTrustScoreOnSuccessfulTransaction } from '../utils/helpers.js';
 
 const router = express.Router();
 
@@ -55,10 +55,12 @@ router.post('/api/products/:id/purchase', requireUser, async (req, res, next) =>
 
     const quantity = parsed.data.quantity;
     const amountCents = Number(product.rows[0].price_cents) * quantity;
+    await ensureWalletReady(req.session.user.id, amountCents);
     const feeCents = Math.round(amountCents * 0.01);
     const order = { id: nanoid(), productId: req.params.id, buyerId: req.session.user.id, sellerId: product.rows[0].vendor_id, quantity, amountCents, feeCents, notes: parsed.data.notes || null, createdAt: new Date().toISOString() };
     await db.query('INSERT INTO product_orders (id,product_id,buyer_id,seller_id,quantity,amount_cents,fee_cents,status,notes,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [order.id, order.productId, order.buyerId, order.sellerId, order.quantity, order.amountCents, order.feeCents, 'paid', order.notes, order.createdAt]);
     await db.query('INSERT INTO transactions (id,user_id,kind,amount_cents,status,metadata,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)', [nanoid(), order.buyerId, 'product_purchase', order.amountCents, 'paid', { productId: order.productId, quantity, feeCents: order.feeCents }, new Date().toISOString()]);
+    await updateTrustScoreOnSuccessfulTransaction(order.buyerId);
     res.status(201).json({ order, totalCents: order.amountCents, feeCents: order.feeCents, netCents: order.amountCents - order.feeCents });
   } catch (error) {
     next(error);
@@ -199,10 +201,12 @@ router.post('/api/gigs/:id/purchase', requireUser, async (req, res, next) => {
     if (!gig.rows[0]) return res.status(404).json({ error: 'Gig not found' });
 
     const amountCents = Number(gig.rows[0].price_cents);
+    await ensureWalletReady(req.session.user.id, amountCents);
     const feeCents = Math.round(amountCents * 0.05);
     const order = { id: nanoid(), gigId: req.params.id, buyerId: req.session.user.id, sellerId: gig.rows[0].seller_id, packageName: parsed.data.packageName, amountCents, feeCents, notes: parsed.data.notes || null, createdAt: new Date().toISOString() };
     await db.query('INSERT INTO gig_orders (id,gig_id,buyer_id,seller_id,package_name,amount_cents,fee_cents,status,notes,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [order.id, order.gigId, order.buyerId, order.sellerId, order.packageName, order.amountCents, order.feeCents, 'paid', order.notes, order.createdAt]);
     await db.query('INSERT INTO transactions (id,user_id,kind,amount_cents,status,metadata,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)', [nanoid(), order.buyerId, 'gig_purchase', order.amountCents, 'paid', { gigId: order.gigId, packageName: order.packageName, feeCents: order.feeCents }, new Date().toISOString()]);
+    await updateTrustScoreOnSuccessfulTransaction(order.buyerId);
     res.status(201).json({ order, totalCents: order.amountCents, feeCents: order.feeCents, netCents: order.amountCents - order.feeCents });
   } catch (error) {
     next(error);

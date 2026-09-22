@@ -38,12 +38,27 @@ router.get('/api/currency', requireUser, async (req, res, next) => {
 
 router.post('/api/premium/upgrade', requireUser, async (req, res, next) => {
   try {
-    const parsed = z.object({ tier: z.enum(['standard', 'premium']).default('premium') }).safeParse(req.body);
+    const parsed = z.object({ method: z.enum(['fee', 'referrals']).default('fee') }).safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid premium tier request' });
 
-    await db.query('UPDATE users SET subscription_tier = $1 WHERE id = $2', [parsed.data.tier, req.session.user.id]);
-    req.session.user.subscriptionTier = parsed.data.tier;
-    res.json({ ok: true, tier: parsed.data.tier });
+    const userResult = await db.query('SELECT country, subscription_tier, referral_count FROM users WHERE id = $1', [req.session.user.id]);
+    const user = userResult.rows[0];
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.subscription_tier === 'premium') return res.json({ ok: true, tier: 'premium', source: 'already-active' });
+
+    const meta = getCurrencyMeta(user.country || req.session.user.country || 'US');
+    const premiumFeeCents = Math.round(500 * meta.rate);
+    if (parsed.data.method === 'referrals') {
+      if (Number(user.referral_count || 0) < 10) return res.status(400).json({ error: 'Complete 10 verified referrals to unlock Premium.' });
+    } else {
+      const balanceResult = await db.query("SELECT COALESCE(SUM(CASE WHEN kind IN ('payout', 'product_purchase', 'gig_purchase', 'task_purchase', 'marketplace_purchase', 'premium_upgrade') THEN -amount_cents ELSE amount_cents END), 0)::int AS balance FROM transactions WHERE user_id = $1 AND status IN ('paid', 'completed', 'approved', 'success')", [req.session.user.id]);
+      if (Number(balanceResult.rows[0]?.balance || 0) < premiumFeeCents) return res.status(400).json({ error: `Add ${meta.symbol}${(premiumFeeCents / 100).toLocaleString()} to your wallet before upgrading.` });
+      await db.query('INSERT INTO transactions (id,user_id,kind,amount_cents,status,metadata,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)', [nanoid(), req.session.user.id, 'premium_upgrade', premiumFeeCents, 'paid', { baseUsdCents: 500, currency: meta.code, rate: meta.rate }, new Date().toISOString()]);
+    }
+
+    await db.query('UPDATE users SET subscription_tier = $1, premium_source = $2, premium_activated_at = $3 WHERE id = $4', ['premium', parsed.data.method, new Date().toISOString(), req.session.user.id]);
+    req.session.user.subscriptionTier = 'premium';
+    res.json({ ok: true, tier: 'premium', source: parsed.data.method, feeCents: parsed.data.method === 'fee' ? premiumFeeCents : 0, currency: meta.code, rate: meta.rate, benefits: ['Account boost', 'Premium profile badge', 'Marketplace discounts'] });
   } catch (error) {
     next(error);
   }
@@ -72,24 +87,21 @@ router.put('/api/profile', requireUser, async (req, res, next) => {
       country: z.string().max(80).optional(),
       avatarUrl: z.string().url().max(500).optional(),
       skills: z.string().max(500).optional(),
-      phone: z.string().max(20).optional(),
-      subscriptionTier: z.enum(['standard', 'premium']).optional(),
+      phone: z.string().max(40).optional(),
     }).safeParse(req.body);
 
     if (!parsed.success) return res.status(400).json({ error: 'Invalid profile update' });
 
     const values = parsed.data;
     if (values.name) await db.query('UPDATE users SET name=$1 WHERE id=$2', [values.name, req.session.user.id]);
-    if (values.phone) await db.query('UPDATE users SET phone=$1 WHERE id=$2', [values.phone, req.session.user.id]);
+    if (values.phone !== undefined) await db.query('UPDATE users SET phone=$1 WHERE id=$2', [values.phone || null, req.session.user.id]);
     if (values.country) await db.query('UPDATE users SET country=$1 WHERE id=$2', [normalizeCountry(values.country), req.session.user.id]);
-    if (values.subscriptionTier) await db.query('UPDATE users SET subscription_tier=$1 WHERE id=$2', [values.subscriptionTier, req.session.user.id]);
     if (values.avatarUrl) await db.query('UPDATE users SET avatar_url=$1 WHERE id=$2', [values.avatarUrl, req.session.user.id]);
 
     await db.query(`INSERT INTO profiles (id, user_id, bio, location, avatar_url, skills, social_links, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (user_id) DO UPDATE SET bio = EXCLUDED.bio, location = EXCLUDED.location, avatar_url = EXCLUDED.avatar_url, skills = EXCLUDED.skills`, [nanoid(), req.session.user.id, values.bio || null, values.location || null, values.avatarUrl || null, values.skills || null, JSON.stringify({}), new Date().toISOString()]);
 
     req.session.user.name = values.name || req.session.user.name;
     req.session.user.country = normalizeCountry(values.country || req.session.user.country || 'US');
-    req.session.user.subscriptionTier = values.subscriptionTier || req.session.user.subscriptionTier || 'standard';
     res.json({ ok: true });
   } catch (error) {
     next(error);
