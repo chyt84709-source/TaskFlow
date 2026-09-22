@@ -25,7 +25,7 @@ router.post('/api/auth/signup', async (req, res, next) => {
     if (existing.rows[0]) return res.status(409).json({ error: 'An account with this email already exists. Please sign in instead.' });
 
     const passwordHash = hashPassword(parsed.data.password);
-    const user = { id: nanoid(), email, name: parsed.data.name.trim(), role: parsed.data.role, country: normalizeCountry(parsed.data.country), subscription_tier: parsed.data.subscriptionTier, trust_score: null, two_factor: false, password_hash: passwordHash, referral_code: nanoid(16), created_at: now() };
+    const user = { id: nanoid(), email, name: parsed.data.name.trim(), role: parsed.data.role, country: normalizeCountry(parsed.data.country), subscription_tier: 'standard', trust_score: null, two_factor: false, password_hash: passwordHash, referral_code: nanoid(16), created_at: now() };
     await db.query('INSERT INTO users (id,email,name,role,country,subscription_tier,trust_score,two_factor,password_hash,referral_code,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)', [user.id, user.email, user.name, user.role, user.country, user.subscription_tier, user.trust_score, false, user.password_hash, user.referral_code, user.created_at]);
     if (parsed.data.referralCode) {
       await db.query("INSERT INTO referrals (id,referrer_id,referred_user_id,referral_code,status,created_at) SELECT $1,id,$2,referral_code,'pending',$3 FROM users WHERE referral_code=$4 AND id <> $2 ON CONFLICT (referred_user_id) DO NOTHING", [nanoid(), user.id, user.created_at, parsed.data.referralCode]);

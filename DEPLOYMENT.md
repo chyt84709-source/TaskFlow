@@ -6,6 +6,8 @@ Railway is the recommended first host for this project because it provides a man
 
 Copy `.env.example` to `.env` for local development and replace every placeholder. Set `DATABASE_URL` to the PostgreSQL connection string supplied by your host. In production, put all values in the host's secret manager; do not commit `.env` or paste secrets into source control.
 
+Set `APP_BASE_URL`, `STRIPE_SECRET_KEY`, and `STRIPE_WEBHOOK_SECRET` for Premium Checkout. Register `POST /api/payments/stripe/webhook` in Stripe and enable the `checkout.session.completed` event. Set a separate random `UPLOAD_ENCRYPTION_KEY`; changing it later makes existing encrypted media unreadable.
+
 Google Cloud Console must include the exact callback URL from `GOOGLE_CALLBACK_URL` as an authorized redirect URI. Configure Resend using `RESEND_API_KEY` and a verified sender such as `RESEND_FROM_EMAIL=onboarding@resend.dev` or your own verified custom domain. Store the API key in Railway or your host secret manager and rotate any credentials that were previously shared in chat before adding the replacements.
 
 ## 2. Install and run
@@ -24,6 +26,8 @@ Open `http://localhost:3000`. The headless Node server serves `login.html` and t
 - Use the managed PostgreSQL database configured by `DATABASE_URL`; the application initializes its schema at startup.
 - Configure Google OAuth before enabling login. Never ship development OTP responses.
 - Configure `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `RESEND_FROM_NAME` for transactional email and OTP delivery through Resend.
+- Configure Stripe Checkout and verify webhook signatures before accepting Premium payments.
+- Keep `UPLOAD_ENCRYPTION_KEY` in the secret manager and never expose encrypted media files through a static directory.
 - Add a managed object store for uploads and malware scanning before making file sharing public.
 - Use a broker-backed WebSocket layer for multiple instances.
 - Add payment-provider webhooks and idempotency keys before moving real funds.

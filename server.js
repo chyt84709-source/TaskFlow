@@ -15,9 +15,11 @@ import { WebSocketServer } from 'ws';
 import { z } from 'zod';
 import pg from 'pg';
 import { OAuth2Client } from 'google-auth-library';
+import Stripe from 'stripe';
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import commerceRoutes from './routes/commerceRoutes.js';
+import { processAndEncryptImage, saveEncryptedImage } from './services/media.js';
 
 const { Pool } = pg;
 
@@ -38,6 +40,7 @@ const server = http.createServer(app);
 const sockets = new Map();
 const adminUsername = process.env.SUPER_ADMIN_USERNAME;
 const adminPassword = process.env.SUPER_ADMIN_PASSWORD;
+const stripeGateway = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 if (!process.env.SESSION_SECRET || !adminUsername || !adminPassword) throw new Error('SESSION_SECRET, SUPER_ADMIN_USERNAME, and SUPER_ADMIN_PASSWORD are required.');
 if (process.env.NODE_ENV === 'production' && !emailEnabled) throw new Error('RESEND_API_KEY and RESEND_FROM_EMAIL are required in production.');
 
@@ -81,13 +84,20 @@ async function updateTrustScoreOnSuccessfulTransaction(userId) {
   const currentScore = result.rows[0]?.trust_score;
   if (currentScore === null || currentScore === undefined) {
     await db.query('UPDATE users SET trust_score = 100 WHERE id = $1', [userId]);
-    return;
+  } else {
+    await db.query('UPDATE users SET trust_score = GREATEST(COALESCE(trust_score, 0), 100) WHERE id = $1', [userId]);
   }
-  await db.query('UPDATE users SET trust_score = GREATEST(COALESCE(trust_score, 0), 100) WHERE id = $1', [userId]);
+  await db.query(`UPDATE users AS referrer SET referral_count = referrer.referral_count + 1
+    FROM referrals
+    WHERE referrals.referred_user_id = $1
+      AND referrals.referrer_id = referrer.id
+      AND referrals.status = 'pending'`, [userId]);
+  await db.query("UPDATE referrals SET status = 'verified', verified_at = NOW() WHERE referred_user_id = $1 AND status = 'pending'", [userId]);
 }
 async function initializeSchema() {
   await db.query(`CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, phone TEXT UNIQUE, email TEXT UNIQUE, name TEXT, role TEXT NOT NULL DEFAULT 'worker', country TEXT, subscription_tier TEXT NOT NULL DEFAULT 'standard', trust_score DOUBLE PRECISION DEFAULT NULL, two_factor BOOLEAN NOT NULL DEFAULT FALSE, password_hash TEXT, referral_count INTEGER NOT NULL DEFAULT 0, referral_code TEXT UNIQUE, created_at TIMESTAMPTZ NOT NULL);
     CREATE TABLE IF NOT EXISTS referrals (id TEXT PRIMARY KEY, referrer_id TEXT NOT NULL, referred_user_id TEXT UNIQUE NOT NULL, referral_code TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', verified_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
+    CREATE TABLE IF NOT EXISTS media_files (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, filename TEXT NOT NULL, mime_type TEXT NOT NULL, purpose TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
     CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY, client_id TEXT, title TEXT NOT NULL, video_url TEXT NOT NULL, seconds INTEGER NOT NULL, payout_cents INTEGER NOT NULL, description TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'active', created_at TIMESTAMPTZ NOT NULL);
     CREATE TABLE IF NOT EXISTS listings (id TEXT PRIMARY KEY, seller_id TEXT, title TEXT NOT NULL, type TEXT NOT NULL, price_cents INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'active', created_at TIMESTAMPTZ NOT NULL);
     CREATE TABLE IF NOT EXISTS transactions (id TEXT PRIMARY KEY, user_id TEXT, kind TEXT NOT NULL, amount_cents INTEGER NOT NULL, status TEXT NOT NULL, metadata JSONB, created_at TIMESTAMPTZ NOT NULL);
@@ -159,6 +169,30 @@ async function sendPasswordResetEmail({ to, code }) {
 app.set('trust proxy', 1);
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:3000', credentials: true }));
+app.post('/api/payments/stripe/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  if (!stripeGateway || !process.env.STRIPE_WEBHOOK_SECRET) return res.status(503).send('Stripe webhook is not configured');
+  let event;
+  try {
+    event = stripeGateway.webhooks.constructEvent(req.body, req.headers['stripe-signature'], process.env.STRIPE_WEBHOOK_SECRET);
+  } catch (error) {
+    return res.status(400).send(`Webhook Error: ${error.message}`);
+  }
+  try {
+    if (event.type === 'checkout.session.completed') {
+      const checkoutSession = event.data.object;
+      const userId = checkoutSession.metadata?.userId || checkoutSession.client_reference_id;
+      const duplicate = await db.query("SELECT id FROM transactions WHERE kind='premium_upgrade' AND metadata->>'stripeSessionId'=$1", [checkoutSession.id]);
+      if (!duplicate.rows.length && userId) {
+        await db.query('INSERT INTO transactions (id,user_id,kind,amount_cents,status,metadata,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)', [nanoid(), userId, 'premium_upgrade', 500, 'paid', { stripeSessionId: checkoutSession.id, provider: 'stripe' }, now()]);
+        await db.query('UPDATE users SET subscription_tier=$1, premium_source=$2, premium_activated_at=$3 WHERE id=$4', ['premium', 'stripe', now(), userId]);
+      }
+    }
+    res.json({ received: true });
+  } catch (error) {
+    console.error('Stripe webhook processing failed:', error);
+    res.status(500).send('Webhook processing failed');
+  }
+});
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: false }));
 app.use(session({ name: 'taskflow.sid', keys: [process.env.SESSION_SECRET || 'local-development-secret'], httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', maxAge: 1000 * 60 * 60 * 8 }));
@@ -166,7 +200,7 @@ app.use('/api', rateLimit({ windowMs: 15 * 60 * 1000, limit: 300, standardHeader
 app.use(authRoutes);
 app.use(userRoutes);
 app.use(commerceRoutes);
-const upload = multer({ storage: multer.diskStorage({ destination: uploadDir, filename: (_req, file, cb) => cb(null, `${nanoid()}${path.extname(file.originalname)}`) }), limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: (_req, file, cb) => cb(null, /^(image|application|text|video)\//.test(file.mimetype)) });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 }, fileFilter: (_req, file, cb) => cb(null, /^image\/(jpeg|png|webp|gif|avif|heic)$/.test(file.mimetype)) });
 
 function requireUser(req, res, next) { if (!req.session.user) return res.status(401).json({ error: 'Authentication required' }); next(); }
 function requireAdmin(req, res, next) { if (!req.session.user?.isAdmin) return res.status(403).json({ error: 'Super-admin access required' }); next(); }
@@ -185,16 +219,21 @@ function issueOtp(identifier) { const code = String(crypto.randomInt(100000, 100
 const reqOtp = new Map();
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'taskflow', time: now() }));
-app.post('/api/uploads', requireUser, upload.array('files', 10), (req, res) => {
+app.post('/api/uploads', requireUser, upload.array('files', 10), async (req, res, next) => {
   const files = Array.isArray(req.files) ? req.files : [];
-  res.status(201).json({
-    files: files.map((file) => ({
-      name: file.originalname,
-      url: `/uploads/${file.filename}`,
-      size: file.size,
-      mimeType: file.mimetype,
-    }))
-  });
+  try {
+    const savedFiles = [];
+    for (const file of files) {
+      const image = await processAndEncryptImage(file.buffer);
+      const id = nanoid();
+      const filename = await saveEncryptedImage(image.payload, id);
+      await db.query('INSERT INTO media_files (id,user_id,filename,mime_type,purpose) VALUES ($1,$2,$3,$4,$5)', [id, req.session.user.id, filename, image.mimeType, 'marketplace-media']);
+      savedFiles.push({ name: file.originalname, url: `/api/media/${id}`, size: file.size, mimeType: image.mimeType });
+    }
+    res.status(201).json({ files: savedFiles });
+  } catch (error) {
+    next(error);
+  }
 });
 app.get('/api/summary', async (_req, res, next) => { try { const [users, tasks, listings, paid] = await Promise.all([db.query('SELECT COUNT(*)::int AS count FROM users'), db.query("SELECT COUNT(*)::int AS count FROM tasks WHERE status='active'"), db.query("SELECT COUNT(*)::int AS count FROM listings WHERE status='active'"), db.query("SELECT COALESCE(SUM(amount_cents),0)::int AS total FROM transactions WHERE amount_cents > 0")]); res.json({ users: users.rows[0].count, activeTasks: tasks.rows[0].count, activeListings: listings.rows[0].count, paidCents: paid.rows[0].total }); } catch (error) { next(error); } });
 app.get('/api/me', (req, res) => res.json({ user: req.session.user || null }));
@@ -258,7 +297,18 @@ app.post('/api/wallet/deposit', requireUser, async (req, res, next) => { try { c
 app.get('/api/notifications', requireUser, async (req, res, next) => { try { const result = await db.query('SELECT * FROM notifications WHERE user_id=$1 ORDER BY created_at DESC LIMIT 50', [req.session.user.id]); res.json({ notifications: result.rows }); } catch (error) { next(error); } });
 app.post('/api/disputes', requireUser, async (req, res, next) => { try { const parsed = z.object({ orderId: z.string().min(2).max(80), reason: z.string().min(10).max(3000) }).safeParse(req.body); if (!parsed.success) return res.status(400).json({ error: 'Valid dispute reason required' }); const dispute = { id: nanoid(), openedBy: req.session.user.id, ...parsed.data, createdAt: now() }; await db.query('INSERT INTO disputes (id,opened_by,order_id,reason,status,created_at) VALUES ($1,$2,$3,$4,$5,$6)', [dispute.id, dispute.openedBy, dispute.orderId, dispute.reason, 'open', dispute.createdAt]); res.status(201).json({ dispute }); } catch (error) { next(error); } });
 app.get('/forgot-password', (_req, res) => { res.type('html').send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>TaskFlow | Reset Password</title><style>:root{font-family:Manrope,system-ui,sans-serif;color:#18231f;background:#f5f8f5;--green:#1f5d49;--dark:#123b30;--line:#dce5df;--muted:#718079;--mint:#dceee5}*{box-sizing:border-box}body{margin:0;background:linear-gradient(135deg,#edf4ee,#f6faf7);display:grid;place-items:center;min-height:100vh;color:#183127}main{width:min(500px,92vw);padding:32px 28px;border-radius:18px;background:#fff;border:1px solid var(--line);box-shadow:0 18px 40px rgba(18,59,48,.08)}.brand{display:flex;align-items:center;gap:10px;font-size:22px;font-weight:800;margin-bottom:18px}.brand b{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:8px;color:#fff;background:var(--green)}h1{margin:0 0 10px;font-size:clamp(30px,5vw,42px);letter-spacing:-.05em}.subtitle{margin:0 0 18px;color:var(--muted);line-height:1.6}label{display:block;margin:16px 0 6px;font-size:12px;font-weight:700;color:var(--muted)}input{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:#fff;font:inherit;color:#183127}.password-wrap{position:relative;display:flex;align-items:center} .password-wrap input{padding-right:44px}.toggle{position:absolute;right:10px;top:50%;transform:translateY(-50%);border:none;background:transparent;color:var(--green);font-weight:700;cursor:pointer;padding:8px}button{width:100%;padding:13px 14px;border:none;border-radius:10px;background:var(--green);color:#fff;font-weight:800;cursor:pointer;margin-top:12px}.secondary-link{display:inline-block;margin-top:16px;color:var(--green);text-decoration:none;font-weight:700}#message{margin-top:14px;padding:12px;border-radius:10px;background:#edf8ee;color:#234;display:none}#message.show{display:block}#message.error{background:#fff1f1;color:#8a1f1f}</style></head><body><main><div class="brand"><b>↗</b>taskflow</div><h1>Reset your password</h1><p class="subtitle">Enter your email and we’ll send a six-digit reset code to help you regain access.</p><form id="request-form"><label for="reset-email">Email address</label><input id="reset-email" type="email" required autocomplete="email"><button type="submit">Send reset code</button></form><form id="confirm-form" style="margin-top:20px"><label for="reset-code">Reset code</label><input id="reset-code" type="text" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" required><label for="new-password">New password</label><div class="password-wrap"><input id="new-password" type="password" minlength="6" required autocomplete="new-password"><button type="button" class="toggle" data-toggle="new-password">Show</button></div><button type="submit">Update password</button></form><div id="message"></div><p><a class="secondary-link" href="/">Back to sign in</a></p></main><script>const message=document.getElementById('message');function showMessage(text, isError=false){message.textContent=text;message.classList.add('show');message.classList.toggle('error', isError);message.style.display='block';}document.querySelectorAll('[data-toggle]').forEach((button)=>{button.addEventListener('click',()=>{const input=document.getElementById(button.dataset.toggle);const isPassword=input.type==='password';input.type=isPassword?'text':'password';button.textContent=isPassword?'Hide':'Show';});});document.getElementById('request-form').addEventListener('submit', async (event)=>{event.preventDefault();const email=document.getElementById('reset-email').value.trim();try{const response=await fetch('/api/auth/forgot-password',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({email})});const data=await response.json();if(!response.ok) throw new Error(data.error || 'Unable to request reset');showMessage(data.message || 'Reset code sent.');}catch(error){showMessage(error.message,true);}});document.getElementById('confirm-form').addEventListener('submit', async (event)=>{event.preventDefault();const email=document.getElementById('reset-email').value.trim();const code=document.getElementById('reset-code').value.trim();const password=document.getElementById('new-password').value;try{const response=await fetch('/api/auth/reset-password',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({email,code,password})});const data=await response.json();if(!response.ok) throw new Error(data.error || 'Unable to reset password');showMessage(data.message || 'Password updated successfully.');setTimeout(()=>window.location.href='/', 1500);}catch(error){showMessage(error.message,true);}});</script></body></html>`); });
-app.post('/api/chat/upload', requireUser, upload.single('file'), (req, res) => res.status(201).json({ file: { name: req.file.originalname, path: `/uploads/${req.file.filename}`, size: req.file.size } }));
+app.post('/api/chat/upload', requireUser, upload.single('file'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'An image file is required.' });
+    const image = await processAndEncryptImage(req.file.buffer);
+    const id = nanoid();
+    const filename = await saveEncryptedImage(image.payload, id);
+    await db.query('INSERT INTO media_files (id,user_id,filename,mime_type,purpose) VALUES ($1,$2,$3,$4,$5)', [id, req.session.user.id, filename, image.mimeType, 'chat-media']);
+    res.status(201).json({ file: { name: req.file.originalname, path: `/api/media/${id}`, size: req.file.size, mimeType: image.mimeType } });
+  } catch (error) {
+    next(error);
+  }
+});
 
 app.post('/api/admin/login', (req, res) => { const parsed = z.object({ username: z.string(), password: z.string() }).safeParse(req.body); if (!parsed.success || parsed.data.username !== adminUsername || parsed.data.password !== adminPassword) return res.status(401).json({ error: 'Invalid admin credentials' }); req.session.user = { id: 'super-admin', name: adminUsername, role: 'admin', twoFactor: true, isAdmin: true }; res.json({ user: req.session.user }); });
 app.get('/api/admin/overview', requireAdmin, async (_req, res, next) => { try { const [usersCount, escrow, disputesCount, listingsCount, productsCount, adsCount, gigsCount, categoriesCount, reportsCount, users, disputes, transactions, withdrawals] = await Promise.all([db.query('SELECT COUNT(*)::int AS count FROM users'), db.query('SELECT COALESCE(SUM(amount_cents),0)::int AS total FROM transactions'), db.query("SELECT COUNT(*)::int AS count FROM disputes WHERE status='open'"), db.query("SELECT COUNT(*)::int AS count FROM listings WHERE status='flagged'"), db.query('SELECT COUNT(*)::int AS count FROM products'), db.query('SELECT COUNT(*)::int AS count FROM ads WHERE status = \'active\''), db.query('SELECT COUNT(*)::int AS count FROM gigs WHERE status = \'active\''), db.query('SELECT COUNT(*)::int AS count FROM categories'), db.query('SELECT COUNT(*)::int AS count FROM reports WHERE status = \'open\''), db.query('SELECT id,name,phone,email,role,trust_score AS "trustScore",two_factor AS "twoFactor",created_at AS "createdAt" FROM users ORDER BY created_at DESC LIMIT 100'), db.query('SELECT * FROM disputes ORDER BY created_at DESC LIMIT 100'), db.query('SELECT * FROM transactions ORDER BY created_at DESC LIMIT 100'), db.query('SELECT * FROM withdrawals ORDER BY created_at DESC LIMIT 100')]); res.json({ stats: { activeUsers: usersCount.rows[0].count, escrowCents: escrow.rows[0].total, openDisputes: disputesCount.rows[0].count, flaggedListings: listingsCount.rows[0].count, activeProducts: productsCount.rows[0].count, activeAds: adsCount.rows[0].count, activeGigs: gigsCount.rows[0].count, categories: categoriesCount.rows[0].count, openReports: reportsCount.rows[0].count }, users: users.rows, disputes: disputes.rows, transactions: transactions.rows, withdrawals: withdrawals.rows }); } catch (error) { next(error); } });
@@ -268,7 +318,6 @@ app.get('/api/admin/categories', requireAdmin, async (_req, res, next) => { try 
 app.post('/api/admin/categories', requireAdmin, async (req, res, next) => { try { const parsed = z.object({ name: z.string().min(2).max(80), parentId: z.string().max(80).optional() }).safeParse(req.body); if (!parsed.success) return res.status(400).json({ error: 'Invalid category payload' }); const category = { id: nanoid(), ...parsed.data, createdAt: now() }; await db.query('INSERT INTO categories (id,name,parent_id,created_at) VALUES ($1,$2,$3,$4)', [category.id, category.name, category.parentId || null, category.createdAt]); res.status(201).json({ category }); } catch (error) { next(error); } });
 app.post('/api/admin/disputes/:id/resolve', requireAdmin, async (req, res, next) => { try { const parsed = z.object({ resolution: z.string().min(3).max(2000) }).safeParse(req.body); if (!parsed.success) return res.status(400).json({ error: 'Resolution required' }); const result = await db.query("UPDATE disputes SET status='resolved',resolution=$1,resolved_at=$2 WHERE id=$3", [parsed.data.resolution, now(), req.params.id]); if (!result.rowCount) return res.status(404).json({ error: 'Dispute not found' }); res.json({ resolved: true }); } catch (error) { next(error); } });
 app.post('/api/admin/listings/:id/pause', requireAdmin, async (req, res, next) => { try { const result = await db.query("UPDATE listings SET status='paused' WHERE id=$1", [req.params.id]); if (!result.rowCount) return res.status(404).json({ error: 'Listing not found' }); res.json({ paused: true }); } catch (error) { next(error); } });
-app.get('/uploads', express.static(uploadDir, { dotfiles: 'deny', index: false }));
 app.get('/', (_req, res) => res.sendFile(path.resolve(__dirname, 'login.html')));
 app.use((_req, res) => res.status(404).json({ error: 'Not found' }));
 app.use((error, _req, res, _next) => { console.error(error); res.status(500).json({ error: 'Internal server error' }); });

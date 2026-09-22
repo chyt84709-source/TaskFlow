@@ -1,8 +1,14 @@
 import express from 'express';
+import multer from 'multer';
+import Stripe from 'stripe';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import { db, getCurrencyMeta, normalizeCountry } from '../config/database.js';
 import { requireUser } from '../utils/helpers.js';
+import { decryptImage, processAndEncryptImage, readEncryptedImage, saveEncryptedImage } from '../services/media.js';
+
+const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 }, fileFilter: (_req, file, callback) => callback(null, /^image\/(jpeg|png|webp|gif|avif|heic)$/.test(file.mimetype)) });
+const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 
 const router = express.Router();
 
@@ -52,6 +58,33 @@ router.get('/api/referrals', requireUser, async (req, res, next) => {
   }
 });
 
+router.post('/api/profile/avatar', requireUser, imageUpload.single('file'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'An image file is required.' });
+    const image = await processAndEncryptImage(req.file.buffer);
+    const id = nanoid();
+    const filename = await saveEncryptedImage(image.payload, id);
+    await db.query('INSERT INTO media_files (id,user_id,filename,mime_type,purpose) VALUES ($1,$2,$3,$4,$5)', [id, req.session.user.id, filename, image.mimeType, 'profile-avatar']);
+    const avatarUrl = `/api/media/${id}`;
+    await db.query('UPDATE users SET avatar_url=$1 WHERE id=$2', [avatarUrl, req.session.user.id]);
+    res.status(201).json({ url: avatarUrl, mimeType: image.mimeType });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/api/media/:id', requireUser, async (req, res, next) => {
+  try {
+    const result = await db.query('SELECT filename,mime_type AS "mimeType",user_id AS "userId" FROM media_files WHERE id=$1', [req.params.id]);
+    const media = result.rows[0];
+    if (!media || media.userId !== req.session.user.id) return res.status(404).end();
+    const encrypted = await readEncryptedImage(media.filename);
+    res.type(media.mimeType).send(decryptImage(encrypted));
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post('/api/premium/upgrade', requireUser, async (req, res, next) => {
   try {
     const parsed = z.object({ method: z.enum(['fee', 'referrals']).default('fee') }).safeParse(req.body);
@@ -80,6 +113,29 @@ router.post('/api/premium/upgrade', requireUser, async (req, res, next) => {
   }
 });
 
+router.post('/api/premium/checkout', requireUser, async (req, res, next) => {
+  try {
+    if (!stripe) return res.status(503).json({ error: 'Stripe payments are not configured.' });
+    const userResult = await db.query('SELECT email, country, subscription_tier FROM users WHERE id=$1', [req.session.user.id]);
+    const user = userResult.rows[0];
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.subscription_tier === 'premium') return res.json({ ok: true, tier: 'premium', alreadyActive: true });
+    const origin = process.env.APP_BASE_URL || `${req.protocol}://${req.get('host')}`;
+    const checkoutSession = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      customer_email: user.email || undefined,
+      client_reference_id: req.session.user.id,
+      line_items: [{ price_data: { currency: 'usd', product_data: { name: 'TaskFlow Premium membership', description: 'Account boost, Premium badge, and marketplace discounts.' }, unit_amount: 500 }, quantity: 1 }],
+      metadata: { userId: req.session.user.id, baseUsdCents: '500', country: normalizeCountry(user.country || 'US') },
+      success_url: `${origin}/#premium&payment=success`,
+      cancel_url: `${origin}/#premium&payment=cancelled`,
+    });
+    res.json({ ok: true, checkoutUrl: checkoutSession.url });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/api/profile', requireUser, async (req, res, next) => {
   try {
     const [userResult, profileResult] = await Promise.all([
@@ -101,7 +157,7 @@ router.put('/api/profile', requireUser, async (req, res, next) => {
       bio: z.string().max(500).optional(),
       location: z.string().max(120).optional(),
       country: z.string().max(80).optional(),
-      avatarUrl: z.string().url().max(500).optional(),
+      avatarUrl: z.string().max(500).refine((value) => value.startsWith('/') || /^https?:\/\//.test(value), 'Invalid avatar URL').optional(),
       skills: z.string().max(500).optional(),
       phone: z.string().max(40).optional(),
     }).safeParse(req.body);
@@ -180,10 +236,6 @@ router.post('/api/offers', requireUser, async (req, res, next) => {
   } catch (error) {
     next(error);
   }
-});
-
-router.post('/api/uploads', requireUser, async (req, res) => {
-  res.status(501).json({ error: 'Upload middleware is attached in the server entrypoint.' });
 });
 
 export default router;

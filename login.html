@@ -934,7 +934,7 @@
               <div class="field">
                 <label>Product media</label>
                 <div class="upload-box">
-                  <input id="product-media-upload" type="file" accept="image/*,video/*" multiple>
+                  <input id="product-media-upload" type="file" accept="image/*" multiple>
                 </div>
               </div>
               <button type="submit" class="primary-btn full">List product</button>
@@ -989,7 +989,7 @@
               <div class="field">
                 <label>Portfolio media</label>
                 <div class="upload-box">
-                  <input id="gig-portfolio-upload" type="file" accept="image/*,video/*" multiple>
+                  <input id="gig-portfolio-upload" type="file" accept="image/*" multiple>
                 </div>
               </div>
               <button type="submit" class="primary-btn full">Create gig</button>
@@ -1076,8 +1076,8 @@
                 <input id="profile-name-field" required placeholder="Your full name">
               </div>
               <div class="field">
-                <label>Profile picture URL</label>
-                <input id="profile-avatar" type="url" placeholder="https://example.com/avatar.jpg">
+                <label>Profile picture</label>
+                <label class="ghost-btn full" for="profile-avatar-upload">Choose image</label>
               </div>
               <div class="field">
                 <label>Phone number</label>
@@ -1259,7 +1259,6 @@
       $('display-country').textContent = countryCode;
       $('profile-tier-pill').textContent = tierLabel;
       $('profile-bio').value = bio;
-      $('profile-avatar').value = avatarUrl;
       ['profile-avatar-pip', 'profile-avatar-pip-preview'].forEach((id) => {
         const element = $(id);
         if (!element) return;
@@ -1408,6 +1407,11 @@
 
     async function activatePremium(method) {
       try {
+        if (method === 'fee') {
+          const checkout = await api('/api/premium/checkout', { method: 'POST' });
+          if (checkout.checkoutUrl) window.location.href = checkout.checkoutUrl;
+          return;
+        }
         const result = await api('/api/premium/upgrade', { method: 'POST', body: JSON.stringify({ method }) });
         if (result.ok) {
           notify('Premium membership activated successfully.');
@@ -1820,8 +1824,7 @@
           name: $('profile-name-field').value.trim(),
           phone: $('profile-phone').value.trim(),
           bio: $('profile-bio').value.trim(),
-          country: $('profile-country').value || 'US',
-          avatarUrl: $('profile-avatar').value.trim() || null
+          country: $('profile-country').value || 'US'
         };
         await api('/api/profile', {
           method: 'PUT',
@@ -1840,18 +1843,16 @@
       if (!file) return;
       try {
         const formData = new FormData();
-        formData.append('files', file);
-        const uploadResponse = await fetch('/api/uploads', {
+        formData.append('file', file);
+        const uploadResponse = await fetch('/api/profile/avatar', {
           method: 'POST',
-          headers: { 'Authorization': `Bearer ${document.cookie.split(';').find((part) => part.trim().startsWith('taskflow.sid=')) || ''}` },
           body: formData,
           credentials: 'include'
         });
         const uploadData = await uploadResponse.json();
         if (!uploadResponse.ok) throw new Error(uploadData.error || 'Profile image upload failed');
-        const uploadedUrl = uploadData.files?.[0]?.url || '';
+        const uploadedUrl = uploadData.url || '';
         if (uploadedUrl) {
-          $('profile-avatar').value = uploadedUrl;
           await api('/api/profile', {
             method: 'PUT',
             body: JSON.stringify({ avatarUrl: uploadedUrl })
