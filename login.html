@@ -931,6 +931,10 @@
                 <label>Price (cents)</label>
                 <input id="listing-price" type="number" min="1" value="5000" required>
               </div>
+              <div class="field">
+                <label>Photos or video</label>
+                <input id="listing-media-upload" type="file" accept="image/*,video/*" multiple required>
+              </div>
               <button type="submit" class="primary-btn full">Publish listing</button>
             </form>
           </div>
@@ -1461,6 +1465,19 @@
       return String(value || '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[ch]));
     }
 
+    function renderListingMedia(item) {
+      const media = Array.isArray(item?.media) ? item.media : [];
+      return media.map((entry) => {
+        const url = typeof entry === 'string' ? entry : entry?.url;
+        const mimeType = typeof entry === 'string' ? '' : entry?.mimeType || '';
+        if (!url) return '';
+        const safeUrl = escapeHtml(url);
+        return /^video\//i.test(mimeType)
+          ? `<video src="${safeUrl}" controls preload="metadata" style="width:100%;max-height:220px;border-radius:10px;"></video>`
+          : `<img src="${safeUrl}" alt="${escapeHtml(item.title)}" loading="lazy" style="width:100%;max-height:220px;object-fit:cover;border-radius:10px;">`;
+      }).join('');
+    }
+
     function renderPromotionAds(ads) {
       const activeAds = Array.isArray(ads) ? ads : [];
       $('promotion-banner').classList.toggle('hidden', activeAds.length === 0);
@@ -1833,12 +1850,21 @@
     $('listing-form').addEventListener('submit', async (event) => {
       event.preventDefault();
       try {
+        const mediaFiles = Array.from($('listing-media-upload').files || []);
+        if (!mediaFiles.length) throw new Error('Upload at least one photo or video for this listing.');
+        const formData = new FormData();
+        mediaFiles.forEach((file) => formData.append('files', file));
+        const uploadResponse = await fetch('/api/uploads', { method: 'POST', body: formData, credentials: 'include' });
+        const uploadData = await uploadResponse.json();
+        if (!uploadResponse.ok) throw new Error(uploadData.error || 'Listing media upload failed');
+        const uploadedMedia = (uploadData.files || []).map((file, index) => ({ url: file.url, mimeType: file.mimeType || mediaFiles[index]?.type || 'application/octet-stream' }));
         await api('/api/listings', {
           method: 'POST',
           body: JSON.stringify({
             title: $('listing-title').value,
             type: $('listing-type').value,
-            priceCents: Number($('listing-price').value)
+            priceCents: Number($('listing-price').value),
+            media: uploadedMedia
           })
         });
         notify('Listing published successfully.');
@@ -1997,13 +2023,14 @@
         `).join('') : '<p class="muted">No tasks created yet.</p>';
 
         $('listing-page-list').innerHTML = listingItems.length ? listingItems.slice(0, 6).map((item) => `
-          <div class="item-card"><h4>${escapeHtml(item.title)}</h4><p>${escapeHtml(item.type || 'Listing')}</p><div class="item-row"><span>${escapeHtml(item.type)}</span><span class="tag">${formatMoney(item.priceCents || 0)}</span></div></div>
+          <div class="item-card"><h4>${escapeHtml(item.title)}</h4><p>${escapeHtml(item.type || 'Listing')}</p>${renderListingMedia(item)}<div class="item-row"><span>${escapeHtml(item.type)}</span><span class="tag">${formatMoney(item.priceCents || 0)}</span></div></div>
         `).join('') : '<p class="muted">No listings available.</p>';
 
         $('listings-list').innerHTML = listingItems.length ? listingItems.slice(0, 6).map((item) => `
           <div class="item-card">
             <h4>${escapeHtml(item.title)}</h4>
             <p>${escapeHtml(item.type || 'Listing')} • ${escapeHtml(item.status || 'Active')}</p>
+            ${renderListingMedia(item)}
             <div class="item-row">
               <span>${escapeHtml(item.type)}</span>
               <span class="tag">${formatMoney(item.priceCents || 0)}</span>
