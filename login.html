@@ -1238,6 +1238,10 @@
                 <label>Ad media</label>
                 <input id="ad-media-upload" type="file" accept="image/*,video/*" multiple>
               </div>
+              <div class="field">
+                <label>Destination link</label>
+                <input id="ad-destination-url" type="url" placeholder="https://example.com or app://store">
+              </div>
               <button type="submit" class="primary-btn full">Create ad slot</button>
             </form>
           </div>
@@ -1401,7 +1405,12 @@
         const profileUser = profileResponse?.user || meResponse?.user || currentUser;
         if (!profileUser) return;
 
-        currentUser = profileUser;
+        currentUser = {
+          ...profileUser,
+          isAdmin: Boolean(profileUser?.isAdmin || profileUser?.role === 'admin'),
+          role: String(profileUser?.role || currentUser?.role || 'worker')
+        };
+        syncAdminNavVisibility(currentUser);
         const profileMeta = profileResponse?.user?.profile || null;
         applyProfileToUi(currentUser, profileMeta);
       } catch (error) {
@@ -2022,6 +2031,7 @@
             <div class="item-card">
               <h4>${escapeHtml(ad.title)}</h4>
               <p>${escapeHtml(ad.placement || 'homepage-top')} • ${escapeHtml(ad.category || 'General')} • ${escapeHtml(ad.skip_allowed !== false ? 'skip enabled' : 'skip disabled')}</p>
+              ${ad.destination_url ? `<p><a href="${escapeHtml(ad.destination_url)}" target="_blank" rel="noopener noreferrer">Open advertiser link</a></p>` : '<p class="muted">No destination link provided.</p>'}
               <div class="item-row">
                 <span>${Number(ad.duration_days || 7)} days</span>
                 <span class="tag">${escapeHtml(ad.status || 'active')}</span>
@@ -2221,7 +2231,8 @@
             placement: $('ad-placement').value,
             durationDays: Number($('ad-duration').value),
             skipAllowed: $('ad-skip').value === 'true',
-            media: mediaUrls
+            media: mediaUrls,
+            destinationUrl: $('ad-destination-url').value.trim() || undefined
           })
         });
         notify('Advertisement slot created.');
