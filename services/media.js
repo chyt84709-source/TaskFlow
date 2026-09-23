@@ -45,3 +45,8 @@ export async function readEncryptedImage(filename) {
   const safeName = path.basename(filename);
   return fs.readFile(path.join(mediaDir, safeName));
 }
+
+export async function deleteEncryptedMedia(filename) {
+  const safeName = path.basename(filename);
+  await fs.rm(path.join(mediaDir, safeName), { force: true });
+}

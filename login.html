@@ -527,6 +527,17 @@
       box-shadow: var(--shadow);
     }
     .toast.show { opacity: 1; transform: translateY(0); }
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background: rgba(12, 35, 28, 0.48);
+    }
+    .modal-backdrop.hidden { display: none; }
+    .modal-backdrop .auth-card { max-height: 90vh; overflow: auto; }
     @media (max-width: 980px) {
       .page { grid-template-columns: 1fr; }
       .panel-shell { order: -1; }
@@ -720,6 +731,14 @@
           <div class="metric-card"><small>Active Tasks</small><strong id="metric-tasks">0</strong></div>
           <div class="metric-card"><small>Live Listings</small><strong id="metric-listings">0</strong></div>
           <div class="metric-card"><small>Products</small><strong id="metric-products">0</strong></div>
+        </section>
+
+        <section class="section-panel" style="margin-top: 16px;">
+          <div class="section-header">
+            <div><h3>Messages & offers</h3><p class="muted" style="margin: 4px 0 0;">Review offers from other users and continue accepted conversations inside TaskFlow.</p></div>
+            <button type="button" class="ghost-btn" id="refresh-conversations">Refresh</button>
+          </div>
+          <div class="meta-list" id="conversations-list"><p class="muted">No conversations yet.</p></div>
         </section>
 
         <div class="feature-strip">
@@ -1252,10 +1271,38 @@
               <div class="section-header"><h4>Gigs</h4><span class="tag" id="admin-gigs-count">0</span></div>
               <div class="meta-list" id="admin-gigs-list"></div>
             </div>
+            <div>
+              <div class="section-header"><h4>Tasks</h4><span class="tag" id="admin-tasks-count">0</span></div>
+              <div class="meta-list" id="admin-tasks-list"></div>
+            </div>
+            <div>
+              <div class="section-header"><h4>User uploads</h4><span class="tag" id="admin-media-count">0</span></div>
+              <div class="meta-list" id="admin-media-list"></div>
+            </div>
           </div>
         </div>
       </section>
     </main>
+  </div>
+
+  <div id="offer-modal" class="modal-backdrop hidden">
+    <div class="auth-card" style="width:min(520px,92vw);">
+      <div class="section-header"><h3 id="offer-modal-title">Make an offer</h3><button type="button" class="ghost-btn" id="close-offer-modal">Close</button></div>
+      <form id="offer-form">
+        <input id="offer-content-type" type="hidden">
+        <input id="offer-content-id" type="hidden">
+        <div class="field"><label for="offer-amount">Your offer amount</label><input id="offer-amount" type="number" min="0.01" step="0.01" required placeholder="Enter amount"></div>
+        <div class="field"><label for="offer-message">Message to the owner</label><textarea id="offer-message" maxlength="1000" rows="4" placeholder="I am interested in this item..."></textarea></div>
+        <button type="submit" class="primary-btn full">Send offer</button>
+      </form>
+    </div>
+  </div>
+  <div id="conversation-modal" class="modal-backdrop hidden">
+    <div class="auth-card" style="width:min(620px,92vw);">
+      <div class="section-header"><h3 id="conversation-title">Conversation</h3><button type="button" class="ghost-btn" id="close-conversation-modal">Close</button></div>
+      <div class="meta-list" id="conversation-messages" style="max-height:320px;overflow:auto;"></div>
+      <form id="message-form" class="row-actions" style="margin-top:14px;"><input id="conversation-message" maxlength="2000" required placeholder="Write a message..."><button type="submit" class="primary-btn">Send</button></form>
+    </div>
   </div>
 
   <div id="toast" class="toast"></div>
@@ -1396,6 +1443,84 @@
     function escapeHtml(value) {
       return String(value || '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[ch]));
     }
+
+    function openOfferModal(type, id, title) {
+      $('offer-content-type').value = type;
+      $('offer-content-id').value = id;
+      $('offer-modal-title').textContent = `Make an offer: ${title || 'Item'}`;
+      $('offer-form').reset();
+      $('offer-content-type').value = type;
+      $('offer-content-id').value = id;
+      $('offer-modal').classList.remove('hidden');
+    }
+
+    async function loadConversations() {
+      try {
+        const [offersResponse, conversationsResponse] = await Promise.all([
+          api('/api/content-offers').catch(() => ({ offers: [] })),
+          api('/api/conversations').catch(() => ({ conversations: [] })),
+        ]);
+        const offers = offersResponse.offers || [];
+        const conversations = conversationsResponse.conversations || [];
+        $('conversations-list').innerHTML = offers.length ? offers.slice(0, 20).map((offer) => {
+          const isSeller = offer.seller_id === currentUser?.id;
+          const title = `${offer.content_type} offer • ${formatMoney(offer.amount_cents || 0)}`;
+          const action = offer.status === 'pending' && isSeller
+            ? `<button type="button" class="mini-btn primary" data-respond-offer="${offer.id}" data-decision="accepted">Accept</button><button type="button" class="mini-btn" data-respond-offer="${offer.id}" data-decision="rejected">Reject</button>`
+            : offer.status === 'accepted' ? `<button type="button" class="mini-btn primary" data-open-conversation="${offer.conversation_id}" data-conversation-title="${escapeHtml(title)}">Open chat</button>` : '';
+          return `<div class="item-card"><h4>${escapeHtml(title)}</h4><p>${escapeHtml(isSeller ? `Offer from ${offer.buyer_name || 'user'}` : `Offer to ${offer.seller_name || 'seller'}`)} • ${escapeHtml(offer.status)}</p><div class="row-actions">${action}</div></div>`;
+        }).join('') : '<p class="muted">No conversations or offers yet.</p>';
+        document.querySelectorAll('[data-respond-offer]').forEach((button) => {
+          button.onclick = async () => {
+            try {
+              await api(`/api/content-offers/${button.dataset.respondOffer}/respond`, { method: 'POST', body: JSON.stringify({ decision: button.dataset.decision }) });
+              notify(button.dataset.decision === 'accepted' ? 'Offer accepted. Chat is now open.' : 'Offer rejected.');
+              await loadConversations();
+            } catch (error) { notify(error.message); }
+          };
+        });
+        document.querySelectorAll('[data-open-conversation]').forEach((button) => {
+          button.onclick = () => openConversation(button.dataset.openConversation, button.dataset.conversationTitle);
+        });
+        return conversations;
+      } catch (error) {
+        notify(error.message);
+        return [];
+      }
+    }
+
+    async function openConversation(id, title) {
+      $('conversation-title').textContent = title || 'Conversation';
+      $('conversation-modal').dataset.conversationId = id;
+      $('conversation-modal').classList.remove('hidden');
+      try {
+        const response = await api(`/api/conversations/${id}/messages`);
+        $('conversation-messages').innerHTML = response.messages?.length ? response.messages.map((message) => `<div class="item-card"><strong>${escapeHtml(message.sender_name || 'User')}</strong><p>${escapeHtml(message.body)}</p></div>`).join('') : '<p class="muted">No messages yet. Start the conversation.</p>';
+      } catch (error) { notify(error.message); }
+    }
+
+    $('offer-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        await api('/api/content-offers', { method: 'POST', body: JSON.stringify({ contentType: $('offer-content-type').value, contentId: $('offer-content-id').value, amountCents: Math.round(Number($('offer-amount').value) * 100), message: $('offer-message').value.trim() }) });
+        $('offer-modal').classList.add('hidden');
+        notify('Offer sent to the owner.');
+        await loadConversations();
+      } catch (error) { notify(error.message); }
+    });
+
+    $('close-offer-modal').addEventListener('click', () => $('offer-modal').classList.add('hidden'));
+    $('close-conversation-modal').addEventListener('click', () => $('conversation-modal').classList.add('hidden'));
+    $('refresh-conversations').addEventListener('click', loadConversations);
+    $('message-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const conversationId = $('conversation-modal').dataset.conversationId;
+      try {
+        await api(`/api/conversations/${conversationId}/messages`, { method: 'POST', body: JSON.stringify({ body: $('conversation-message').value.trim() }) });
+        $('conversation-message').value = '';
+        await openConversation(conversationId, $('conversation-title').textContent);
+      } catch (error) { notify(error.message); }
+    });
 
     function toggleTab(tabName) {
       document.querySelectorAll('.tab-btn').forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tabName));
@@ -1794,7 +1919,8 @@
               <span class="tag">${formatMoney(task.payoutCents || 0)}</span>
             </div>
             <div class="row-actions">
-              <button type="button" class="mini-btn primary" data-buy="task" data-id="${task.id}">Buy task</button>
+              <button type="button" class="mini-btn primary" data-offer-type="task" data-offer-id="${task.id}" data-offer-title="${escapeHtml(task.title)}">Chat / Make offer</button>
+              ${task.clientId === currentUser?.id ? `<button type="button" class="mini-btn" data-mark-sold="task" data-sold-id="${task.id}">Mark sold</button>` : ''}
               <button type="button" class="mini-btn" data-inspect="task" data-id="${task.id}">Review</button>
             </div>
           </div>
@@ -1817,7 +1943,8 @@
               <span class="tag">${formatMoney(item.priceCents || 0)}</span>
             </div>
             <div class="row-actions">
-              <button type="button" class="mini-btn primary" data-buy="listing" data-id="${item.id}" data-seller="${item.seller_id || item.sellerId || ''}">Make offer</button>
+              <button type="button" class="mini-btn primary" data-offer-type="listing" data-offer-id="${item.id}" data-offer-title="${escapeHtml(item.title)}">Chat / Make offer</button>
+              ${item.seller_id === currentUser?.id || item.sellerId === currentUser?.id ? `<button type="button" class="mini-btn" data-mark-sold="listing" data-sold-id="${item.id}">Mark sold</button>` : ''}
             </div>
           </div>
         `).join('') : '<p class="muted">No listings currently active.</p>';
@@ -1835,7 +1962,8 @@
               <span class="tag">${formatMoney(item.price_cents || item.priceCents || 0)}</span>
             </div>
             <div class="row-actions">
-              <button type="button" class="mini-btn primary" data-buy="product" data-id="${item.id}">Buy now</button>
+              <button type="button" class="mini-btn primary" data-offer-type="product" data-offer-id="${item.id}" data-offer-title="${escapeHtml(item.title)}">Chat / Make offer</button>
+              ${item.vendor_id === currentUser?.id || item.vendorId === currentUser?.id ? `<button type="button" class="mini-btn" data-mark-sold="product" data-sold-id="${item.id}">Mark sold</button>` : ''}
             </div>
           </div>
         `).join('') : '<p class="muted">No products yet.</p>';
@@ -1853,7 +1981,8 @@
               <span class="tag">${formatMoney(item.price_cents || item.priceCents || 0)}</span>
             </div>
             <div class="row-actions">
-              <button type="button" class="mini-btn primary" data-buy="gig" data-id="${item.id}">Book now</button>
+              <button type="button" class="mini-btn primary" data-offer-type="gig" data-offer-id="${item.id}" data-offer-title="${escapeHtml(item.title)}">Chat / Make offer</button>
+              ${item.seller_id === currentUser?.id || item.sellerId === currentUser?.id ? `<button type="button" class="mini-btn" data-mark-sold="gig" data-sold-id="${item.id}">Mark sold</button>` : ''}
             </div>
           </div>
         `).join('') : '<p class="muted">No gigs available.</p>';
@@ -1930,46 +2059,35 @@
               <div class="row-actions"><button type="button" class="mini-btn danger" data-delete-content="gigs" data-delete-id="${item.id}">Delete</button></div>
             </div>
           `).join('') : '<p class="muted">No gigs available.</p>';
+          const adminTaskItems = moderation.tasks || [];
+          const adminMediaItems = moderation.media || [];
+          $('admin-tasks-count').textContent = String(adminTaskItems.length);
+          $('admin-tasks-list').innerHTML = adminTaskItems.length ? adminTaskItems.slice(0, 20).map((item) => `
+            <div class="item-card"><h4>${escapeHtml(item.title)}</h4><p>${escapeHtml(item.status || 'Task')} • ${Number(item.seconds || 0)} sec</p><div class="row-actions"><button type="button" class="mini-btn danger" data-delete-content="tasks" data-delete-id="${item.id}">Delete</button></div></div>
+          `).join('') : '<p class="muted">No tasks available.</p>';
+          $('admin-media-count').textContent = String(adminMediaItems.length);
+          $('admin-media-list').innerHTML = adminMediaItems.length ? adminMediaItems.slice(0, 20).map((item) => `
+            <div class="item-card"><h4>${escapeHtml(item.filename)}</h4><p>${escapeHtml(item.purpose || 'User upload')} • ${escapeHtml(item.mimeType || '')}</p><div class="row-actions"><button type="button" class="mini-btn danger" data-delete-content="media" data-delete-id="${item.id}">Delete</button></div></div>
+          `).join('') : '<p class="muted">No user uploads available.</p>';
           bindAdminContentDeleteButtons();
         }
 
-        document.querySelectorAll('[data-buy]').forEach((button) => {
+        document.querySelectorAll('[data-offer-type]').forEach((button) => {
           button.addEventListener('click', async () => {
-            const { buy, id, seller } = button.dataset;
-            try {
-              if (buy === 'task') {
-                await api(`/api/tasks/${id}/purchase`, {
-                  method: 'POST',
-                  body: JSON.stringify({ quantity: 1, targetUrl: 'https://example.com/target', notes: 'Task purchase request' })
-                });
-              } else if (buy === 'product') {
-                await api(`/api/products/${id}/purchase`, {
-                  method: 'POST',
-                  body: JSON.stringify({ quantity: 1, notes: 'Product purchase request' })
-                });
-              } else if (buy === 'gig') {
-                await api(`/api/gigs/${id}/purchase`, {
-                  method: 'POST',
-                  body: JSON.stringify({ packageName: 'Standard', notes: 'Gig booking request' })
-                });
-              } else if (buy === 'listing') {
-                await api('/api/offers', {
-                  method: 'POST',
-                  body: JSON.stringify({
-                    listingId: id,
-                    sellerId: seller,
-                    amountCents: Number((listingItems.find((row) => row.id === id)?.priceCents) || 0),
-                    message: 'I am interested in this listing.'
-                  })
-                });
-              }
-              notify('Purchase request sent successfully.');
-              await loadDashboard();
-            } catch (error) {
-              notify(error.message);
-            }
+            openOfferModal(button.dataset.offerType, button.dataset.offerId, button.dataset.offerTitle);
           });
         });
+        document.querySelectorAll('[data-mark-sold]').forEach((button) => {
+          button.onclick = async () => {
+            try {
+              await api(`/api/content/${button.dataset.markSold}/${button.dataset.soldId}/status`, { method: 'POST', body: JSON.stringify({ status: 'sold' }) });
+              notify('Item marked as sold and removed from active marketplace results.');
+              await loadDashboard();
+            } catch (error) { notify(error.message); }
+          };
+        });
+
+        await loadConversations();
 
         const summaryCount = Number(summary.activeTasks || taskItems.length);
         $('metric-tasks').textContent = String(summaryCount);

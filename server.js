@@ -19,7 +19,7 @@ import Stripe from 'stripe';
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import commerceRoutes from './routes/commerceRoutes.js';
-import { processAndEncryptImage, saveEncryptedImage } from './services/media.js';
+import { deleteEncryptedMedia, processAndEncryptImage, saveEncryptedImage } from './services/media.js';
 import { calculateInternationalTax } from './config/database.js';
 
 const { Pool } = pg;
@@ -111,7 +111,7 @@ async function initializeSchema() {
     CREATE TABLE IF NOT EXISTS disputes (id TEXT PRIMARY KEY, opened_by TEXT, order_id TEXT NOT NULL, reason TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open', resolution TEXT, created_at TIMESTAMPTZ NOT NULL, resolved_at TIMESTAMPTZ);
     CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, sender_id TEXT NOT NULL, body TEXT, attachment TEXT, created_at TIMESTAMPTZ NOT NULL);
     CREATE TABLE IF NOT EXISTS notifications (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, kind TEXT NOT NULL, body TEXT NOT NULL, read_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL);
-    CREATE TABLE IF NOT EXISTS products (id TEXT PRIMARY KEY, vendor_id TEXT NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL, category TEXT NOT NULL, price_cents INTEGER NOT NULL, stock INTEGER NOT NULL DEFAULT 0, media JSONB NOT NULL DEFAULT '[]'::jsonb, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
+    CREATE TABLE IF NOT EXISTS products (id TEXT PRIMARY KEY, vendor_id TEXT NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL, category TEXT NOT NULL, price_cents INTEGER NOT NULL, stock INTEGER NOT NULL DEFAULT 0, media JSONB NOT NULL DEFAULT '[]'::jsonb, status TEXT NOT NULL DEFAULT 'active', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
     CREATE TABLE IF NOT EXISTS reviews (id TEXT PRIMARY KEY, product_id TEXT NOT NULL, user_id TEXT NOT NULL, rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5), comment TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
     CREATE TABLE IF NOT EXISTS cart_items (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, product_id TEXT NOT NULL, quantity INTEGER NOT NULL DEFAULT 1, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE (user_id, product_id));
     CREATE TABLE IF NOT EXISTS ads (id TEXT PRIMARY KEY, seller_id TEXT NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL, category TEXT NOT NULL, price_cents INTEGER NOT NULL, location TEXT NOT NULL, media JSONB NOT NULL DEFAULT '[]'::jsonb, status TEXT NOT NULL DEFAULT 'active', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
@@ -121,6 +121,8 @@ async function initializeSchema() {
     CREATE TABLE IF NOT EXISTS profiles (id TEXT PRIMARY KEY, user_id TEXT UNIQUE NOT NULL, bio TEXT, location TEXT, avatar_url TEXT, skills TEXT, social_links JSONB, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
     CREATE TABLE IF NOT EXISTS favorites (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, target_type TEXT NOT NULL, target_id TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE (user_id, target_type, target_id));
     CREATE TABLE IF NOT EXISTS offers (id TEXT PRIMARY KEY, listing_id TEXT NOT NULL, buyer_id TEXT NOT NULL, seller_id TEXT NOT NULL, amount_cents INTEGER NOT NULL, message TEXT, status TEXT NOT NULL DEFAULT 'pending', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
+    CREATE TABLE IF NOT EXISTS content_offers (id TEXT PRIMARY KEY, content_type TEXT NOT NULL, content_id TEXT NOT NULL, buyer_id TEXT NOT NULL, seller_id TEXT NOT NULL, amount_cents INTEGER NOT NULL, message TEXT, status TEXT NOT NULL DEFAULT 'pending', conversation_id TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), responded_at TIMESTAMPTZ);
+    CREATE TABLE IF NOT EXISTS conversations (id TEXT PRIMARY KEY, content_type TEXT NOT NULL, content_id TEXT NOT NULL, buyer_id TEXT NOT NULL, seller_id TEXT NOT NULL, offer_id TEXT, status TEXT NOT NULL DEFAULT 'pending', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
     CREATE TABLE IF NOT EXISTS service_orders (id TEXT PRIMARY KEY, service_id TEXT NOT NULL, buyer_id TEXT NOT NULL, seller_id TEXT NOT NULL, package_name TEXT NOT NULL, amount_cents INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'pending', delivery_text TEXT, revisions INTEGER NOT NULL DEFAULT 0, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
     CREATE TABLE IF NOT EXISTS task_applications (id TEXT PRIMARY KEY, task_id TEXT NOT NULL, worker_id TEXT NOT NULL, message TEXT, status TEXT NOT NULL DEFAULT 'pending', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
     CREATE TABLE IF NOT EXISTS task_submissions (id TEXT PRIMARY KEY, task_id TEXT NOT NULL, worker_id TEXT NOT NULL, proof_url TEXT, notes TEXT, status TEXT NOT NULL DEFAULT 'submitted', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
@@ -139,6 +141,8 @@ async function initializeSchema() {
   await db.query("UPDATE users SET subscription_tier = 'premium', premium_source = 'referrals', premium_activated_at = COALESCE(premium_activated_at, NOW()), green_tick = TRUE WHERE referral_count >= 10;");
   await db.query("ALTER TABLE wallet_card_verifications ADD COLUMN IF NOT EXISTS setup_intent_id TEXT;");
   await db.query("DELETE FROM transactions WHERE kind = 'deposit';");
+  await db.query("ALTER TABLE content_offers ADD COLUMN IF NOT EXISTS conversation_id TEXT;");
+  await db.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';");
 }
 
 async function seedDemoData() {
@@ -304,7 +308,7 @@ app.post('/api/payments/deposit', requireUser, (_req, res) => res.status(410).js
 app.post('/api/payments/withdraw', requireUser, async (req, res, next) => { try { const parsed = z.object({ amountCents: z.number().int().positive(), destination: z.string().min(3).max(120) }).safeParse(req.body); if (!parsed.success) return res.status(400).json({ error: 'Invalid withdrawal payload' }); await db.query('INSERT INTO withdrawals (id,user_id,amount_cents,destination,status,created_at) VALUES ($1,$2,$3,$4,$5,$6)', [nanoid(), req.session.user.id, parsed.data.amountCents, parsed.data.destination, 'pending', now()]); res.status(201).json({ ok: true }); } catch (error) { next(error); } });
 app.post('/api/reports', requireUser, async (req, res, next) => { try { const parsed = z.object({ subject: z.string().min(2).max(120), reason: z.string().min(5).max(2000) }).safeParse(req.body); if (!parsed.success) return res.status(400).json({ error: 'Invalid report payload' }); const report = { id: nanoid(), userId: req.session.user.id, ...parsed.data, createdAt: now() }; await db.query('INSERT INTO reports (id,user_id,subject,reason,status,created_at) VALUES ($1,$2,$3,$4,$5,$6)', [report.id, report.userId, report.subject, report.reason, 'open', report.createdAt]); res.status(201).json({ report }); } catch (error) { next(error); } });
 
-app.get('/api/tasks', async (_req, res, next) => { try { const result = await db.query("SELECT id,title,description,video_url AS \"videoUrl\",seconds,payout_cents AS \"payoutCents\",status,created_at AS \"createdAt\" FROM tasks WHERE status='active' ORDER BY created_at DESC"); res.json({ tasks: result.rows }); } catch (error) { next(error); } });
+app.get('/api/tasks', async (_req, res, next) => { try { const result = await db.query("SELECT id,client_id AS \"clientId\",title,description,video_url AS \"videoUrl\",seconds,payout_cents AS \"payoutCents\",status,created_at AS \"createdAt\" FROM tasks WHERE status='active' ORDER BY created_at DESC"); res.json({ tasks: result.rows }); } catch (error) { next(error); } });
 app.post('/api/tasks', requireUser, async (req, res, next) => { try { const parsed = z.object({ title: z.string().min(3).max(160), videoUrl: z.string().url(), description: z.string().max(2000).default(''), amountDollars: z.number().min(1).max(1000000).optional(), payoutCents: z.number().int().min(1).max(100000).optional(), seconds: z.number().int().min(5).max(3600).default(60) }).safeParse(req.body); if (!parsed.success) return res.status(400).json({ error: 'Invalid task payload' }); const payoutCents = Number(parsed.data.payoutCents ?? Math.round((parsed.data.amountDollars || 0) * 100)); const task = { id: nanoid(), clientId: req.session.user.id, title: parsed.data.title, videoUrl: parsed.data.videoUrl, seconds: parsed.data.seconds, description: parsed.data.description, payoutCents, createdAt: now() }; await db.query('INSERT INTO tasks (id,client_id,title,video_url,seconds,payout_cents,description,status,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)', [task.id, task.clientId, task.title, task.videoUrl, task.seconds, task.payoutCents, task.description, 'active', task.createdAt]); res.status(201).json({ task }); } catch (error) { next(error); } });
 app.post('/api/tasks/:id/complete', requireUser, async (req, res, next) => { try { const parsed = z.object({ watchedSeconds: z.number().int().min(0), proof: z.string().max(2000).optional() }).safeParse(req.body); const result = await db.query("SELECT * FROM tasks WHERE id=$1 AND status='active'", [req.params.id]); const task = result.rows[0]; if (!parsed.success || !task || parsed.data.watchedSeconds < task.seconds) return res.status(400).json({ error: 'Watch verification failed' }); await audit('task_reward', req.session.user.id, task.payout_cents, { taskId: task.id, proof: parsed.data.proof || null }); await db.query('INSERT INTO notifications (id,user_id,kind,body,created_at) VALUES ($1,$2,$3,$4,$5)', [nanoid(), req.session.user.id, 'wallet', `Verified task reward: ${(task.payout_cents / 100).toFixed(2)}`, now()]); res.json({ verified: true, payoutCents: task.payout_cents }); } catch (error) { next(error); } });
 app.post('/api/tasks/:id/purchase', requireUser, async (req, res, next) => { try { const parsed = z.object({ quantity: z.number().int().min(1).max(100000).default(1), targetUrl: z.string().url().optional(), notes: z.string().max(1000).optional() }).safeParse(req.body); if (!parsed.success) return res.status(400).json({ error: 'Valid task order details are required' }); const task = await db.query("SELECT * FROM tasks WHERE id=$1 AND status='active'", [req.params.id]); if (!task.rows[0]) return res.status(404).json({ error: 'Task not found' }); const quantity = parsed.data.quantity; const subtotalCents = Number(task.rows[0].payout_cents) * quantity; const countryResult = await db.query('SELECT country FROM users WHERE id=$1', [req.session.user.id]); const tax = calculateInternationalTax(subtotalCents, countryResult.rows[0]?.country || req.session.user.country); const amountCents = subtotalCents + tax.taxCents; await ensureWalletReady(req.session.user.id, amountCents); const feeCents = Math.round(amountCents * 0.05); const order = { id: nanoid(), taskId: req.params.id, buyerId: req.session.user.id, sellerId: task.rows[0].client_id, quantity, amountCents, feeCents, targetUrl: parsed.data.targetUrl || null, notes: parsed.data.notes || null, createdAt: now() }; await db.query('INSERT INTO task_orders (id,task_id,buyer_id,seller_id,quantity,amount_cents,fee_cents,status,target_url,notes,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)', [order.id, order.taskId, order.buyerId, order.sellerId, order.quantity, order.amountCents, order.feeCents, 'paid', order.targetUrl, order.notes, order.createdAt]); await db.query('INSERT INTO transactions (id,user_id,kind,amount_cents,status,metadata,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)', [nanoid(), order.buyerId, 'task_purchase', order.amountCents, 'paid', { taskId: order.taskId, quantity, subtotalCents, taxCents: tax.taxCents, internationalTax: tax.isInternational, feeCents: order.feeCents }, now()]); await updateTrustScoreOnSuccessfulTransaction(order.buyerId); res.status(201).json({ order, subtotalCents, taxCents: tax.taxCents, totalCents: order.amountCents, feeCents: order.feeCents, netCents: order.amountCents - order.feeCents }); } catch (error) { next(error); } });
@@ -332,6 +336,32 @@ app.post('/api/chat/upload', requireUser, upload.single('file'), async (req, res
   }
 });
 
+app.delete('/api/admin/tasks/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const result = await db.query('DELETE FROM tasks WHERE id = $1', [req.params.id]);
+    if (!result.rowCount) return res.status(404).json({ error: 'Task not found' });
+    await Promise.all([
+      db.query('DELETE FROM task_applications WHERE task_id = $1', [req.params.id]),
+      db.query('DELETE FROM task_submissions WHERE task_id = $1', [req.params.id]),
+      db.query('DELETE FROM task_orders WHERE task_id = $1', [req.params.id]),
+    ]);
+    res.status(204).end();
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete('/api/admin/media/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const result = await db.query('DELETE FROM media_files WHERE id = $1 RETURNING filename', [req.params.id]);
+    if (!result.rows[0]) return res.status(404).json({ error: 'Upload not found' });
+    await deleteEncryptedMedia(result.rows[0].filename);
+    res.status(204).end();
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.post('/api/admin/login', (req, res) => { const parsed = z.object({ username: z.string(), password: z.string() }).safeParse(req.body); if (!parsed.success || parsed.data.username !== adminUsername || parsed.data.password !== adminPassword) return res.status(401).json({ error: 'Invalid admin credentials' }); req.session.user = { id: 'super-admin', name: adminUsername, role: 'admin', twoFactor: true, isAdmin: true }; res.json({ user: req.session.user }); });
 app.get('/api/admin/overview', requireAdmin, async (_req, res, next) => { try { const [usersCount, escrow, disputesCount, listingsCount, productsCount, adsCount, gigsCount, categoriesCount, reportsCount, users, disputes, transactions, withdrawals] = await Promise.all([db.query('SELECT COUNT(*)::int AS count FROM users'), db.query('SELECT COALESCE(SUM(amount_cents),0)::int AS total FROM transactions'), db.query("SELECT COUNT(*)::int AS count FROM disputes WHERE status='open'"), db.query("SELECT COUNT(*)::int AS count FROM listings WHERE status='flagged'"), db.query('SELECT COUNT(*)::int AS count FROM products'), db.query('SELECT COUNT(*)::int AS count FROM ads WHERE status = \'active\''), db.query('SELECT COUNT(*)::int AS count FROM gigs WHERE status = \'active\''), db.query('SELECT COUNT(*)::int AS count FROM categories'), db.query('SELECT COUNT(*)::int AS count FROM reports WHERE status = \'open\''), db.query('SELECT id,name,phone,email,role,trust_score AS "trustScore",two_factor AS "twoFactor",created_at AS "createdAt" FROM users ORDER BY created_at DESC LIMIT 100'), db.query('SELECT * FROM disputes ORDER BY created_at DESC LIMIT 100'), db.query('SELECT * FROM transactions ORDER BY created_at DESC LIMIT 100'), db.query('SELECT * FROM withdrawals ORDER BY created_at DESC LIMIT 100')]); res.json({ stats: { activeUsers: usersCount.rows[0].count, escrowCents: escrow.rows[0].total, openDisputes: disputesCount.rows[0].count, flaggedListings: listingsCount.rows[0].count, activeProducts: productsCount.rows[0].count, activeAds: adsCount.rows[0].count, activeGigs: gigsCount.rows[0].count, categories: categoriesCount.rows[0].count, openReports: reportsCount.rows[0].count }, users: users.rows, disputes: disputes.rows, transactions: transactions.rows, withdrawals: withdrawals.rows }); } catch (error) { next(error); } });
 app.get('/api/admin/users', requireAdmin, async (_req, res, next) => { try { const result = await db.query('SELECT id,name,email,phone,role,trust_score AS "trustScore",created_at AS "createdAt" FROM users ORDER BY created_at DESC'); res.json({ users: result.rows }); } catch (error) { next(error); } });
@@ -342,7 +372,7 @@ app.post('/api/admin/disputes/:id/resolve', requireAdmin, async (req, res, next)
 app.post('/api/admin/listings/:id/pause', requireAdmin, async (req, res, next) => { try { const result = await db.query("UPDATE listings SET status='paused' WHERE id=$1", [req.params.id]); if (!result.rowCount) return res.status(404).json({ error: 'Listing not found' }); res.json({ paused: true }); } catch (error) { next(error); } });
 app.get('/', (_req, res) => res.sendFile(path.resolve(__dirname, 'login.html')));
 app.use((_req, res) => res.status(404).json({ error: 'Not found' }));
-app.use((error, _req, res, _next) => { console.error(error); res.status(500).json({ error: 'Internal server error' }); });
+app.use((error, _req, res, _next) => { console.error(error); res.status(Number(error.statusCode) || 500).json({ error: error.message || 'Internal server error' }); });
 
 const wss = new WebSocketServer({ server, path: '/ws' });
 wss.on('connection', (socket, request) => { const token = new URL(request.url, `http://${request.headers.host}`).searchParams.get('thread'); if (!token) return socket.close(1008, 'Thread required'); if (!sockets.has(token)) sockets.set(token, new Set()); sockets.get(token).add(socket); socket.on('message', raw => { let message; try { message = JSON.parse(raw.toString()); } catch { return; } const outgoing = JSON.stringify({ ...message, createdAt: now() }); for (const peer of sockets.get(token) || []) if (peer.readyState === 1) peer.send(outgoing); }); socket.on('close', () => sockets.get(token)?.delete(socket)); });

@@ -10,16 +10,16 @@ router.get('/api/products', async (req, res, next) => {
   try {
     const search = String(req.query.search || '').trim();
     const category = String(req.query.category || '').trim();
-    let query = `SELECT p.*, COALESCE(AVG(r.rating), 0)::float AS avg_rating, COUNT(r.id)::int AS review_count FROM products p LEFT JOIN reviews r ON r.product_id = p.id`;
+    let query = `SELECT p.*, COALESCE(AVG(r.rating), 0)::float AS avg_rating, COUNT(r.id)::int AS review_count FROM products p LEFT JOIN reviews r ON r.product_id = p.id WHERE p.status = 'active'`;
     const params = [];
 
     if (search) {
       params.push(`%${search}%`);
-      query += ` WHERE LOWER(p.title) LIKE LOWER($${params.length}) OR LOWER(p.description) LIKE LOWER($${params.length})`;
+      query += ` AND (LOWER(p.title) LIKE LOWER($${params.length}) OR LOWER(p.description) LIKE LOWER($${params.length}))`;
     }
     if (category) {
       params.push(category);
-      query += params.length === 1 ? ' WHERE' : ' AND';
+      query += ' AND';
       query += ` p.category = $${params.length}`;
     }
     query += ' GROUP BY p.id ORDER BY p.created_at DESC';
@@ -38,7 +38,7 @@ router.post('/api/products', requireUser, async (req, res, next) => {
 
     const priceCents = Number(parsed.data.priceCents ?? Math.round((parsed.data.priceDollars || 0) * 100));
     const product = { id: nanoid(), vendorId: req.session.user.id, title: parsed.data.title, description: parsed.data.description, category: parsed.data.category, priceCents, stock: parsed.data.stock, media: parsed.data.media, createdAt: new Date().toISOString() };
-    await db.query('INSERT INTO products (id,vendor_id,title,description,category,price_cents,stock,media,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)', [product.id, product.vendorId, product.title, product.description, product.category, product.priceCents, product.stock, JSON.stringify(product.media), product.createdAt]);
+    await db.query('INSERT INTO products (id,vendor_id,title,description,category,price_cents,stock,media,status,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [product.id, product.vendorId, product.title, product.description, product.category, product.priceCents, product.stock, JSON.stringify(product.media), 'active', product.createdAt]);
     res.status(201).json({ product });
   } catch (error) {
     next(error);
@@ -61,12 +61,14 @@ router.delete('/api/admin/products/:id', requireAdmin, async (req, res, next) =>
 
 router.get('/api/admin/content', requireAdmin, async (_req, res, next) => {
   try {
-    const [products, listings, gigs] = await Promise.all([
+    const [products, listings, gigs, tasks, media] = await Promise.all([
       db.query('SELECT * FROM products ORDER BY created_at DESC'),
       db.query('SELECT * FROM listings ORDER BY created_at DESC'),
       db.query('SELECT * FROM gigs ORDER BY created_at DESC'),
+      db.query('SELECT * FROM tasks ORDER BY created_at DESC'),
+      db.query('SELECT id,user_id AS "userId",filename,mime_type AS "mimeType",purpose,created_at AS "createdAt" FROM media_files ORDER BY created_at DESC'),
     ]);
-    res.json({ products: products.rows, listings: listings.rows, gigs: gigs.rows });
+    res.json({ products: products.rows, listings: listings.rows, gigs: gigs.rows, tasks: tasks.rows, media: media.rows });
   } catch (error) {
     next(error);
   }
@@ -276,7 +278,7 @@ router.post('/api/gigs/:id/proposals', requireUser, async (req, res, next) => {
 
 router.get('/api/listings', async (_req, res, next) => {
   try {
-    const result = await db.query("SELECT id,title,type,price_cents AS \"priceCents\",status,created_at AS \"createdAt\" FROM listings WHERE status='active' ORDER BY created_at DESC");
+    const result = await db.query("SELECT id,seller_id AS \"sellerId\",title,type,price_cents AS \"priceCents\",status,created_at AS \"createdAt\" FROM listings WHERE status='active' ORDER BY created_at DESC");
     res.json({ listings: result.rows });
   } catch (error) {
     next(error);
