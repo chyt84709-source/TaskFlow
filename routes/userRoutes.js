@@ -191,11 +191,17 @@ router.post('/api/profile/avatar', requireUser, imageUpload.single('file'), asyn
 
 router.get('/api/media/:id', requireUser, async (req, res, next) => {
   try {
-    const result = await db.query('SELECT filename,mime_type AS "mimeType",user_id AS "userId" FROM media_files WHERE id=$1', [req.params.id]);
+    const result = await db.query('SELECT filename,mime_type AS "mimeType",purpose,user_id AS "userId" FROM media_files WHERE id=$1', [req.params.id]);
     const media = result.rows[0];
-    if (!media || media.userId !== req.session.user.id) return res.status(404).end();
-    const encrypted = await readEncryptedImage(media.filename);
-    res.type(media.mimeType).send(decryptImage(encrypted));
+    const sharedMedia = media?.purpose === 'marketplace-media' || media?.purpose === 'ad-media';
+    if (!media || (!sharedMedia && media.userId !== req.session.user.id)) return res.status(404).end();
+    try {
+      const encrypted = await readEncryptedImage(media.filename);
+      res.type(media.mimeType).send(decryptImage(encrypted));
+    } catch (error) {
+      if (error.code === 'ENOENT') return res.status(404).end();
+      throw error;
+    }
   } catch (error) {
     next(error);
   }
