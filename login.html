@@ -735,10 +735,10 @@
 
         <section class="section-panel" id="promotion-banner" style="margin-top: 16px;">
           <div class="section-header">
-            <div><h3>Featured promotion</h3><p class="muted" style="margin: 4px 0 0;">Sponsored campaign from TaskFlow partners.</p></div>
+            <div><h3>Ad</h3></div>
             <span class="tag">Promotion</span>
           </div>
-          <div class="meta-list" id="promotion-list"><p class="muted">No featured promotions right now.</p></div>
+          <div class="meta-list" id="promotion-list"><p class="muted">No ads right now.</p></div>
         </section>
 
         <section class="section-panel" style="margin-top: 16px;">
@@ -1466,9 +1466,12 @@
       $('promotion-banner').classList.toggle('hidden', activeAds.length === 0);
       $('promotion-list').innerHTML = activeAds.length ? activeAds.map((ad) => {
         const media = Array.isArray(ad.media) ? ad.media : [];
-        const mediaMarkup = media.map((url) => {
+        const mediaMarkup = media.map((item) => {
+          const url = typeof item === 'string' ? item : item?.url;
+          const mimeType = typeof item === 'string' ? '' : item?.mimeType || '';
+          if (!url) return '';
           const safeUrl = escapeHtml(url);
-          const isVideo = /\.(mp4|webm|mov|avi|mkv)(?:$|\?)/i.test(String(url));
+          const isVideo = /^video\//i.test(mimeType) || /\.(mp4|webm|mov|avi|mkv)(?:$|\?)/i.test(String(url));
           return isVideo
             ? `<video src="${safeUrl}" controls preload="metadata" style="max-width:100%;max-height:280px;border-radius:10px;"></video>`
             : `<img src="${safeUrl}" alt="${escapeHtml(ad.title)}" loading="lazy" style="max-width:100%;max-height:280px;object-fit:cover;border-radius:10px;">`;
@@ -1477,7 +1480,7 @@
         return ad.destination_url
           ? `<a href="${escapeHtml(ad.destination_url)}" target="_blank" rel="noopener noreferrer" style="display:block;color:inherit;text-decoration:none;">${content}<span class="tag" style="display:inline-block;margin-top:10px;">Visit partner</span></a>`
           : `<div>${content}</div>`;
-      }).join('') : '<p class="muted">No featured promotions right now.</p>';
+      }).join('') : '<p class="muted">No ads right now.</p>';
     }
 
     function openOfferModal(type, id, title) {
@@ -2254,14 +2257,14 @@
           method: 'POST',
           body: JSON.stringify({
             title: $('ad-title').value.trim(),
-            description: 'Sponsored placement managed from the admin dashboard.',
+            description: 'Third-party advertisement',
             category: $('ad-category').value,
             location: $('ad-placement').value,
             priceCents: 50000,
             placement: $('ad-placement').value,
             durationDays: Number($('ad-duration').value),
             skipAllowed: $('ad-skip').value === 'true',
-            media: mediaUrls,
+            media: mediaUrls.map((url, index) => ({ url, mimeType: mediaFiles[index]?.type || 'application/octet-stream' })),
             destinationUrl: $('ad-destination-url').value.trim() || undefined
           })
         });

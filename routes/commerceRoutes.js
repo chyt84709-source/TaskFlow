@@ -172,7 +172,11 @@ router.get('/api/ads', async (_req, res, next) => {
 
 router.post('/api/ads', requireAdmin, async (req, res, next) => {
   try {
-    const parsed = z.object({ title: z.string().min(3).max(120), description: z.string().min(5).max(2000), category: z.string().min(2).max(60), location: z.string().min(2).max(120), priceCents: z.number().int().positive(), placement: z.string().min(2).max(80).default('homepage-top'), durationDays: z.number().int().min(1).max(365).default(7), skipAllowed: z.boolean().default(true), media: z.array(z.string().min(1).refine((value) => value.startsWith('/') || /^https?:\/\//.test(value), 'Invalid media path')).default([]), destinationUrl: z.string().url().max(500).refine((value) => ['http:', 'https:'].includes(new URL(value).protocol), 'Invalid destination link').nullable().optional() }).safeParse(req.body);
+    const mediaItem = z.union([
+      z.string().min(1).refine((value) => value.startsWith('/') || /^https?:\/\//.test(value), 'Invalid media path'),
+      z.object({ url: z.string().min(1), mimeType: z.string().min(1).max(100) })
+    ]);
+    const parsed = z.object({ title: z.string().min(3).max(120), description: z.string().min(5).max(2000), category: z.string().min(2).max(60), location: z.string().min(2).max(120), priceCents: z.number().int().positive(), placement: z.string().min(2).max(80).default('homepage-top'), durationDays: z.number().int().min(1).max(365).default(7), skipAllowed: z.boolean().default(true), media: z.array(mediaItem).default([]), destinationUrl: z.string().url().max(500).refine((value) => ['http:', 'https:'].includes(new URL(value).protocol), 'Invalid destination link').nullable().optional() }).safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid ad payload. Check the title, category, duration, price, and uploaded media.' });
 
     const ad = { id: nanoid(), sellerId: req.session.user.id, ...parsed.data, destinationUrl: parsed.data.destinationUrl || null, media: parsed.data.media, createdAt: new Date().toISOString() };
