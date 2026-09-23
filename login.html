@@ -733,6 +733,14 @@
           <div class="metric-card"><small>Products</small><strong id="metric-products">0</strong></div>
         </section>
 
+        <section class="section-panel" id="promotion-banner" style="margin-top: 16px;">
+          <div class="section-header">
+            <div><h3>Featured promotion</h3><p class="muted" style="margin: 4px 0 0;">Sponsored campaign from TaskFlow partners.</p></div>
+            <span class="tag">Promotion</span>
+          </div>
+          <div class="meta-list" id="promotion-list"><p class="muted">No featured promotions right now.</p></div>
+        </section>
+
         <section class="section-panel" style="margin-top: 16px;">
           <div class="section-header">
             <div><h3>Messages & offers</h3><p class="muted" style="margin: 4px 0 0;">Review offers from other users and continue accepted conversations inside TaskFlow.</p></div>
@@ -1453,6 +1461,25 @@
       return String(value || '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[ch]));
     }
 
+    function renderPromotionAds(ads) {
+      const activeAds = Array.isArray(ads) ? ads : [];
+      $('promotion-banner').classList.toggle('hidden', activeAds.length === 0);
+      $('promotion-list').innerHTML = activeAds.length ? activeAds.map((ad) => {
+        const media = Array.isArray(ad.media) ? ad.media : [];
+        const mediaMarkup = media.map((url) => {
+          const safeUrl = escapeHtml(url);
+          const isVideo = /\.(mp4|webm|mov|avi|mkv)(?:$|\?)/i.test(String(url));
+          return isVideo
+            ? `<video src="${safeUrl}" controls preload="metadata" style="max-width:100%;max-height:280px;border-radius:10px;"></video>`
+            : `<img src="${safeUrl}" alt="${escapeHtml(ad.title)}" loading="lazy" style="max-width:100%;max-height:280px;object-fit:cover;border-radius:10px;">`;
+        }).join('');
+        const content = `<div><h4>${escapeHtml(ad.title)}</h4><p>${escapeHtml(ad.description || 'Featured partner promotion')}</p>${mediaMarkup ? `<div class="row-actions" style="flex-wrap:wrap;">${mediaMarkup}</div>` : ''}</div>`;
+        return ad.destination_url
+          ? `<a href="${escapeHtml(ad.destination_url)}" target="_blank" rel="noopener noreferrer" style="display:block;color:inherit;text-decoration:none;">${content}<span class="tag" style="display:inline-block;margin-top:10px;">Visit partner</span></a>`
+          : `<div>${content}</div>`;
+      }).join('') : '<p class="muted">No featured promotions right now.</p>';
+    }
+
     function openOfferModal(type, id, title) {
       $('offer-content-type').value = type;
       $('offer-content-id').value = id;
@@ -1887,21 +1914,25 @@
 
     async function loadDashboard() {
       try {
-        const [summary, tasks, listings, products, gigs, wallet, cards] = await Promise.all([
+        const [summary, tasks, listings, products, gigs, wallet, cards, adsResponse] = await Promise.all([
           api('/api/summary').catch(() => ({ users: 0, activeTasks: 0, activeListings: 0 })),
           api('/api/tasks').catch(() => ({ tasks: [] })),
           api('/api/listings').catch(() => ({ listings: [] })),
           api('/api/products').catch(() => ({ products: [] })),
           api('/api/gigs').catch(() => ({ gigs: [] })),
           api('/api/wallet').catch(() => ({ balanceCents: 0, transactions: [] })),
-          api('/api/wallet/cards').catch(() => ({ cards: [] }))
+          api('/api/wallet/cards').catch(() => ({ cards: [] })),
+          api('/api/ads').catch(() => ({ ads: [] }))
         ]);
 
         const taskItems = tasks.tasks || [];
         const listingItems = listings.listings || [];
         const productItems = products.products || [];
         const gigItems = gigs.gigs || [];
+        const promotionAds = adsResponse.ads || [];
         const walletBalance = Number(wallet.balanceCents || 0);
+
+        renderPromotionAds(promotionAds);
 
         $('metric-tasks').textContent = String(taskItems.length);
         $('metric-listings').textContent = String(listingItems.length);
@@ -2020,12 +2051,11 @@
         `).join('') : '<p class="muted">No wallet activity yet.</p>';
 
         if (currentUser?.isAdmin || currentUser?.role === 'admin') {
-          const adsApi = await api('/api/ads').catch(() => ({ ads: [] }));
           const moderation = await api('/api/admin/content').catch(() => ({ products: productItems, listings: listingItems, gigs: gigItems }));
           const adminProductItems = moderation.products || [];
           const adminListingItems = moderation.listings || [];
           const adminGigItems = moderation.gigs || [];
-          const ads = adsApi.ads || [];
+          const ads = promotionAds;
           $('ads-tag').textContent = `${ads.length} active`;
           $('ads-list').innerHTML = ads.length ? ads.slice(0, 6).map((ad) => `
             <div class="item-card">

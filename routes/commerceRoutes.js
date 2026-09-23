@@ -163,20 +163,20 @@ router.post('/api/checkout/cart', requireUser, async (req, res, next) => {
 
 router.get('/api/ads', async (_req, res, next) => {
   try {
-    const result = await db.query('SELECT * FROM ads ORDER BY created_at DESC');
+    const result = await db.query("SELECT * FROM ads WHERE status = 'active' AND created_at + (COALESCE(duration_days, 7) * INTERVAL '1 day') >= NOW() ORDER BY created_at DESC");
     res.json({ ads: result.rows });
   } catch (error) {
     next(error);
   }
 });
 
-router.post('/api/ads', requireUser, async (req, res, next) => {
+router.post('/api/ads', requireAdmin, async (req, res, next) => {
   try {
-    const parsed = z.object({ title: z.string().min(3).max(120), description: z.string().min(5).max(2000), category: z.string().min(2).max(60), location: z.string().min(2).max(120), priceCents: z.number().int().positive(), placement: z.string().min(2).max(80).default('homepage-top'), durationDays: z.number().int().min(1).max(365).default(7), skipAllowed: z.boolean().default(true), media: z.array(z.string().min(1).refine((value) => value.startsWith('/') || /^https?:\/\//.test(value), 'Invalid media path')).default([]) }).safeParse(req.body);
+    const parsed = z.object({ title: z.string().min(3).max(120), description: z.string().min(5).max(2000), category: z.string().min(2).max(60), location: z.string().min(2).max(120), priceCents: z.number().int().positive(), placement: z.string().min(2).max(80).default('homepage-top'), durationDays: z.number().int().min(1).max(365).default(7), skipAllowed: z.boolean().default(true), media: z.array(z.string().min(1).refine((value) => value.startsWith('/') || /^https?:\/\//.test(value), 'Invalid media path')).default([]), destinationUrl: z.string().url().max(500).refine((value) => ['http:', 'https:'].includes(new URL(value).protocol), 'Invalid destination link').nullable().optional() }).safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid ad payload. Check the title, category, duration, price, and uploaded media.' });
 
-    const ad = { id: nanoid(), sellerId: req.session.user.id, ...parsed.data, media: parsed.data.media, createdAt: new Date().toISOString() };
-    await db.query('INSERT INTO ads (id,seller_id,title,description,category,price_cents,location,media,status,placement,duration_days,skip_allowed,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)', [ad.id, ad.sellerId, ad.title, ad.description, ad.category, ad.priceCents, ad.location, JSON.stringify(ad.media), 'active', ad.placement, ad.durationDays, ad.skipAllowed, ad.createdAt]);
+    const ad = { id: nanoid(), sellerId: req.session.user.id, ...parsed.data, destinationUrl: parsed.data.destinationUrl || null, media: parsed.data.media, createdAt: new Date().toISOString() };
+    await db.query('INSERT INTO ads (id,seller_id,title,description,category,price_cents,location,media,status,placement,duration_days,skip_allowed,destination_url,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)', [ad.id, ad.sellerId, ad.title, ad.description, ad.category, ad.priceCents, ad.location, JSON.stringify(ad.media), 'active', ad.placement, ad.durationDays, ad.skipAllowed, ad.destinationUrl, ad.createdAt]);
     res.status(201).json({ ad });
   } catch (error) {
     next(error);
