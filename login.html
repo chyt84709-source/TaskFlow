@@ -1990,7 +1990,12 @@
       }
     });
 
-    loadPublicStats();
+    async function initializeAppShell() {
+      await loadPublicStats();
+      await restoreSessionIfLoggedIn();
+    }
+
+    initializeAppShell();
   </script>
 </body>
 </html>
