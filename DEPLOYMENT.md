@@ -12,7 +12,15 @@ Set `CLOUDFLARE_TURNSTILE_SITE_KEY` and `CLOUDFLARE_TURNSTILE_SECRET_KEY` for wa
 
 Set `PLATFORM_COUNTRY` and `INTERNATIONAL_TAX_RATE` for tax policy. Taxes apply only when the user's normalized country differs from `PLATFORM_COUNTRY`. Set `STRIPE_PAYMENT_METHOD_TYPES` to the Stripe payment methods enabled in your account; regional options are filtered against that allowlist.
 
-Google Cloud Console must include the exact callback URL from `GOOGLE_CALLBACK_URL` as an authorized redirect URI. Configure Resend using `RESEND_API_KEY` and a verified sender such as `RESEND_FROM_EMAIL=onboarding@resend.dev` or your own verified custom domain. Store the API key in Railway or your host secret manager and rotate any credentials that were previously shared in chat before adding the replacements.
+Google OAuth redirect URI checklist:
+
+- The value in Google Cloud Console must match `GOOGLE_CALLBACK_URL` exactly.
+- Local testing: `http://localhost:3000/api/auth/google/callback`
+- Production: `https://your-domain.com/api/auth/google/callback`
+- Do not use `127.0.0.1`, a different port, a trailing slash, or a different host/protocol.
+- If you deploy behind a reverse proxy, set `GOOGLE_CALLBACK_URL` to the public HTTPS URL, not the internal app URL.
+
+Configure Resend using `RESEND_API_KEY` and a verified sender such as `RESEND_FROM_EMAIL=onboarding@resend.dev` or your own verified custom domain. Store the API key in Railway or your host secret manager and rotate any credentials that were previously shared in chat before adding the replacements.
 
 ## 2. Install and run
 
