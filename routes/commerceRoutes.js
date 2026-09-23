@@ -164,7 +164,22 @@ router.post('/api/checkout/cart', requireUser, async (req, res, next) => {
 router.get('/api/ads', async (_req, res, next) => {
   try {
     const result = await db.query("SELECT * FROM ads WHERE status = 'active' AND created_at + (COALESCE(duration_days, 7) * INTERVAL '1 day') >= NOW() ORDER BY created_at DESC");
-    res.json({ ads: result.rows });
+    const mediaIds = result.rows.flatMap((ad) => (Array.isArray(ad.media) ? ad.media : []))
+      .map((item) => typeof item === 'string' ? item.match(/^\/api\/media\/([^/?#]+)/)?.[1] : null)
+      .filter(Boolean);
+    const mediaResult = mediaIds.length
+      ? await db.query('SELECT id,mime_type AS "mimeType" FROM media_files WHERE id = ANY($1::text[])', [mediaIds])
+      : { rows: [] };
+    const mediaTypes = new Map(mediaResult.rows.map((item) => [item.id, item.mimeType]));
+    const ads = result.rows.map((ad) => ({
+      ...ad,
+      media: (Array.isArray(ad.media) ? ad.media : []).map((item) => {
+        if (typeof item !== 'string') return item;
+        const mediaId = item.match(/^\/api\/media\/([^/?#]+)/)?.[1];
+        return { url: item, mimeType: mediaTypes.get(mediaId) || '' };
+      })
+    }));
+    res.json({ ads });
   } catch (error) {
     next(error);
   }
