@@ -1311,6 +1311,23 @@
       }
     }
 
+    async function restoreSessionIfLoggedIn() {
+      try {
+        const { user } = await api('/api/me').catch(() => ({ user: null }));
+        if (!user) return;
+        currentUser = user;
+        $('landing').classList.add('hidden');
+        $('app').classList.remove('hidden');
+        syncAdminNavVisibility(currentUser);
+        await hydrateProfile();
+        await loadPublicStats();
+        await loadDashboard();
+        setActiveView(window.location.hash.slice(1) || 'overview');
+      } catch (error) {
+        console.error('Session restore failed:', error);
+      }
+    }
+
     async function api(path, options = {}) {
       const response = await fetch(path, {
         credentials: 'include',

@@ -218,6 +218,7 @@ router.post('/api/auth/phone/verify', async (req, res, next) => {
 });
 
 router.get('/api/auth/google', (req, res) => {
+  if (req.session.user) return res.redirect('/#overview');
   if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) return res.status(501).json({ error: 'Google OAuth is not configured' });
   const state = crypto.randomBytes(24).toString('hex');
   req.session.oauthState = state;
