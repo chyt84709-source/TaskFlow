@@ -254,7 +254,7 @@ router.get('/api/auth/google/callback', async (req, res, next) => {
     const result = await db.query('INSERT INTO users (id,email,name,role,trust_score,two_factor,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (email) DO UPDATE SET name=EXCLUDED.name RETURNING *', [nanoid(), profile.email, profile.name || 'TaskFlow member', 'worker', null, false, now()]);
     const user = result.rows[0];
     req.session.user = { id: user.id, name: user.name, email: user.email, role: user.role, country: normalizeCountry(user.country || 'US'), subscriptionTier: user.subscription_tier || 'standard', trustScore: user.trust_score ?? null, twoFactor: Boolean(user.two_factor), isAdmin: false };
-    res.redirect('/?auth=google-success');
+    res.redirect('/#overview');
   } catch (error) {
     next(error);
   }
