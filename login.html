@@ -426,6 +426,19 @@
       letter-spacing: 0.08em;
       text-transform: uppercase;
     }
+    .green-tick {
+      display: inline-grid;
+      place-items: center;
+      width: 20px;
+      height: 20px;
+      margin-left: 6px;
+      border-radius: 50%;
+      background: #1d9b67;
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 900;
+      vertical-align: middle;
+    }
     .compact-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -722,7 +735,7 @@
                 <input id="profile-avatar-upload" type="file" accept="image/*" class="hidden">
               </div>
               <div>
-                <strong id="profile-name">TaskFlow member</strong>
+                <strong><span id="profile-name">TaskFlow member</span><span id="profile-green-tick" class="green-tick hidden" title="Verified Premium member">✓</span></strong>
                 <p id="profile-email" class="muted" style="margin: 6px 0 0;">member@taskflow.com</p>
                 <div id="profile-tier-pill" class="premium-badge" style="margin-top: 10px;">Standard</div>
               </div>
@@ -1140,7 +1153,7 @@
                 <div class="avatar-edit" aria-hidden="true">✎</div>
               </div>
               <div>
-                <strong id="display-name">TaskFlow member</strong>
+                <strong><span id="display-name">TaskFlow member</span><span id="display-green-tick" class="green-tick hidden" title="Verified Premium member">✓</span></strong>
                 <p id="display-email" class="muted" style="margin: 6px 0 0;">No email available</p>
                 <div id="display-tier" class="premium-badge" style="margin-top: 10px;">Standard</div>
               </div>
@@ -1169,7 +1182,19 @@
               </div>
               <div class="field">
                 <label>Category</label>
-                <input id="ad-category" required placeholder="Marketing, Technology, Travel...">
+                <select id="ad-category" required>
+                  <option value="">Select category</option>
+                  <option value="Technology">Technology</option>
+                  <option value="Marketing">Marketing</option>
+                  <option value="Travel">Travel</option>
+                  <option value="Finance">Finance</option>
+                  <option value="Lifestyle">Lifestyle</option>
+                  <option value="Education">Education</option>
+                  <option value="Health">Health</option>
+                  <option value="Retail">Retail</option>
+                  <option value="Real Estate">Real Estate</option>
+                  <option value="Food">Food</option>
+                </select>
               </div>
               <div class="field">
                 <label>Placement</label>
@@ -1191,8 +1216,8 @@
                 </select>
               </div>
               <div class="field">
-                <label>Media URL</label>
-                <input id="ad-url" type="url" placeholder="https://example.com/banner.jpg">
+                <label>Ad media</label>
+                <input id="ad-media-upload" type="file" accept="image/*,video/*" multiple>
               </div>
               <button type="submit" class="primary-btn full">Create ad slot</button>
             </form>
@@ -1204,6 +1229,29 @@
               <span class="tag">Live inventory</span>
             </div>
             <div class="meta-list" id="ads-list"></div>
+          </div>
+        </div>
+        <div class="section-panel" style="margin-top: 16px;">
+          <div class="section-header">
+            <div>
+              <h3>Content moderation</h3>
+              <p class="muted" style="margin: 4px 0 0;">Remove illegal sales or inappropriate marketplace content immediately.</p>
+            </div>
+            <span class="tag">Admin only</span>
+          </div>
+          <div class="simple-grid">
+            <div>
+              <div class="section-header"><h4>Products</h4><span class="tag" id="admin-products-count">0</span></div>
+              <div class="meta-list" id="admin-products-list"></div>
+            </div>
+            <div>
+              <div class="section-header"><h4>Marketing listings</h4><span class="tag" id="admin-listings-count">0</span></div>
+              <div class="meta-list" id="admin-listings-list"></div>
+            </div>
+            <div>
+              <div class="section-header"><h4>Gigs</h4><span class="tag" id="admin-gigs-count">0</span></div>
+              <div class="meta-list" id="admin-gigs-list"></div>
+            </div>
           </div>
         </div>
       </section>
@@ -1256,6 +1304,7 @@
       const countryCode = String(user?.country || 'US').toUpperCase();
       const subscriptionTier = user?.subscriptionTier || profileData?.subscription_tier || 'standard';
       const tierLabel = subscriptionTier === 'premium' ? 'Premium' : 'Standard';
+      const greenTick = Boolean(user?.greenTick ?? user?.green_tick);
       const trustValue = user?.trustScore ?? user?.trust_score ?? null;
       const trustLabel = trustValue == null ? '—' : `${Math.max(0, Number(trustValue))}%`;
       const trustIsEmpty = trustValue == null;
@@ -1281,6 +1330,8 @@
       $('profile-country-label').textContent = countryCode;
       $('display-country').textContent = countryCode;
       $('profile-tier-pill').textContent = tierLabel;
+      $('profile-green-tick').classList.toggle('hidden', !greenTick);
+      $('display-green-tick').classList.toggle('hidden', !greenTick);
       $('profile-bio').value = bio;
       ['profile-avatar-pip', 'profile-avatar-pip-preview'].forEach((id) => {
         const element = $(id);
@@ -1832,15 +1883,54 @@
 
         if (currentUser?.isAdmin || currentUser?.role === 'admin') {
           const adsApi = await api('/api/ads').catch(() => ({ ads: [] }));
+          const moderation = await api('/api/admin/content').catch(() => ({ products: productItems, listings: listingItems, gigs: gigItems }));
+          const adminProductItems = moderation.products || [];
+          const adminListingItems = moderation.listings || [];
+          const adminGigItems = moderation.gigs || [];
           const ads = adsApi.ads || [];
           $('ads-tag').textContent = `${ads.length} active`;
           $('ads-list').innerHTML = ads.length ? ads.slice(0, 6).map((ad) => `
             <div class="item-card">
               <h4>${escapeHtml(ad.title)}</h4>
-              <p>${escapeHtml(ad.placement || 'homepage-top')} • ${escapeHtml(ad.skip_allowed !== false ? 'skip enabled' : 'skip disabled')}</p>
-              <div class="item-row"><span>${Number(ad.duration_days || 7)} days</span><span class="tag">${escapeHtml(ad.status || 'active')}</span></div>
+              <p>${escapeHtml(ad.placement || 'homepage-top')} • ${escapeHtml(ad.category || 'General')} • ${escapeHtml(ad.skip_allowed !== false ? 'skip enabled' : 'skip disabled')}</p>
+              <div class="item-row">
+                <span>${Number(ad.duration_days || 7)} days</span>
+                <span class="tag">${escapeHtml(ad.status || 'active')}</span>
+              </div>
+              <div class="row-actions">
+                <button type="button" class="mini-btn danger" data-delete-ad="${ad.id}">Delete</button>
+              </div>
             </div>
           `).join('') : '<p class="muted">No ad placements are active.</p>';
+          bindAdDeleteButtons();
+
+          $('admin-products-count').textContent = String(adminProductItems.length);
+          $('admin-products-list').innerHTML = adminProductItems.length ? adminProductItems.slice(0, 20).map((item) => `
+            <div class="item-card">
+              <h4>${escapeHtml(item.title)}</h4>
+              <p>${escapeHtml(item.category || 'Product')} • ${formatMoney(item.price_cents || item.priceCents || 0)}</p>
+              <div class="row-actions"><button type="button" class="mini-btn danger" data-delete-content="products" data-delete-id="${item.id}">Delete</button></div>
+            </div>
+          `).join('') : '<p class="muted">No products available.</p>';
+
+          $('admin-listings-count').textContent = String(adminListingItems.length);
+          $('admin-listings-list').innerHTML = adminListingItems.length ? adminListingItems.slice(0, 20).map((item) => `
+            <div class="item-card">
+              <h4>${escapeHtml(item.title)}</h4>
+              <p>${escapeHtml(item.type || 'Marketing listing')} • ${formatMoney(item.priceCents || 0)}</p>
+              <div class="row-actions"><button type="button" class="mini-btn danger" data-delete-content="listings" data-delete-id="${item.id}">Delete</button></div>
+            </div>
+          `).join('') : '<p class="muted">No marketing listings available.</p>';
+
+          $('admin-gigs-count').textContent = String(adminGigItems.length);
+          $('admin-gigs-list').innerHTML = adminGigItems.length ? adminGigItems.slice(0, 20).map((item) => `
+            <div class="item-card">
+              <h4>${escapeHtml(item.title)}</h4>
+              <p>${escapeHtml(item.category || 'Gig')} • ${formatMoney(item.price_cents || item.priceCents || 0)}</p>
+              <div class="row-actions"><button type="button" class="mini-btn danger" data-delete-content="gigs" data-delete-id="${item.id}">Delete</button></div>
+            </div>
+          `).join('') : '<p class="muted">No gigs available.</p>';
+          bindAdminContentDeleteButtons();
         }
 
         document.querySelectorAll('[data-buy]').forEach((button) => {
@@ -1947,21 +2037,73 @@
       }
     });
 
+    function bindAdDeleteButtons() {
+      document.querySelectorAll('[data-delete-ad]').forEach((button) => {
+        button.onclick = async () => {
+          const adId = button.dataset.deleteAd;
+          if (!adId) return;
+          try {
+            await api(`/api/ads/${adId}`, { method: 'DELETE' });
+            notify('Ad removed successfully.');
+            await loadDashboard();
+          } catch (error) {
+            notify(error.message);
+          }
+        };
+      });
+    }
+
+    function bindAdminContentDeleteButtons() {
+      document.querySelectorAll('[data-delete-content]').forEach((button) => {
+        button.onclick = async () => {
+          const { deleteContent, deleteId } = button.dataset;
+          if (!deleteContent || !deleteId) return;
+          try {
+            await api(`/api/admin/${deleteContent}/${deleteId}`, { method: 'DELETE' });
+            notify('Content removed immediately.');
+            await loadDashboard();
+          } catch (error) {
+            notify(error.message);
+          }
+        };
+      });
+    }
+
     $('ads-form').addEventListener('submit', async (event) => {
       event.preventDefault();
       try {
+        const mediaFiles = $('ad-media-upload').files;
+        let mediaUrls = [];
+
+        if (mediaFiles && mediaFiles.length) {
+          const formData = new FormData();
+          Array.from(mediaFiles).forEach((file) => formData.append('files', file));
+          const uploadResponse = await fetch('/api/uploads', {
+            method: 'POST',
+            body: formData,
+            credentials: 'include'
+          });
+          const uploadData = await uploadResponse.json();
+          if (!uploadResponse.ok) throw new Error(uploadData.error || 'Ad media upload failed');
+          mediaUrls = uploadData.files?.map((file) => file.url) || [];
+        }
+
+        if (!mediaUrls.length) {
+          throw new Error('Please upload at least one image or video for the ad.');
+        }
+
         await api('/api/ads', {
           method: 'POST',
           body: JSON.stringify({
             title: $('ad-title').value.trim(),
             description: 'Sponsored placement managed from the admin dashboard.',
-            category: 'Marketing',
+            category: $('ad-category').value,
             location: $('ad-placement').value,
             priceCents: 50000,
             placement: $('ad-placement').value,
             durationDays: Number($('ad-duration').value),
             skipAllowed: $('ad-skip').value === 'true',
-            media: [$('ad-url').value.trim()]
+            media: mediaUrls
           })
         });
         notify('Advertisement slot created.');

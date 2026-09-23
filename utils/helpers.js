@@ -48,4 +48,10 @@ export async function updateTrustScoreOnSuccessfulTransaction(userId) {
       AND referrals.referrer_id = referrer.id
       AND referrals.status = 'pending'`, [userId]);
   await db.query("UPDATE referrals SET status = 'verified', verified_at = NOW() WHERE referred_user_id = $1 AND status = 'pending'", [userId]);
+  await db.query(`UPDATE users
+    SET subscription_tier = 'premium',
+        premium_source = 'referrals',
+        premium_activated_at = COALESCE(premium_activated_at, NOW()),
+        green_tick = TRUE
+    WHERE referral_count >= 10`);
 }

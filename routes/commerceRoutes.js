@@ -2,7 +2,7 @@ import express from 'express';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import { calculateInternationalTax, db, normalizeCountry } from '../config/database.js';
-import { ensureWalletReady, requireUser, updateTrustScoreOnSuccessfulTransaction } from '../utils/helpers.js';
+import { ensureWalletReady, requireAdmin, requireUser, updateTrustScoreOnSuccessfulTransaction } from '../utils/helpers.js';
 
 const router = express.Router();
 
@@ -40,6 +40,33 @@ router.post('/api/products', requireUser, async (req, res, next) => {
     const product = { id: nanoid(), vendorId: req.session.user.id, title: parsed.data.title, description: parsed.data.description, category: parsed.data.category, priceCents, stock: parsed.data.stock, media: parsed.data.media, createdAt: new Date().toISOString() };
     await db.query('INSERT INTO products (id,vendor_id,title,description,category,price_cents,stock,media,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)', [product.id, product.vendorId, product.title, product.description, product.category, product.priceCents, product.stock, JSON.stringify(product.media), product.createdAt]);
     res.status(201).json({ product });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/api/admin/products/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const result = await db.query('DELETE FROM products WHERE id = $1', [req.params.id]);
+    if (!result.rowCount) return res.status(404).json({ error: 'Product not found' });
+    await Promise.all([
+      db.query('DELETE FROM cart_items WHERE product_id = $1', [req.params.id]),
+      db.query('DELETE FROM reviews WHERE product_id = $1', [req.params.id]),
+    ]);
+    res.status(204).end();
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/api/admin/content', requireAdmin, async (_req, res, next) => {
+  try {
+    const [products, listings, gigs] = await Promise.all([
+      db.query('SELECT * FROM products ORDER BY created_at DESC'),
+      db.query('SELECT * FROM listings ORDER BY created_at DESC'),
+      db.query('SELECT * FROM gigs ORDER BY created_at DESC'),
+    ]);
+    res.json({ products: products.rows, listings: listings.rows, gigs: gigs.rows });
   } catch (error) {
     next(error);
   }
@@ -199,6 +226,17 @@ router.post('/api/gigs', requireUser, async (req, res, next) => {
   }
 });
 
+router.delete('/api/admin/gigs/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const result = await db.query('DELETE FROM gigs WHERE id = $1', [req.params.id]);
+    if (!result.rowCount) return res.status(404).json({ error: 'Gig not found' });
+    await db.query('DELETE FROM proposals WHERE gig_id = $1', [req.params.id]);
+    res.status(204).end();
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post('/api/gigs/:id/purchase', requireUser, async (req, res, next) => {
   try {
     const parsed = z.object({ packageName: z.string().min(2).max(80).default('Standard'), notes: z.string().max(1000).optional() }).safeParse(req.body);
@@ -253,6 +291,17 @@ router.post('/api/listings', requireUser, async (req, res, next) => {
     const listing = { id: nanoid(), sellerId: req.session.user.id, ...parsed.data, createdAt: new Date().toISOString() };
     await db.query('INSERT INTO listings (id,seller_id,title,type,price_cents,status,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)', [listing.id, listing.sellerId, listing.title, listing.type, listing.priceCents, 'active', listing.createdAt]);
     res.status(201).json({ listing });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/api/admin/listings/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const result = await db.query('DELETE FROM listings WHERE id = $1', [req.params.id]);
+    if (!result.rowCount) return res.status(404).json({ error: 'Listing not found' });
+    await db.query('DELETE FROM offers WHERE listing_id = $1', [req.params.id]);
+    res.status(204).end();
   } catch (error) {
     next(error);
   }

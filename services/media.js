@@ -6,16 +6,23 @@ import sharp from 'sharp';
 const mediaDir = path.resolve(process.env.UPLOAD_DIR || './data/uploads');
 const encryptionKey = crypto.createHash('sha256').update(process.env.UPLOAD_ENCRYPTION_KEY || process.env.SESSION_SECRET || 'development-only').digest();
 
-export async function processAndEncryptImage(buffer) {
-  const processed = await sharp(buffer)
-    .rotate()
-    .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
-    .webp({ quality: 84 })
-    .toBuffer();
+export async function processAndEncryptImage(buffer, mimeType = 'image/jpeg') {
+  let processed = buffer;
+  let outputMimeType = mimeType;
+
+  if (mimeType.startsWith('image/')) {
+    processed = await sharp(buffer)
+      .rotate()
+      .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 84 })
+      .toBuffer();
+    outputMimeType = 'image/webp';
+  }
+
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv('aes-256-gcm', encryptionKey, iv);
   const encrypted = Buffer.concat([cipher.update(processed), cipher.final()]);
-  return { payload: Buffer.concat([iv, cipher.getAuthTag(), encrypted]), mimeType: 'image/webp' };
+  return { payload: Buffer.concat([iv, cipher.getAuthTag(), encrypted]), mimeType: outputMimeType };
 }
 
 export function decryptImage(payload) {
