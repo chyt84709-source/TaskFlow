@@ -23,9 +23,19 @@ export function now() {
   return new Date().toISOString();
 }
 
-export function requireUser(req, res, next) {
+export async function requireUser(req, res, next) {
   if (!req.session.user) return res.status(401).json({ error: 'Authentication required' });
-  next();
+  if (req.session.user.isAdmin || req.session.user.role === 'admin') return next();
+  try {
+    const result = await db.query('SELECT account_status FROM users WHERE id = $1', [req.session.user.id]);
+    if (result.rows[0]?.account_status !== 'active') {
+      req.session = null;
+      return res.status(401).json({ error: 'This account is unavailable. Contact support if you believe this is an error.' });
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
 }
 
 export function requireAdmin(req, res, next) {

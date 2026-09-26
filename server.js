@@ -102,14 +102,16 @@ async function updateTrustScoreOnSuccessfulTransaction(userId) {
     WHERE referral_count >= 10`);
 }
 async function initializeSchema() {
-  await db.query(`CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, phone TEXT UNIQUE, email TEXT UNIQUE, name TEXT, role TEXT NOT NULL DEFAULT 'worker', country TEXT, subscription_tier TEXT NOT NULL DEFAULT 'standard', trust_score DOUBLE PRECISION DEFAULT NULL, two_factor BOOLEAN NOT NULL DEFAULT FALSE, password_hash TEXT, referral_count INTEGER NOT NULL DEFAULT 0, referral_code TEXT UNIQUE, green_tick BOOLEAN NOT NULL DEFAULT FALSE, created_at TIMESTAMPTZ NOT NULL);
+  await db.query(`CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, phone TEXT UNIQUE, email TEXT UNIQUE, name TEXT, role TEXT NOT NULL DEFAULT 'worker', country TEXT, account_status TEXT NOT NULL DEFAULT 'active', subscription_tier TEXT NOT NULL DEFAULT 'standard', trust_score DOUBLE PRECISION DEFAULT NULL, two_factor BOOLEAN NOT NULL DEFAULT FALSE, password_hash TEXT, referral_count INTEGER NOT NULL DEFAULT 0, referral_code TEXT UNIQUE, green_tick BOOLEAN NOT NULL DEFAULT FALSE, created_at TIMESTAMPTZ NOT NULL);
     CREATE TABLE IF NOT EXISTS referrals (id TEXT PRIMARY KEY, referrer_id TEXT NOT NULL, referred_user_id TEXT UNIQUE NOT NULL, referral_code TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', verified_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
     CREATE TABLE IF NOT EXISTS media_files (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, filename TEXT NOT NULL, mime_type TEXT NOT NULL, purpose TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
-    CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY, client_id TEXT, title TEXT NOT NULL, video_url TEXT NOT NULL, seconds INTEGER NOT NULL, payout_cents INTEGER NOT NULL, description TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'active', created_at TIMESTAMPTZ NOT NULL);
+    CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY, client_id TEXT, title TEXT NOT NULL, video_url TEXT NOT NULL, seconds INTEGER NOT NULL, payout_cents INTEGER NOT NULL, description TEXT NOT NULL DEFAULT '', category TEXT NOT NULL DEFAULT 'General', status TEXT NOT NULL DEFAULT 'active', created_at TIMESTAMPTZ NOT NULL);
     CREATE TABLE IF NOT EXISTS listings (id TEXT PRIMARY KEY, seller_id TEXT, title TEXT NOT NULL, type TEXT NOT NULL, price_cents INTEGER NOT NULL, media JSONB NOT NULL DEFAULT '[]'::jsonb, status TEXT NOT NULL DEFAULT 'active', created_at TIMESTAMPTZ NOT NULL);
     CREATE TABLE IF NOT EXISTS transactions (id TEXT PRIMARY KEY, user_id TEXT, kind TEXT NOT NULL, amount_cents INTEGER NOT NULL, status TEXT NOT NULL, metadata JSONB, created_at TIMESTAMPTZ NOT NULL);
     CREATE TABLE IF NOT EXISTS disputes (id TEXT PRIMARY KEY, opened_by TEXT, order_id TEXT NOT NULL, reason TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open', resolution TEXT, created_at TIMESTAMPTZ NOT NULL, resolved_at TIMESTAMPTZ);
     CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, sender_id TEXT NOT NULL, body TEXT, attachment TEXT, created_at TIMESTAMPTZ NOT NULL);
+    CREATE TABLE IF NOT EXISTS support_threads (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, subject TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
+    CREATE TABLE IF NOT EXISTS support_messages (id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, sender_id TEXT NOT NULL, body TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
     CREATE TABLE IF NOT EXISTS notifications (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, kind TEXT NOT NULL, body TEXT NOT NULL, read_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL);
     CREATE TABLE IF NOT EXISTS products (id TEXT PRIMARY KEY, vendor_id TEXT NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL, category TEXT NOT NULL, price_cents INTEGER NOT NULL, stock INTEGER NOT NULL DEFAULT 0, media JSONB NOT NULL DEFAULT '[]'::jsonb, status TEXT NOT NULL DEFAULT 'active', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
     CREATE TABLE IF NOT EXISTS reviews (id TEXT PRIMARY KEY, product_id TEXT NOT NULL, user_id TEXT NOT NULL, rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5), comment TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
@@ -118,7 +120,8 @@ async function initializeSchema() {
     CREATE TABLE IF NOT EXISTS ad_messages (id TEXT PRIMARY KEY, ad_id TEXT NOT NULL, sender_id TEXT NOT NULL, body TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
     CREATE TABLE IF NOT EXISTS gigs (id TEXT PRIMARY KEY, seller_id TEXT NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL, category TEXT NOT NULL, price_cents INTEGER NOT NULL, delivery_days INTEGER NOT NULL DEFAULT 3, status TEXT NOT NULL DEFAULT 'active', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
     CREATE TABLE IF NOT EXISTS proposals (id TEXT PRIMARY KEY, gig_id TEXT NOT NULL, buyer_id TEXT NOT NULL, amount_cents INTEGER NOT NULL, note TEXT, status TEXT NOT NULL DEFAULT 'pending', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
-    CREATE TABLE IF NOT EXISTS profiles (id TEXT PRIMARY KEY, user_id TEXT UNIQUE NOT NULL, bio TEXT, location TEXT, avatar_url TEXT, skills TEXT, social_links JSONB, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
+    CREATE TABLE IF NOT EXISTS profiles (id TEXT PRIMARY KEY, user_id TEXT UNIQUE NOT NULL, bio TEXT, location TEXT, avatar_url TEXT, skills TEXT, category TEXT, social_links JSONB, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
+      CREATE TABLE IF NOT EXISTS stores (id TEXT PRIMARY KEY, owner_id TEXT UNIQUE NOT NULL, business_name TEXT NOT NULL, description TEXT NOT NULL, logo_url TEXT, status TEXT NOT NULL DEFAULT 'pending', review_note TEXT, submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), reviewed_at TIMESTAMPTZ, reviewed_by TEXT);
     CREATE TABLE IF NOT EXISTS favorites (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, target_type TEXT NOT NULL, target_id TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE (user_id, target_type, target_id));
     CREATE TABLE IF NOT EXISTS offers (id TEXT PRIMARY KEY, listing_id TEXT NOT NULL, buyer_id TEXT NOT NULL, seller_id TEXT NOT NULL, amount_cents INTEGER NOT NULL, message TEXT, status TEXT NOT NULL DEFAULT 'pending', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
     CREATE TABLE IF NOT EXISTS content_offers (id TEXT PRIMARY KEY, content_type TEXT NOT NULL, content_id TEXT NOT NULL, buyer_id TEXT NOT NULL, seller_id TEXT NOT NULL, amount_cents INTEGER NOT NULL, message TEXT, status TEXT NOT NULL DEFAULT 'pending', conversation_id TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), responded_at TIMESTAMPTZ);
@@ -136,6 +139,7 @@ async function initializeSchema() {
     CREATE TABLE IF NOT EXISTS gig_orders (id TEXT PRIMARY KEY, gig_id TEXT NOT NULL, buyer_id TEXT NOT NULL, seller_id TEXT NOT NULL, package_name TEXT NOT NULL, amount_cents INTEGER NOT NULL, fee_cents INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'pending', notes TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
     CREATE UNIQUE INDEX IF NOT EXISTS reviews_user_product_idx ON reviews (product_id, user_id);`);
   await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT; ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT; ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT; ALTER TABLE users ADD COLUMN IF NOT EXISTS location TEXT; ALTER TABLE users ADD COLUMN IF NOT EXISTS country TEXT; ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT; ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_tier TEXT DEFAULT 'standard'; ALTER TABLE users ADD COLUMN IF NOT EXISTS trust_score DOUBLE PRECISION; ALTER TABLE users ALTER COLUMN trust_score DROP NOT NULL; ALTER TABLE users ALTER COLUMN trust_score SET DEFAULT NULL; ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_count INTEGER NOT NULL DEFAULT 0; ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_code TEXT UNIQUE; ALTER TABLE users ADD COLUMN IF NOT EXISTS premium_source TEXT; ALTER TABLE users ADD COLUMN IF NOT EXISTS premium_activated_at TIMESTAMPTZ; ALTER TABLE tasks ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT ''; ALTER TABLE tasks ADD COLUMN IF NOT EXISTS instructions TEXT; ALTER TABLE tasks ADD COLUMN IF NOT EXISTS deadline_at TIMESTAMPTZ; ALTER TABLE tasks ADD COLUMN IF NOT EXISTS accepted_by TEXT; ALTER TABLE tasks ADD COLUMN IF NOT EXISTS proof_url TEXT; ALTER TABLE tasks ADD COLUMN IF NOT EXISTS qualification TEXT; ALTER TABLE listings ADD COLUMN IF NOT EXISTS description TEXT; ALTER TABLE listings ADD COLUMN IF NOT EXISTS category TEXT; ALTER TABLE listings ADD COLUMN IF NOT EXISTS location TEXT; ALTER TABLE ads ADD COLUMN IF NOT EXISTS placement TEXT DEFAULT 'homepage-top'; ALTER TABLE ads ADD COLUMN IF NOT EXISTS duration_days INTEGER DEFAULT 7; ALTER TABLE ads ADD COLUMN IF NOT EXISTS skip_allowed BOOLEAN DEFAULT TRUE; ALTER TABLE gigs ADD COLUMN IF NOT EXISTS portfolio TEXT; ALTER TABLE gigs ADD COLUMN IF NOT EXISTS seller_level TEXT; ALTER TABLE gigs ADD COLUMN IF NOT EXISTS basic_price_cents INTEGER; ALTER TABLE gigs ADD COLUMN IF NOT EXISTS standard_price_cents INTEGER; ALTER TABLE gigs ADD COLUMN IF NOT EXISTS premium_price_cents INTEGER;`);
+  await db.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS account_status TEXT NOT NULL DEFAULT 'active'; ALTER TABLE tasks ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'General'; ALTER TABLE profiles ADD COLUMN IF NOT EXISTS category TEXT;");
   await db.query("ALTER TABLE wallet_cards ADD COLUMN IF NOT EXISTS card_type TEXT NOT NULL DEFAULT 'credit';");
   await db.query("ALTER TABLE ads ADD COLUMN IF NOT EXISTS destination_url TEXT;");
   await db.query("ALTER TABLE listings ADD COLUMN IF NOT EXISTS media JSONB NOT NULL DEFAULT '[]'::jsonb;");
@@ -148,7 +152,18 @@ async function initializeSchema() {
 }
 
 async function seedDemoData() {
-  // Production starts with empty marketplace and wallet state.
+  const categories = [
+    ['cat-design', 'Design', null], ['cat-branding', 'Branding', 'cat-design'], ['cat-illustration', 'Illustration', 'cat-design'], ['cat-ui-ux', 'UI/UX Design', 'cat-design'],
+    ['cat-development', 'Development', null], ['cat-web', 'Web Development', 'cat-development'], ['cat-mobile', 'Mobile Apps', 'cat-development'], ['cat-software', 'Software', 'cat-development'],
+    ['cat-marketing', 'Marketing', null], ['cat-social-media', 'Social Media', 'cat-marketing'], ['cat-seo', 'SEO', 'cat-marketing'], ['cat-advertising', 'Advertising', 'cat-marketing'],
+    ['cat-video', 'Video', null], ['cat-editing', 'Video Editing', 'cat-video'], ['cat-animation', 'Animation', 'cat-video'], ['cat-filming', 'Filming', 'cat-video'],
+    ['cat-writing', 'Writing', null], ['cat-copywriting', 'Copywriting', 'cat-writing'], ['cat-translation', 'Translation', 'cat-writing'], ['cat-articles', 'Articles', 'cat-writing'],
+    ['cat-business', 'Business', null], ['cat-consulting', 'Consulting', 'cat-business'], ['cat-data', 'Data & Analytics', 'cat-business'], ['cat-virtual-assistance', 'Virtual Assistance', 'cat-business'],
+    ['cat-photography', 'Photography', null], ['cat-ecommerce', 'E-commerce', null], ['cat-education', 'Education', null], ['cat-other', 'Other', null],
+  ];
+  await db.query(`INSERT INTO categories (id,name,parent_id,created_at)
+    SELECT seeded.id,seeded.name,seeded.parent_id,NOW() FROM UNNEST($1::text[],$2::text[],$3::text[]) AS seeded(id,name,parent_id)
+    ON CONFLICT (id) DO NOTHING`, [categories.map(([id]) => id), categories.map(([, name]) => name), categories.map(([, , parentId]) => parentId)]);
 }
 
 async function sendOtpEmail({ to, code, subject = 'Your TaskFlow verification code', html = `<p>Your TaskFlow verification code is <strong>${code}</strong>.</p><p>This code expires in five minutes.</p>` }) {
@@ -229,7 +244,19 @@ const upload = multer({
   }
 });
 
-function requireUser(req, res, next) { if (!req.session.user) return res.status(401).json({ error: 'Authentication required' }); next(); }
+function requireUser(req, res, next) {
+  if (!req.session.user) return res.status(401).json({ error: 'Authentication required' });
+  if (req.session.user.isAdmin || req.session.user.role === 'admin') return next();
+  db.query('SELECT account_status FROM users WHERE id = $1', [req.session.user.id])
+    .then((result) => {
+      if (result.rows[0]?.account_status !== 'active') {
+        req.session = null;
+        return res.status(401).json({ error: 'This account is unavailable. Contact support if you believe this is an error.' });
+      }
+      next();
+    })
+    .catch(next);
+}
 function requireAdmin(req, res, next) {
   const isAdmin = Boolean(req.session.user?.isAdmin || req.session.user?.role === 'admin');
   if (!isAdmin) return res.status(403).json({ error: 'Super-admin access required' });
@@ -384,8 +411,26 @@ app.post('/api/payments/deposit', requireUser, (_req, res) => res.status(410).js
 app.post('/api/payments/withdraw', requireUser, async (req, res, next) => { try { const parsed = z.object({ amountCents: z.number().int().positive(), destination: z.string().min(3).max(120) }).safeParse(req.body); if (!parsed.success) return res.status(400).json({ error: 'Invalid withdrawal payload' }); await db.query('INSERT INTO withdrawals (id,user_id,amount_cents,destination,status,created_at) VALUES ($1,$2,$3,$4,$5,$6)', [nanoid(), req.session.user.id, parsed.data.amountCents, parsed.data.destination, 'pending', now()]); res.status(201).json({ ok: true }); } catch (error) { next(error); } });
 app.post('/api/reports', requireUser, async (req, res, next) => { try { const parsed = z.object({ subject: z.string().min(2).max(120), reason: z.string().min(5).max(2000) }).safeParse(req.body); if (!parsed.success) return res.status(400).json({ error: 'Invalid report payload' }); const report = { id: nanoid(), userId: req.session.user.id, ...parsed.data, createdAt: now() }; await db.query('INSERT INTO reports (id,user_id,subject,reason,status,created_at) VALUES ($1,$2,$3,$4,$5,$6)', [report.id, report.userId, report.subject, report.reason, 'open', report.createdAt]); res.status(201).json({ report }); } catch (error) { next(error); } });
 
-app.get('/api/tasks', async (_req, res, next) => { try { const result = await db.query("SELECT id,client_id AS \"clientId\",title,description,video_url AS \"videoUrl\",seconds,payout_cents AS \"payoutCents\",status,created_at AS \"createdAt\" FROM tasks WHERE status='active' ORDER BY created_at DESC"); res.json({ tasks: result.rows }); } catch (error) { next(error); } });
-app.post('/api/tasks', requireUser, async (req, res, next) => { try { const parsed = z.object({ title: z.string().min(3).max(160), videoUrl: z.string().url(), description: z.string().max(2000).default(''), amountDollars: z.number().min(1).max(1000000).optional(), payoutCents: z.number().int().min(1).max(100000).optional(), seconds: z.number().int().min(5).max(3600).default(60) }).safeParse(req.body); if (!parsed.success) return res.status(400).json({ error: 'Invalid task payload' }); const payoutCents = Number(parsed.data.payoutCents ?? Math.round((parsed.data.amountDollars || 0) * 100)); const task = { id: nanoid(), clientId: req.session.user.id, title: parsed.data.title, videoUrl: parsed.data.videoUrl, seconds: parsed.data.seconds, description: parsed.data.description, payoutCents, createdAt: now() }; await db.query('INSERT INTO tasks (id,client_id,title,video_url,seconds,payout_cents,description,status,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)', [task.id, task.clientId, task.title, task.videoUrl, task.seconds, task.payoutCents, task.description, 'active', task.createdAt]); res.status(201).json({ task }); } catch (error) { next(error); } });
+app.get('/api/tasks', async (_req, res, next) => {
+  try {
+    const result = await db.query("SELECT id,client_id AS \"clientId\",title,description,video_url AS \"videoUrl\",seconds,payout_cents AS \"payoutCents\",category,status,created_at AS \"createdAt\" FROM tasks WHERE status='active' ORDER BY created_at DESC");
+    res.json({ tasks: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+app.post('/api/tasks', requireUser, async (req, res, next) => {
+  try {
+    const parsed = z.object({ title: z.string().min(3).max(160), videoUrl: z.string().url(), category: z.string().min(2).max(120), description: z.string().max(2000).default(''), amountDollars: z.number().min(1).max(1000000).optional(), payoutCents: z.number().int().min(1).max(100000).optional(), seconds: z.number().int().min(5).max(3600).default(60) }).safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Choose a category and enter valid task details.' });
+    const payoutCents = Number(parsed.data.payoutCents ?? Math.round((parsed.data.amountDollars || 0) * 100));
+    const task = { id: nanoid(), clientId: req.session.user.id, title: parsed.data.title, videoUrl: parsed.data.videoUrl, category: parsed.data.category, seconds: parsed.data.seconds, description: parsed.data.description, payoutCents, createdAt: now() };
+    await db.query('INSERT INTO tasks (id,client_id,title,video_url,seconds,payout_cents,description,category,status,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [task.id, task.clientId, task.title, task.videoUrl, task.seconds, task.payoutCents, task.description, task.category, 'active', task.createdAt]);
+    res.status(201).json({ task });
+  } catch (error) {
+    next(error);
+  }
+});
 app.post('/api/tasks/:id/complete', requireUser, async (req, res, next) => { try { const parsed = z.object({ watchedSeconds: z.number().int().min(0), proof: z.string().max(2000).optional() }).safeParse(req.body); const result = await db.query("SELECT * FROM tasks WHERE id=$1 AND status='active'", [req.params.id]); const task = result.rows[0]; if (!parsed.success || !task || parsed.data.watchedSeconds < task.seconds) return res.status(400).json({ error: 'Watch verification failed' }); await audit('task_reward', req.session.user.id, task.payout_cents, { taskId: task.id, proof: parsed.data.proof || null }); await db.query('INSERT INTO notifications (id,user_id,kind,body,created_at) VALUES ($1,$2,$3,$4,$5)', [nanoid(), req.session.user.id, 'wallet', `Verified task reward: ${(task.payout_cents / 100).toFixed(2)}`, now()]); res.json({ verified: true, payoutCents: task.payout_cents }); } catch (error) { next(error); } });
 app.post('/api/tasks/:id/purchase', requireUser, async (req, res, next) => { try { const parsed = z.object({ quantity: z.number().int().min(1).max(100000).default(1), targetUrl: z.string().url().optional(), notes: z.string().max(1000).optional() }).safeParse(req.body); if (!parsed.success) return res.status(400).json({ error: 'Valid task order details are required' }); const task = await db.query("SELECT * FROM tasks WHERE id=$1 AND status='active'", [req.params.id]); if (!task.rows[0]) return res.status(404).json({ error: 'Task not found' }); const quantity = parsed.data.quantity; const subtotalCents = Number(task.rows[0].payout_cents) * quantity; const countryResult = await db.query('SELECT country FROM users WHERE id=$1', [req.session.user.id]); const tax = calculateInternationalTax(subtotalCents, countryResult.rows[0]?.country || req.session.user.country); const amountCents = subtotalCents + tax.taxCents; await ensureWalletReady(req.session.user.id, amountCents); const feeCents = Math.round(amountCents * 0.05); const order = { id: nanoid(), taskId: req.params.id, buyerId: req.session.user.id, sellerId: task.rows[0].client_id, quantity, amountCents, feeCents, targetUrl: parsed.data.targetUrl || null, notes: parsed.data.notes || null, createdAt: now() }; await db.query('INSERT INTO task_orders (id,task_id,buyer_id,seller_id,quantity,amount_cents,fee_cents,status,target_url,notes,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)', [order.id, order.taskId, order.buyerId, order.sellerId, order.quantity, order.amountCents, order.feeCents, 'paid', order.targetUrl, order.notes, order.createdAt]); await db.query('INSERT INTO transactions (id,user_id,kind,amount_cents,status,metadata,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)', [nanoid(), order.buyerId, 'task_purchase', order.amountCents, 'paid', { taskId: order.taskId, quantity, subtotalCents, taxCents: tax.taxCents, internationalTax: tax.isInternational, feeCents: order.feeCents }, now()]); await updateTrustScoreOnSuccessfulTransaction(order.buyerId); res.status(201).json({ order, subtotalCents, taxCents: tax.taxCents, totalCents: order.amountCents, feeCents: order.feeCents, netCents: order.amountCents - order.feeCents }); } catch (error) { next(error); } });
 
@@ -440,7 +485,40 @@ app.delete('/api/admin/media/:id', requireAdmin, async (req, res, next) => {
 
 app.post('/api/admin/login', (req, res) => { const parsed = z.object({ username: z.string(), password: z.string() }).safeParse(req.body); if (!parsed.success || parsed.data.username !== adminUsername || parsed.data.password !== adminPassword) return res.status(401).json({ error: 'Invalid admin credentials' }); req.session.user = { id: 'super-admin', name: adminUsername, role: 'admin', subscriptionTier: 'premium', greenTick: true, twoFactor: true, isAdmin: true }; res.json({ user: req.session.user }); });
 app.get('/api/admin/overview', requireAdmin, async (_req, res, next) => { try { const [usersCount, escrow, disputesCount, listingsCount, productsCount, adsCount, gigsCount, categoriesCount, reportsCount, users, disputes, transactions, withdrawals] = await Promise.all([db.query('SELECT COUNT(*)::int AS count FROM users'), db.query('SELECT COALESCE(SUM(amount_cents),0)::int AS total FROM transactions'), db.query("SELECT COUNT(*)::int AS count FROM disputes WHERE status='open'"), db.query("SELECT COUNT(*)::int AS count FROM listings WHERE status='flagged'"), db.query('SELECT COUNT(*)::int AS count FROM products'), db.query('SELECT COUNT(*)::int AS count FROM ads WHERE status = \'active\''), db.query('SELECT COUNT(*)::int AS count FROM gigs WHERE status = \'active\''), db.query('SELECT COUNT(*)::int AS count FROM categories'), db.query('SELECT COUNT(*)::int AS count FROM reports WHERE status = \'open\''), db.query('SELECT id,name,phone,email,role,trust_score AS "trustScore",two_factor AS "twoFactor",created_at AS "createdAt" FROM users ORDER BY created_at DESC LIMIT 100'), db.query('SELECT * FROM disputes ORDER BY created_at DESC LIMIT 100'), db.query('SELECT * FROM transactions ORDER BY created_at DESC LIMIT 100'), db.query('SELECT * FROM withdrawals ORDER BY created_at DESC LIMIT 100')]); res.json({ stats: { activeUsers: usersCount.rows[0].count, escrowCents: escrow.rows[0].total, openDisputes: disputesCount.rows[0].count, flaggedListings: listingsCount.rows[0].count, activeProducts: productsCount.rows[0].count, activeAds: adsCount.rows[0].count, activeGigs: gigsCount.rows[0].count, categories: categoriesCount.rows[0].count, openReports: reportsCount.rows[0].count }, users: users.rows, disputes: disputes.rows, transactions: transactions.rows, withdrawals: withdrawals.rows }); } catch (error) { next(error); } });
-app.get('/api/admin/users', requireAdmin, async (_req, res, next) => { try { const result = await db.query('SELECT id,name,email,phone,role,trust_score AS "trustScore",created_at AS "createdAt" FROM users ORDER BY created_at DESC'); res.json({ users: result.rows }); } catch (error) { next(error); } });
+app.get('/api/admin/users', requireAdmin, async (_req, res, next) => {
+  try {
+    const result = await db.query('SELECT id,name,email,phone,role,account_status AS "accountStatus",trust_score AS "trustScore",created_at AS "createdAt" FROM users ORDER BY created_at DESC');
+    res.json({ users: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+app.delete('/api/admin/users/:id', requireAdmin, async (req, res, next) => {
+  let client;
+  try {
+    client = await db.connect();
+    await client.query('BEGIN');
+    const user = await client.query("UPDATE users SET account_status='removed' WHERE id=$1 AND role <> 'admin' RETURNING id", [req.params.id]);
+    if (!user.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'User not found or cannot be removed.' });
+    }
+    await Promise.all([
+      client.query("UPDATE tasks SET status='removed' WHERE client_id=$1", [req.params.id]),
+      client.query("UPDATE listings SET status='removed' WHERE seller_id=$1", [req.params.id]),
+      client.query("UPDATE products SET status='removed' WHERE vendor_id=$1", [req.params.id]),
+      client.query("UPDATE gigs SET status='removed' WHERE seller_id=$1", [req.params.id]),
+      client.query("UPDATE ads SET status='removed' WHERE seller_id=$1", [req.params.id]),
+    ]);
+    await client.query('COMMIT');
+    res.json({ removed: true, userId: req.params.id });
+  } catch (error) {
+    if (client) await client.query('ROLLBACK').catch(() => {});
+    next(error);
+  } finally {
+    client?.release();
+  }
+});
 app.get('/api/admin/reports', requireAdmin, async (_req, res, next) => { try { const result = await db.query('SELECT * FROM reports ORDER BY created_at DESC'); res.json({ reports: result.rows }); } catch (error) { next(error); } });
 app.get('/api/admin/categories', requireAdmin, async (_req, res, next) => { try { const result = await db.query('SELECT * FROM categories ORDER BY created_at DESC'); res.json({ categories: result.rows }); } catch (error) { next(error); } });
 app.post('/api/admin/categories', requireAdmin, async (req, res, next) => { try { const parsed = z.object({ name: z.string().min(2).max(80), parentId: z.string().max(80).optional() }).safeParse(req.body); if (!parsed.success) return res.status(400).json({ error: 'Invalid category payload' }); const category = { id: nanoid(), ...parsed.data, createdAt: now() }; await db.query('INSERT INTO categories (id,name,parent_id,created_at) VALUES ($1,$2,$3,$4)', [category.id, category.name, category.parentId || null, category.createdAt]); res.status(201).json({ category }); } catch (error) { next(error); } });

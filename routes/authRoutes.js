@@ -46,6 +46,7 @@ router.post('/api/auth/login', async (req, res, next) => {
     const email = parsed.data.email.toLowerCase();
     const userResult = await db.query('SELECT * FROM users WHERE email=$1', [email]);
     const user = userResult.rows[0];
+    if (user && user.account_status !== 'active') return res.status(403).json({ error: 'This account is unavailable. Contact support if you believe this is an error.' });
     if (!user || !user.password_hash || !verifyPassword(parsed.data.password, user.password_hash)) return res.status(401).json({ error: 'Invalid email or password' });
 
     req.session.user = { id: user.id, name: user.name, email: user.email, role: user.role, country: normalizeCountry(user.country || 'US'), subscriptionTier: user.subscription_tier || 'standard', trustScore: user.trust_score ?? null, twoFactor: Boolean(user.two_factor), isAdmin: user.role === 'admin' };
@@ -154,6 +155,7 @@ router.post('/api/auth/email/verify', async (req, res, next) => {
 
     const result = await db.query('SELECT * FROM users WHERE email=$1', [email]);
     let user = result.rows[0];
+    if (user && user.account_status !== 'active') return res.status(403).json({ error: 'This account is unavailable. Contact support if you believe this is an error.' });
     if (!user) {
       user = { id: nanoid(), email, name: parsed.data.name || email.split('@')[0], role: parsed.data.role, country: 'US', subscription_tier: 'standard', trust_score: null, two_factor: false, created_at: now() };
       await db.query('INSERT INTO users (id,email,name,role,country,subscription_tier,trust_score,two_factor,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)', [user.id, user.email, user.name, user.role, user.country, user.subscription_tier, user.trust_score, false, user.created_at]);
@@ -205,6 +207,7 @@ router.post('/api/auth/phone/verify', async (req, res, next) => {
 
     const result = await db.query('SELECT * FROM users WHERE phone=$1', [parsed.data.phone]);
     let user = result.rows[0];
+    if (user && user.account_status !== 'active') return res.status(403).json({ error: 'This account is unavailable. Contact support if you believe this is an error.' });
     if (!user) {
       user = { id: nanoid(), phone: parsed.data.phone, name: parsed.data.name || 'TaskFlow member', role: parsed.data.role, country: 'US', subscription_tier: 'standard', trust_score: null, two_factor: false, created_at: now() };
       await db.query('INSERT INTO users (id,phone,name,role,country,subscription_tier,trust_score,two_factor,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)', [user.id, user.phone, user.name, user.role, user.country, user.subscription_tier, user.trust_score, false, user.created_at]);
@@ -254,6 +257,7 @@ router.get('/api/auth/google/callback', async (req, res, next) => {
 
     const result = await db.query('INSERT INTO users (id,email,name,role,trust_score,two_factor,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (email) DO UPDATE SET name=EXCLUDED.name RETURNING *', [nanoid(), profile.email, profile.name || 'TaskFlow member', 'worker', null, false, now()]);
     const user = result.rows[0];
+    if (user.account_status !== 'active') return res.redirect('/?auth=account-unavailable');
     req.session.user = { id: user.id, name: user.name, email: user.email, role: user.role, country: normalizeCountry(user.country || 'US'), subscriptionTier: user.subscription_tier || 'standard', trustScore: user.trust_score ?? null, twoFactor: Boolean(user.two_factor), isAdmin: false };
     res.redirect('/#overview');
   } catch (error) {

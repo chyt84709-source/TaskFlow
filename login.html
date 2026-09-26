@@ -749,9 +749,11 @@
         <button type="button" class="nav-btn" data-view="tasks">Tasks</button>
         <button type="button" class="nav-btn" data-view="marketplace">Marketplace</button>
         <button type="button" class="nav-btn" data-view="products">Products</button>
+        <button type="button" class="nav-btn" data-view="vendor">Vendor dashboard</button>
         <button type="button" class="nav-btn" data-view="gigs">Gigs</button>
         <button type="button" class="nav-btn" data-view="wallet">Wallet</button>
         <button type="button" class="nav-btn" data-view="profile">Profile</button>
+        <button type="button" class="nav-btn" data-view="support">Contact support</button>
         <button type="button" class="nav-btn" data-view="premium">Premium</button>
         <button type="button" class="nav-btn" data-view="admin" style="display:none;">Admin</button>
       </nav>
@@ -918,8 +920,26 @@
           </div>
         </div>
       </section>
+  <section class="page-section" data-section="support">
+                <div class="simple-grid">
+                  <div class="section-panel">
+                    <div class="section-header"><h3>Contact support</h3><span class="tag">Private</span></div>
+                    <form id="support-new-form">
+                      <div class="field"><label for="support-subject">Subject</label><input id="support-subject" maxlength="120" required placeholder="What can we help with?"></div>
+                      <div class="field"><label for="support-first-message">Message</label><textarea id="support-first-message" rows="5" maxlength="2000" required placeholder="Describe the issue or question."></textarea></div>
+                      <button class="primary-btn full" type="submit">Send to support</button>
+                    </form>
+                  </div>
+                  <div class="section-panel">
+                    <div class="section-header"><h3>Your support conversations</h3><button type="button" class="ghost-btn" id="refresh-user-support">Refresh</button></div>
+                    <div class="meta-list" id="user-support-threads"><p class="muted">No support conversations yet.</p></div>
+                    <div class="meta-list" id="user-support-messages" style="margin-top:14px;"><p class="muted">Select a conversation to view replies.</p></div>
+                    <form id="user-support-reply-form" class="row-actions hidden" style="margin-top:14px;"><input id="user-support-reply" maxlength="2000" required placeholder="Write a reply..."><button class="primary-btn" type="submit">Send</button></form>
+                  </div>
+                </div>
+              </section>
 
-      <section class="page-section" data-section="tasks">
+              <section class="page-section" data-section="tasks">
         <div class="simple-grid">
           <div class="section-panel">
             <div class="section-header">
@@ -942,6 +962,10 @@
               <div class="field">
                 <label>Description</label>
                 <textarea id="task-description" rows="4" required placeholder="Describe the task, target audience, success criteria, and required proof."></textarea>
+              </div>
+              <div class="field">
+                <label>Category</label>
+                <select id="task-category" data-category-selector required><option value="">Loading categories...</option></select>
               </div>
               <button type="submit" class="primary-btn full">Publish task</button>
             </form>
@@ -1014,7 +1038,7 @@
               </div>
               <div class="field">
                 <label>Category</label>
-                <input id="product-category" required placeholder="Electronics, Home, Auto..."><!-- no trailing quotes conflict -->
+                <select id="product-category" data-category-selector required><option value="">Loading categories...</option></select>
               </div>
               <div class="field">
                 <label>Price in dollars</label>
@@ -1048,6 +1072,34 @@
         </div>
       </section>
 
+      <section class="page-section" data-section="vendor">
+        <div class="simple-grid">
+          <div class="section-panel">
+            <div class="section-header"><h3>Store identity</h3><span class="tag" id="store-status-tag">No request</span></div>
+            <form id="store-profile-form">
+              <div class="field"><label for="store-business-name">Business name</label><input id="store-business-name" maxlength="120" required placeholder="Your shop name"></div>
+              <div class="field"><label for="store-description">Store description</label><textarea id="store-description" rows="4" maxlength="1500" required placeholder="What do you sell, and what should customers know?"></textarea></div>
+              <div class="field"><label for="store-logo-file">Store logo</label><input id="store-logo-file" type="file" accept="image/*"></div>
+              <img id="store-logo-preview" class="marketplace-media hidden" alt="Store logo preview" style="max-width:180px;max-height:180px;margin-bottom:14px;">
+              <p id="store-review-note" class="muted hidden"></p>
+              <button class="primary-btn full" type="submit">Submit store for review</button>
+            </form>
+          </div>
+          <div class="section-panel">
+            <div class="section-header"><h3>Inventory</h3><span class="tag" id="vendor-product-count">0 products</span></div>
+            <div class="meta-list" id="vendor-inventory-list"><p class="muted">No products yet.</p></div>
+          </div>
+          <div class="section-panel">
+            <div class="section-header"><h3>Incoming orders</h3><span class="tag" id="vendor-order-count">0 orders</span></div>
+            <div class="meta-list" id="vendor-orders-list"><p class="muted">No orders yet.</p></div>
+          </div>
+          <div class="section-panel">
+            <div class="section-header"><h3>Alerts and messages</h3><div class="row-actions" style="margin:0;"><span class="tag" id="vendor-unread-count">0 unread</span><button type="button" class="ghost-btn" id="vendor-mark-all-read">Mark all read</button></div></div>
+            <div class="meta-list" id="vendor-notifications-list"><p class="muted">No alerts yet.</p></div>
+          </div>
+        </div>
+      </section>
+
       <section class="page-section" data-section="gigs">
         <div class="simple-grid">
           <div class="section-panel">
@@ -1062,14 +1114,7 @@
               </div>
               <div class="field">
                 <label>Category</label>
-                <select id="gig-category">
-                  <option value="Design">Design</option>
-                  <option value="Video">Video</option>
-                  <option value="Marketing">Marketing</option>
-                  <option value="Development">Development</option>
-                  <option value="Writing">Writing</option>
-                  <option value="Business">Business</option>
-                </select>
+                <select id="gig-category" data-category-selector required><option value="">Loading categories...</option></select>
               </div>
               <div class="field">
                 <label>Price in dollars</label>
@@ -1162,7 +1207,7 @@
                   <label>Card number, expiry, and CVV</label>
                   <div id="stripe-card-element" class="upload-box">Secure Stripe fields load after Cloudflare verification.</div>
                 </div>
-                <div class="cf-turnstile" id="card-turnstile"></div>
+                <div id="card-turnstile"></div>
                 <button type="submit" class="ghost-btn full">Save Card</button>
               </form>
               <form id="card-otp-form" class="hidden">
@@ -1208,6 +1253,10 @@
                   <option value="BD">Bangladesh</option>
                   <option value="NG">Nigeria</option>
                 </select>
+              </div>
+              <div class="field">
+                <label>Professional category</label>
+                <select id="profile-category" data-category-selector><option value="">Choose a category</option></select>
               </div>
               <div class="field">
                 <label>Account tier</label>
@@ -1320,12 +1369,30 @@
         <div class="section-panel" style="margin-top: 16px;">
           <div class="section-header">
             <div>
+              <h3>Store requests</h3>
+              <p class="muted" style="margin:4px 0 0;">Review business identity before verification.</p>
+            </div>
+            <span class="tag">Admin only</span>
+          </div>
+          <div class="simple-grid">
+            <div><div class="section-header"><h4>Pending Approval</h4><span class="tag" id="store-pending-count">0</span></div><div class="meta-list" id="store-pending-list"></div></div>
+            <div><div class="section-header"><h4>Verified</h4><span class="tag" id="store-verified-count">0</span></div><div class="meta-list" id="store-verified-list"></div></div>
+            <div><div class="section-header"><h4>Needs Changes</h4><span class="tag" id="store-rejected-count">0</span></div><div class="meta-list" id="store-rejected-list"></div></div>
+          </div>
+        </div>
+        <div class="section-panel" style="margin-top: 16px;">
+          <div class="section-header">
+            <div>
               <h3>Content moderation</h3>
               <p class="muted" style="margin: 4px 0 0;">Remove illegal sales or inappropriate marketplace content immediately.</p>
             </div>
             <span class="tag">Admin only</span>
           </div>
           <div class="simple-grid">
+            <div>
+              <div class="section-header"><h4>Users</h4><span class="tag" id="admin-users-count">0</span></div>
+              <div class="meta-list" id="admin-users-list"><p class="muted">Loading users...</p></div>
+            </div>
             <div>
               <div class="section-header"><h4>Products</h4><span class="tag" id="admin-products-count">0</span></div>
               <div class="meta-list" id="admin-products-list"></div>
@@ -1346,6 +1413,13 @@
               <div class="section-header"><h4>User uploads</h4><span class="tag" id="admin-media-count">0</span></div>
               <div class="meta-list" id="admin-media-list"></div>
             </div>
+          </div>
+        </div>
+        <div class="section-panel" style="margin-top:16px;">
+          <div class="section-header"><div><h3>Support inbox</h3><p class="muted" style="margin:4px 0 0;">User contact requests and replies.</p></div><button type="button" class="ghost-btn" id="refresh-admin-support">Refresh</button></div>
+          <div class="simple-grid">
+            <div class="meta-list" id="admin-support-threads"><p class="muted">No support conversations yet.</p></div>
+            <div><div class="meta-list" id="admin-support-messages"><p class="muted">Select a conversation to review and reply.</p></div><form id="admin-support-reply-form" class="row-actions hidden" style="margin-top:14px;"><input id="admin-support-reply" maxlength="2000" required placeholder="Reply to user..."><button class="primary-btn" type="submit">Send</button></form></div>
           </div>
         </div>
       </section>
@@ -1385,6 +1459,9 @@
     let stripeClient = null;
     let stripeElements = null;
     let stripeCardElement = null;
+    let selectedUserSupportThreadId = null;
+    let selectedAdminSupportThreadId = null;
+    let currentStoreLogoUrl = null;
     let profilePhoneCountry = 'US';
     const countryDialCodes = { US: '+1', PK: '+92', IN: '+91', AE: '+971', GB: '+44', CA: '+1', SA: '+966', BD: '+880', NG: '+234' };
 
@@ -1432,6 +1509,7 @@
       $('profile-name-field').value = userName;
       $('profile-phone').value = user?.phone || '';
       $('profile-country').value = countryCode;
+      $('profile-category').value = profileData?.category || user?.profile?.category || '';
       profilePhoneCountry = countryCode;
       $('premium-status').textContent = tierLabel;
       $('premium-fee').textContent = formatMoney(500, countryCode);
@@ -1498,6 +1576,7 @@
         $('landing').classList.add('hidden');
         $('app').classList.remove('hidden');
         syncAdminNavVisibility(currentUser);
+        await loadCategories();
         await hydrateProfile();
         await loadPublicStats();
         await loadDashboard();
@@ -1523,6 +1602,28 @@
 
     function escapeHtml(value) {
       return String(value || '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[ch]));
+    }
+
+    async function loadCategories() {
+      const fallback = ['Design', 'Development', 'Marketing', 'Video', 'Writing', 'Business', 'Photography', 'E-commerce', 'Education', 'Other'];
+      try {
+        const response = await api('/api/categories');
+        const categories = response.categories || [];
+        const selectors = document.querySelectorAll('[data-category-selector]');
+        selectors.forEach((select) => {
+          const selectedValue = select.value;
+          const placeholder = select.id === 'profile-category' ? 'Choose a category' : 'Select category';
+          select.innerHTML = `<option value="">${placeholder}</option>${categories.map((category) => `<option value="${escapeHtml(category.name)}">${escapeHtml(category.parentName ? `${category.parentName} / ${category.name}` : category.name)}</option>`).join('')}`;
+          if (categories.some((category) => category.name === selectedValue)) select.value = selectedValue;
+        });
+      } catch (error) {
+        document.querySelectorAll('[data-category-selector]').forEach((select) => {
+          const selectedValue = select.value;
+          select.innerHTML = `<option value="">${select.id === 'profile-category' ? 'Choose a category' : 'Select category'}</option>${fallback.map((name) => `<option value="${name}">${name}</option>`).join('')}`;
+          if (fallback.includes(selectedValue)) select.value = selectedValue;
+        });
+        console.error('Category catalog unavailable:', error);
+      }
     }
 
     function renderListingMedia(item) {
@@ -1635,6 +1736,172 @@
       } catch (error) { notify(error.message); }
     }
 
+    async function openUserSupportThread(threadId) {
+      selectedUserSupportThreadId = threadId;
+      const response = await api(`/api/support/threads/${threadId}/messages`);
+      $('user-support-messages').innerHTML = response.messages.length ? response.messages.map((message) => `<div class="item-card"><strong>${escapeHtml(message.senderName || 'Support')}</strong><p>${escapeHtml(message.body)}</p><small class="muted">${new Date(message.createdAt).toLocaleString()}</small></div>`).join('') : '<p class="muted">No messages in this conversation.</p>';
+      $('user-support-reply-form').classList.remove('hidden');
+    }
+
+    async function loadUserSupportThreads() {
+      try {
+        const response = await api('/api/support/threads');
+        const threads = response.threads || [];
+        $('user-support-threads').innerHTML = threads.length ? threads.map((thread) => `<button type="button" class="item-card" data-user-support-thread="${escapeHtml(thread.id)}" style="text-align:left;"><strong>${escapeHtml(thread.subject)}</strong><p>${escapeHtml(thread.lastMessage || 'No messages yet.')}</p><span class="tag">${escapeHtml(thread.status)}</span></button>`).join('') : '<p class="muted">No support conversations yet.</p>';
+        document.querySelectorAll('[data-user-support-thread]').forEach((button) => {
+          button.onclick = () => openUserSupportThread(button.dataset.userSupportThread).catch((error) => notify(error.message));
+        });
+        if (selectedUserSupportThreadId && threads.some((thread) => thread.id === selectedUserSupportThreadId)) await openUserSupportThread(selectedUserSupportThreadId);
+        else if (!threads.length) {
+          selectedUserSupportThreadId = null;
+          $('user-support-reply-form').classList.add('hidden');
+          $('user-support-messages').innerHTML = '<p class="muted">Select a conversation to view replies.</p>';
+        }
+      } catch (error) {
+        notify(error.message);
+      }
+    }
+
+    async function openAdminSupportThread(threadId) {
+      selectedAdminSupportThreadId = threadId;
+      const response = await api(`/api/admin/support/threads/${threadId}/messages`);
+      $('admin-support-messages').innerHTML = response.messages.length ? response.messages.map((message) => `<div class="item-card"><strong>${escapeHtml(message.senderName || (message.senderRole === 'admin' ? 'Admin' : 'User'))}</strong><p>${escapeHtml(message.body)}</p><small class="muted">${new Date(message.createdAt).toLocaleString()}</small></div>`).join('') : '<p class="muted">No messages in this conversation.</p>';
+      $('admin-support-reply-form').classList.remove('hidden');
+    }
+
+    async function loadAdminSupportThreads() {
+      try {
+        const response = await api('/api/admin/support/threads');
+        const threads = response.threads || [];
+        $('admin-support-threads').innerHTML = threads.length ? threads.map((thread) => `<button type="button" class="item-card" data-admin-support-thread="${escapeHtml(thread.id)}" style="text-align:left;"><strong>${escapeHtml(thread.subject)}</strong><p>${escapeHtml(thread.userName || thread.userEmail || 'Removed user')} · ${escapeHtml(thread.lastMessage || '')}</p><span class="tag">${escapeHtml(thread.status)}</span></button>`).join('') : '<p class="muted">No support conversations yet.</p>';
+        document.querySelectorAll('[data-admin-support-thread]').forEach((button) => {
+          button.onclick = () => openAdminSupportThread(button.dataset.adminSupportThread).catch((error) => notify(error.message));
+        });
+        if (selectedAdminSupportThreadId && threads.some((thread) => thread.id === selectedAdminSupportThreadId)) await openAdminSupportThread(selectedAdminSupportThreadId);
+        else if (!threads.length) {
+          selectedAdminSupportThreadId = null;
+          $('admin-support-reply-form').classList.add('hidden');
+          $('admin-support-messages').innerHTML = '<p class="muted">Select a conversation to review and reply.</p>';
+        }
+      } catch (error) {
+        notify(error.message);
+      }
+    }
+
+    async function loadVendorDashboard() {
+      try {
+        const [storeResponse, inventoryResponse, ordersResponse, notificationResponse] = await Promise.all([
+          api('/api/store/me'),
+          api('/api/vendor/inventory'),
+          api('/api/vendor/orders'),
+          api('/api/notifications'),
+        ]);
+        const store = storeResponse.store;
+        currentStoreLogoUrl = store?.logoUrl || null;
+        $('store-business-name').value = store?.businessName || '';
+        $('store-description').value = store?.description || '';
+        $('store-status-tag').textContent = store?.status || 'No request';
+        $('store-review-note').textContent = store?.reviewNote || '';
+        $('store-review-note').classList.toggle('hidden', !store?.reviewNote);
+        $('store-logo-preview').src = currentStoreLogoUrl || '';
+        $('store-logo-preview').classList.toggle('hidden', !currentStoreLogoUrl);
+
+        const products = inventoryResponse.products || [];
+        $('vendor-product-count').textContent = `${products.length} products`;
+        $('vendor-inventory-list').innerHTML = products.length ? products.map((product) => `
+          <div class="item-card"><h4>${escapeHtml(product.title)}</h4><p>${escapeHtml(product.category)} · ${formatMoney(product.priceCents)} · ${escapeHtml(product.status)}</p><div class="row-actions"><input type="number" min="0" max="1000000" value="${Number(product.stock)}" aria-label="Stock for ${escapeHtml(product.title)}" data-stock-input="${escapeHtml(product.id)}"><button type="button" class="mini-btn primary" data-save-stock="${escapeHtml(product.id)}">Save stock</button></div></div>
+        `).join('') : '<p class="muted">Create a product to start tracking inventory.</p>';
+        document.querySelectorAll('[data-save-stock]').forEach((button) => {
+          button.onclick = async () => {
+            const input = document.querySelector(`[data-stock-input="${CSS.escape(button.dataset.saveStock)}"]`);
+            try {
+              const result = await api(`/api/vendor/products/${encodeURIComponent(button.dataset.saveStock)}/stock`, { method: 'PATCH', body: JSON.stringify({ stock: Number(input.value) }) });
+              if (!result.updated) throw new Error('Inventory was not updated.');
+              notify('Inventory updated.');
+              await loadVendorDashboard();
+            } catch (error) {
+              notify(error.message);
+            }
+          };
+        });
+
+        const orders = ordersResponse.orders || [];
+        $('vendor-order-count').textContent = `${orders.length} orders`;
+        $('vendor-orders-list').innerHTML = orders.length ? orders.map((order) => {
+          const nextStatus = { paid: 'processing', processing: 'shipped', shipped: 'completed' }[order.status];
+          return `<div class="item-card"><h4>${escapeHtml(order.productTitle)}</h4><p>${escapeHtml(order.buyerName || order.buyerEmail || 'Customer')} · Qty ${Number(order.quantity)} · ${formatMoney(order.amountCents)}</p><p>${escapeHtml(order.notes || 'No customer note.')}</p><div class="item-row"><span>${new Date(order.createdAt).toLocaleString()}</span><span class="tag">${escapeHtml(order.status)}</span></div>${nextStatus ? `<div class="row-actions"><button type="button" class="mini-btn primary" data-order-id="${escapeHtml(order.id)}" data-next-status="${nextStatus}">Mark ${nextStatus}</button></div>` : ''}</div>`;
+        }).join('') : '<p class="muted">Incoming customer orders will appear here.</p>';
+        document.querySelectorAll('[data-order-id]').forEach((button) => {
+          button.onclick = async () => {
+            try {
+              const result = await api(`/api/vendor/orders/${encodeURIComponent(button.dataset.orderId)}/status`, { method: 'POST', body: JSON.stringify({ status: button.dataset.nextStatus }) });
+              if (!result.updated) throw new Error('Order status was not updated.');
+              notify(`Order marked ${result.status}.`);
+              await loadVendorDashboard();
+            } catch (error) {
+              notify(error.message);
+            }
+          };
+        });
+
+        const notifications = notificationResponse.notifications || [];
+        $('vendor-unread-count').textContent = `${notificationResponse.unreadCount || 0} unread`;
+        $('vendor-notifications-list').innerHTML = notifications.length ? notifications.map((item) => `
+          <div class="item-card"><h4>${escapeHtml(item.kind || 'Update')}</h4><p>${escapeHtml(item.body)}</p><div class="item-row"><span>${new Date(item.createdAt).toLocaleString()}</span>${item.readAt ? '<span class="tag">Read</span>' : `<button type="button" class="mini-btn" data-read-notification="${escapeHtml(item.id)}">Mark read</button>`}</div></div>
+        `).join('') : '<p class="muted">No alerts or messages yet.</p>';
+        document.querySelectorAll('[data-read-notification]').forEach((button) => {
+          button.onclick = async () => {
+            try {
+              const result = await api(`/api/notifications/${encodeURIComponent(button.dataset.readNotification)}/read`, { method: 'POST' });
+              if (!result.updated) throw new Error('Notification was not marked read.');
+              await loadVendorDashboard();
+            } catch (error) {
+              notify(error.message);
+            }
+          };
+        });
+      } catch (error) {
+        console.error('Vendor dashboard could not load:', error);
+        notify(error.message);
+      }
+    }
+
+    async function loadAdminStoreRequests() {
+      try {
+        const response = await api('/api/admin/store-requests');
+        const requests = response.requests || [];
+        const columns = {
+          pending: ['store-pending-count', 'store-pending-list'],
+          verified: ['store-verified-count', 'store-verified-list'],
+          rejected: ['store-rejected-count', 'store-rejected-list'],
+        };
+        Object.entries(columns).forEach(([status, [countId, listId]]) => {
+          const stores = requests.filter((store) => store.status === status);
+          $(countId).textContent = String(stores.length);
+          $(listId).innerHTML = stores.length ? stores.map((store) => `
+            <div class="item-card">${store.logoUrl ? `<img class="marketplace-media" src="${escapeHtml(store.logoUrl)}" alt="${escapeHtml(store.businessName)} logo" style="max-width:120px;max-height:120px;margin-bottom:10px;">` : ''}<h4>${escapeHtml(store.businessName)}</h4><p>${escapeHtml(store.ownerName || store.ownerEmail || 'Vendor')} · ${escapeHtml(store.ownerEmail || '')}</p><p>${escapeHtml(store.description)}</p>${store.reviewNote ? `<p class="muted">${escapeHtml(store.reviewNote)}</p>` : ''}${status === 'pending' ? `<div class="row-actions"><button type="button" class="mini-btn primary" data-review-store="${escapeHtml(store.id)}" data-decision="verified">Verify</button><button type="button" class="mini-btn danger" data-review-store="${escapeHtml(store.id)}" data-decision="rejected">Request changes</button></div>` : ''}</div>
+          `).join('') : '<p class="muted">No requests in this column.</p>';
+        });
+        document.querySelectorAll('[data-review-store]').forEach((button) => {
+          button.onclick = async () => {
+            const decision = button.dataset.decision;
+            const note = decision === 'rejected' ? window.prompt('What should the vendor change?', 'Please update your store details and resubmit.') : '';
+            if (decision === 'rejected' && note === null) return;
+            try {
+              const result = await api(`/api/admin/store-requests/${encodeURIComponent(button.dataset.reviewStore)}/review`, { method: 'POST', body: JSON.stringify({ decision, note: note || undefined }) });
+              if (!result.reviewed) throw new Error('Store request was not reviewed.');
+              notify(decision === 'verified' ? 'Store verified.' : 'Changes requested.');
+              await loadAdminStoreRequests();
+            } catch (error) {
+              notify(error.message);
+            }
+          };
+        });
+      } catch (error) {
+        notify(error.message);
+      }
+    }
+
     $('offer-form').addEventListener('submit', async (event) => {
       event.preventDefault();
       try {
@@ -1656,6 +1923,77 @@
         $('conversation-message').value = '';
         await openConversation(conversationId, $('conversation-title').textContent);
       } catch (error) { notify(error.message); }
+    });
+
+    $('store-profile-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        let logoUrl = currentStoreLogoUrl;
+        const [logoFile] = $('store-logo-file').files || [];
+        if (logoFile) {
+          const formData = new FormData();
+          formData.append('files', logoFile);
+          const uploadResponse = await fetch('/api/uploads', { method: 'POST', body: formData, credentials: 'include' });
+          const uploadData = await uploadResponse.json().catch(() => ({}));
+          if (!uploadResponse.ok || !uploadData.files?.[0]?.url) throw new Error(uploadData.error || 'Store logo upload failed.');
+          logoUrl = uploadData.files[0].url;
+        }
+        const result = await api('/api/store/me', { method: 'PUT', body: JSON.stringify({ businessName: $('store-business-name').value.trim(), description: $('store-description').value.trim(), logoUrl }) });
+        if (!result.submitted || !result.store) throw new Error('Store request was not submitted.');
+        currentStoreLogoUrl = result.store.logoUrl;
+        $('store-logo-file').value = '';
+        notify('Store submitted for admin review.');
+        await loadVendorDashboard();
+      } catch (error) {
+        notify(error.message);
+      }
+    });
+    $('vendor-mark-all-read').addEventListener('click', async () => {
+      try {
+        const result = await api('/api/notifications/read-all', { method: 'POST' });
+        if (!result.updated) throw new Error('Notifications were not updated.');
+        await loadVendorDashboard();
+        notify(`${Number(result.count || 0)} notifications marked read.`);
+      } catch (error) {
+        notify(error.message);
+      }
+    });
+
+    $('support-new-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        const response = await api('/api/support/threads', { method: 'POST', body: JSON.stringify({ subject: $('support-subject').value.trim(), body: $('support-first-message').value.trim() }) });
+        $('support-new-form').reset();
+        selectedUserSupportThreadId = response.thread.id;
+        await loadUserSupportThreads();
+        notify('Your message was sent to support.');
+      } catch (error) {
+        notify(error.message);
+      }
+    });
+    $('refresh-user-support').addEventListener('click', loadUserSupportThreads);
+    $('user-support-reply-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        await api(`/api/support/threads/${selectedUserSupportThreadId}/messages`, { method: 'POST', body: JSON.stringify({ body: $('user-support-reply').value.trim() }) });
+        $('user-support-reply').value = '';
+        await loadUserSupportThreads();
+        notify('Reply sent.');
+      } catch (error) {
+        notify(error.message);
+      }
+    });
+    $('refresh-admin-support').addEventListener('click', loadAdminSupportThreads);
+    $('admin-support-reply-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        await api(`/api/admin/support/threads/${selectedAdminSupportThreadId}/messages`, { method: 'POST', body: JSON.stringify({ body: $('admin-support-reply').value.trim() }) });
+        $('admin-support-reply').value = '';
+        await loadAdminSupportThreads();
+        notify('Reply sent to the user.');
+      } catch (error) {
+        notify(error.message);
+      }
     });
 
     function toggleTab(tabName) {
@@ -1873,6 +2211,7 @@
           body: JSON.stringify({
             title: $('task-title').value,
             videoUrl: $('task-url').value,
+            category: $('task-category').value,
             description: $('task-description').value,
             amountDollars: Number($('task-amount').value),
             seconds: 60
@@ -2182,11 +2521,35 @@
 
         if (currentUser?.isAdmin || currentUser?.role === 'admin') {
           const moderation = await api('/api/admin/content').catch(() => ({ products: productItems, listings: listingItems, gigs: gigItems }));
+          const usersResponse = await api('/api/admin/users').catch(() => ({ users: [] }));
+          const adminUsers = usersResponse.users || [];
           const adminProductItems = moderation.products || [];
           const adminListingItems = moderation.listings || [];
           const adminGigItems = moderation.gigs || [];
           const ads = promotionAds;
           $('ads-tag').textContent = `${ads.length} active`;
+          $('admin-users-count').textContent = String(adminUsers.length);
+          $('admin-users-list').innerHTML = adminUsers.length ? adminUsers.map((user) => `
+            <div class="item-card">
+              <h4>${escapeHtml(user.name || 'Unnamed user')}</h4>
+              <p>${escapeHtml(user.email || user.phone || 'No contact details')} · ${escapeHtml(user.role || 'worker')}</p>
+              <div class="item-row"><span>${new Date(user.createdAt).toLocaleDateString()}</span><span class="tag">${escapeHtml(user.accountStatus || 'active')}</span></div>
+              ${user.accountStatus === 'removed' ? '' : `<div class="row-actions"><button type="button" class="mini-btn danger" data-remove-user="${escapeHtml(user.id)}">Remove account</button></div>`}
+            </div>
+          `).join('') : '<p class="muted">No registered users.</p>';
+          document.querySelectorAll('[data-remove-user]').forEach((button) => {
+            button.onclick = async () => {
+              if (!window.confirm('Remove this account and unpublish its marketplace content?')) return;
+              try {
+                const result = await api(`/api/admin/users/${encodeURIComponent(button.dataset.removeUser)}`, { method: 'DELETE' });
+                if (!result.removed) throw new Error('The account was not removed.');
+                notify('Account removed and content unpublished.');
+                await loadDashboard();
+              } catch (error) {
+                notify(error.message);
+              }
+            };
+          });
           $('ads-list').innerHTML = ads.length ? ads.slice(0, 6).map((ad) => `
             <div class="item-card">
               <h4>${escapeHtml(ad.title)}</h4>
@@ -2207,7 +2570,9 @@
           $('admin-products-list').innerHTML = adminProductItems.length ? adminProductItems.slice(0, 20).map((item) => `
             <div class="item-card">
               <h4>${escapeHtml(item.title)}</h4>
-              <p>${escapeHtml(item.category || 'Product')} • ${formatMoney(item.price_cents || item.priceCents || 0)}</p>
+              <p>${escapeHtml(item.owner_name || 'Unknown user')} · ${escapeHtml(item.category || 'Product')} · ${formatMoney(item.price_cents || item.priceCents || 0)}</p>
+              <p>${escapeHtml(item.description || 'No description supplied.')}</p>
+              ${renderListingMedia({ ...item, media: item.media })}
               <div class="row-actions"><button type="button" class="mini-btn danger" data-delete-content="products" data-delete-id="${item.id}">Delete</button></div>
             </div>
           `).join('') : '<p class="muted">No products available.</p>';
@@ -2216,7 +2581,9 @@
           $('admin-listings-list').innerHTML = adminListingItems.length ? adminListingItems.slice(0, 20).map((item) => `
             <div class="item-card">
               <h4>${escapeHtml(item.title)}</h4>
-              <p>${escapeHtml(item.type || 'Marketing listing')} • ${formatMoney(item.priceCents || 0)}</p>
+              <p>${escapeHtml(item.owner_name || 'Unknown user')} · ${escapeHtml(item.type || 'Marketing listing')} · ${formatMoney(item.price_cents || item.priceCents || 0)}</p>
+              <p>${escapeHtml(item.description || 'No description supplied.')}</p>
+              ${renderListingMedia(item)}
               <div class="row-actions"><button type="button" class="mini-btn danger" data-delete-content="listings" data-delete-id="${item.id}">Delete</button></div>
             </div>
           `).join('') : '<p class="muted">No marketing listings available.</p>';
@@ -2225,7 +2592,9 @@
           $('admin-gigs-list').innerHTML = adminGigItems.length ? adminGigItems.slice(0, 20).map((item) => `
             <div class="item-card">
               <h4>${escapeHtml(item.title)}</h4>
-              <p>${escapeHtml(item.category || 'Gig')} • ${formatMoney(item.price_cents || item.priceCents || 0)}</p>
+              <p>${escapeHtml(item.owner_name || 'Unknown user')} · ${escapeHtml(item.category || 'Gig')} · ${formatMoney(item.price_cents || item.priceCents || 0)}</p>
+              <p>${escapeHtml(item.description || 'No description supplied.')}</p>
+              ${renderListingMedia({ ...item, media: (() => { try { return typeof item.portfolio === 'string' ? JSON.parse(item.portfolio) : item.portfolio || []; } catch { return []; } })() })}
               <div class="row-actions"><button type="button" class="mini-btn danger" data-delete-content="gigs" data-delete-id="${item.id}">Delete</button></div>
             </div>
           `).join('') : '<p class="muted">No gigs available.</p>';
@@ -2233,13 +2602,15 @@
           const adminMediaItems = moderation.media || [];
           $('admin-tasks-count').textContent = String(adminTaskItems.length);
           $('admin-tasks-list').innerHTML = adminTaskItems.length ? adminTaskItems.slice(0, 20).map((item) => `
-            <div class="item-card"><h4>${escapeHtml(item.title)}</h4><p>${escapeHtml(item.status || 'Task')} • ${Number(item.seconds || 0)} sec</p><div class="row-actions"><button type="button" class="mini-btn danger" data-delete-content="tasks" data-delete-id="${item.id}">Delete</button></div></div>
+            <div class="item-card"><h4>${escapeHtml(item.title)}</h4><p>${escapeHtml(item.owner_name || 'Unknown user')} · ${escapeHtml(item.category || 'Task')} · ${escapeHtml(item.status || 'Task')} · ${Number(item.seconds || 0)} sec</p><p>${escapeHtml(item.description || 'No description supplied.')}</p>${/^https?:\/\/.+\.(mp4|webm|mov)(?:[?#].*)?$/i.test(String(item.video_url || '')) ? `<video class="marketplace-media" src="${escapeHtml(item.video_url)}" controls preload="metadata"></video>` : /^https?:\/\//i.test(String(item.video_url || '')) ? `<p><a href="${escapeHtml(item.video_url)}" target="_blank" rel="noopener noreferrer">Open submitted video</a></p>` : '<p class="muted">No valid video URL supplied.</p>'}<div class="row-actions"><button type="button" class="mini-btn danger" data-delete-content="tasks" data-delete-id="${item.id}">Delete</button></div></div>
           `).join('') : '<p class="muted">No tasks available.</p>';
           $('admin-media-count').textContent = String(adminMediaItems.length);
           $('admin-media-list').innerHTML = adminMediaItems.length ? adminMediaItems.slice(0, 20).map((item) => `
-            <div class="item-card"><h4>${escapeHtml(item.filename)}</h4><p>${escapeHtml(item.purpose || 'User upload')} • ${escapeHtml(item.mimeType || '')}</p><div class="row-actions"><button type="button" class="mini-btn danger" data-delete-content="media" data-delete-id="${item.id}">Delete</button></div></div>
+            <div class="item-card"><h4>${escapeHtml(item.userName || item.userEmail || 'Unknown user')}</h4><p>${escapeHtml(item.filename)} · ${escapeHtml(item.purpose || 'User upload')} · ${escapeHtml(item.mimeType || '')}</p>${item.mimeType?.startsWith('video/') ? `<video class="marketplace-media" src="${escapeHtml(item.url)}" controls preload="metadata"></video>` : item.mimeType?.startsWith('image/') ? `<img class="marketplace-media" src="${escapeHtml(item.url)}" alt="Upload by ${escapeHtml(item.userName || 'user')}" loading="lazy">` : ''}<div class="row-actions"><button type="button" class="mini-btn danger" data-delete-content="media" data-delete-id="${item.id}">Delete</button></div></div>
           `).join('') : '<p class="muted">No user uploads available.</p>';
           bindAdminContentDeleteButtons();
+          await loadAdminSupportThreads();
+          await loadAdminStoreRequests();
         }
 
         document.querySelectorAll('[data-offer-type]').forEach((button) => {
@@ -2257,7 +2628,7 @@
           };
         });
 
-        await loadConversations();
+        await Promise.all([loadConversations(), loadUserSupportThreads(), loadVendorDashboard()]);
 
         const summaryCount = Number(summary.activeTasks || taskItems.length);
         $('metric-tasks').textContent = String(summaryCount);
@@ -2271,6 +2642,7 @@
       $('app').classList.remove('hidden');
       currentUser = user || currentUser;
       syncAdminNavVisibility(currentUser);
+      await loadCategories();
       await hydrateProfile();
       await loadPublicStats();
       await loadDashboard();
@@ -2284,7 +2656,8 @@
           name: $('profile-name-field').value.trim(),
           phone: $('profile-phone').value.trim(),
           bio: $('profile-bio').value.trim(),
-          country: $('profile-country').value || 'US'
+          country: $('profile-country').value || 'US',
+          category: $('profile-category').value
         };
         await api('/api/profile', {
           method: 'PUT',

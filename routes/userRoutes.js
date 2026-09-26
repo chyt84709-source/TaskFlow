@@ -57,7 +57,48 @@ router.get('/api/summary', async (_req, res, next) => {
   }
 });
 
-router.get('/api/me', (req, res) => res.json({ user: req.session.user || null }));
+router.get('/api/me', async (req, res, next) => {
+  if (!req.session.user || req.session.user.isAdmin || req.session.user.role === 'admin') return res.json({ user: req.session.user || null });
+  try {
+    const result = await db.query('SELECT account_status FROM users WHERE id=$1', [req.session.user.id]);
+    if (result.rows[0]?.account_status !== 'active') {
+      req.session = null;
+      return res.json({ user: null });
+    }
+    res.json({ user: req.session.user });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/api/notifications', requireUser, async (req, res, next) => {
+  try {
+    const result = await db.query(`SELECT id,kind,body,read_at AS "readAt",created_at AS "createdAt"
+      FROM notifications WHERE user_id=$1 ORDER BY created_at DESC LIMIT 50`, [req.session.user.id]);
+    res.json({ notifications: result.rows, unreadCount: result.rows.filter((item) => !item.readAt).length });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/api/notifications/:id/read', requireUser, async (req, res, next) => {
+  try {
+    const result = await db.query('UPDATE notifications SET read_at=NOW() WHERE id=$1 AND user_id=$2 RETURNING id', [req.params.id, req.session.user.id]);
+    if (!result.rows[0]) return res.status(404).json({ error: 'Notification not found.' });
+    res.json({ updated: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/api/notifications/read-all', requireUser, async (req, res, next) => {
+  try {
+    const result = await db.query('UPDATE notifications SET read_at=NOW() WHERE user_id=$1 AND read_at IS NULL', [req.session.user.id]);
+    res.json({ updated: true, count: result.rowCount });
+  } catch (error) {
+    next(error);
+  }
+});
 
 router.get('/api/currency', requireUser, async (req, res, next) => {
   try {
@@ -191,10 +232,12 @@ router.post('/api/profile/avatar', requireUser, imageUpload.single('file'), asyn
 
 router.get('/api/media/:id', requireUser, async (req, res, next) => {
   try {
-    const result = await db.query('SELECT filename,mime_type AS "mimeType",purpose,user_id AS "userId" FROM media_files WHERE id=$1', [req.params.id]);
+    const result = await db.query('SELECT m.filename,m.mime_type AS "mimeType",m.purpose,m.user_id AS "userId",u.account_status AS "accountStatus" FROM media_files m LEFT JOIN users u ON u.id=m.user_id WHERE m.id=$1', [req.params.id]);
     const media = result.rows[0];
     const sharedMedia = media?.purpose === 'marketplace-media' || media?.purpose === 'ad-media';
-    if (!media || (!sharedMedia && media.userId !== req.session.user.id)) return res.status(404).end();
+    const adminAccess = req.session.user?.isAdmin || req.session.user?.role === 'admin';
+    const ownerCanShare = sharedMedia && media.accountStatus === 'active';
+    if (!media || (!adminAccess && !ownerCanShare && media.userId !== req.session.user.id)) return res.status(404).end();
     try {
       const encrypted = await readEncryptedImage(media.filename);
       res.type(media.mimeType).send(decryptImage(encrypted));
@@ -286,6 +329,7 @@ router.put('/api/profile', requireUser, async (req, res, next) => {
       bio: z.string().max(500).optional(),
       location: z.string().max(120).optional(),
       country: z.string().max(80).optional(),
+      category: z.string().max(120).optional(),
       avatarUrl: z.string().max(500).refine((value) => value.startsWith('/') || /^https?:\/\//.test(value), 'Invalid avatar URL').optional(),
       skills: z.string().max(500).optional(),
       phone: z.string().max(40).optional(),
@@ -299,7 +343,7 @@ router.put('/api/profile', requireUser, async (req, res, next) => {
     if (values.country) await db.query('UPDATE users SET country=$1 WHERE id=$2', [normalizeCountry(values.country), req.session.user.id]);
     if (values.avatarUrl) await db.query('UPDATE users SET avatar_url=$1 WHERE id=$2', [values.avatarUrl, req.session.user.id]);
 
-    await db.query(`INSERT INTO profiles (id, user_id, bio, location, avatar_url, skills, social_links, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (user_id) DO UPDATE SET bio = EXCLUDED.bio, location = EXCLUDED.location, avatar_url = EXCLUDED.avatar_url, skills = EXCLUDED.skills`, [nanoid(), req.session.user.id, values.bio || null, values.location || null, values.avatarUrl || null, values.skills || null, JSON.stringify({}), new Date().toISOString()]);
+    await db.query(`INSERT INTO profiles (id, user_id, bio, location, avatar_url, skills, category, social_links, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (user_id) DO UPDATE SET bio = EXCLUDED.bio, location = EXCLUDED.location, avatar_url = EXCLUDED.avatar_url, skills = EXCLUDED.skills, category = EXCLUDED.category`, [nanoid(), req.session.user.id, values.bio || null, values.location || null, values.avatarUrl || null, values.skills || null, values.category || null, JSON.stringify({}), new Date().toISOString()]);
 
     req.session.user.name = values.name || req.session.user.name;
     req.session.user.country = normalizeCountry(values.country || req.session.user.country || 'US');
