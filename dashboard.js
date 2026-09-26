@@ -83,40 +83,33 @@ function notificationMarkup(items) {
 
 async function renderOverview() {
   pageFrame('overview', `
-    <div class="metric-grid">
-      <article class="metric"><div class="metric-top"><span>Wallet</span><i data-lucide="wallet"></i></div><strong id="metric-wallet">$0</strong><small>Available balance</small></article>
-      <article class="metric"><div class="metric-top"><span>Active tasks</span><i data-lucide="list-checks"></i></div><strong id="metric-tasks">0</strong><small>Opportunities on TaskFlow</small></article>
-      <article class="metric"><div class="metric-top"><span>Live listings</span><i data-lucide="store"></i></div><strong id="metric-listings">0</strong><small>Marketplace listings</small></article>
-      <article class="metric"><div class="metric-top"><span>Gigs</span><i data-lucide="briefcase-business"></i></div><strong id="metric-gigs">0</strong><small>Services available</small></article>
-    </div>
     <div class="dashboard-columns">
       <div class="column">
+        <div class="metric-grid">
+          <article class="metric"><div class="metric-top"><span>Wallet</span><i data-lucide="wallet"></i></div><strong id="metric-wallet">$0</strong><small>Available balance</small></article>
+          <article class="metric"><div class="metric-top"><span>Active tasks</span><i data-lucide="list-checks"></i></div><strong id="metric-tasks">0</strong><small>Opportunities on TaskFlow</small></article>
+          <article class="metric"><div class="metric-top"><span>Gigs</span><i data-lucide="briefcase-business"></i></div><strong id="metric-gigs">0</strong><small>Services available</small></article>
+        </div>
         <section class="panel"><div class="panel-head"><div><h2>Messages & offers</h2><p class="panel-subtitle">Conversations and offers from other members.</p></div><button class="button" type="button" data-refresh-overview><i data-lucide="refresh-cw"></i>Refresh</button></div><div id="overview-messages">${emptyState('No conversations or offers yet.')}</div></section>
-        <section class="panel"><div class="panel-head"><h2>Profile & trust</h2><span class="badge" id="overview-tier">Standard</span></div><div class="data-row"><strong>Account</strong><span id="overview-identity">Husnain</span></div><div class="trust-grid"><div class="trust-stat"><span>Trust score</span><strong id="overview-trust">Not rated</strong></div><div class="trust-stat"><span>Wallet</span><strong id="overview-wallet-small">$0</strong></div><div class="trust-stat"><span>Country</span><strong id="overview-country">US</strong></div><div class="trust-stat"><span>Escrow</span><strong>Protected</strong></div></div></section>
-        <section class="panel"><div class="panel-head"><h2>Operational controls</h2><span class="badge">Live</span></div><div class="rows"><div class="data-row"><strong>Wallet security</strong><span>Enabled</span></div><div class="data-row"><strong>Marketplace fees</strong><span>1% + 5% commission</span></div><div class="data-row"><strong>Escrow verification</strong><span>Manual review</span></div></div></section>
+        <section class="panel"><div class="panel-head"><h2>Profile & trust</h2><span class="badge" id="overview-tier">Standard</span></div><div class="rows"><div class="data-row"><strong>Wallet security</strong><span>Enabled</span></div><div class="data-row"><strong>Marketplace fees</strong><span>1% + 5% commission</span></div><div class="data-row"><strong>Escrow verification</strong><span>Manual review</span></div></div></section>
       </div>
       <div class="column">
-        <section class="panel"><div class="panel-head"><div><h2>Publish task</h2><p class="panel-subtitle">Post a new opportunity.</p></div><a class="button-quiet" href="/tasks" data-route="tasks">Full form</a></div><form id="quick-task-form"><div class="field"><label for="quick-title">Task title</label><input id="quick-title" required minlength="3" maxlength="160" placeholder="Review a product demo"></div><div class="field"><label for="quick-video">Video URL</label><input id="quick-video" type="url" required placeholder="https://example.com/video"></div><div class="field"><label for="quick-description">Description</label><textarea id="quick-description" required placeholder="What should the worker do?"></textarea></div><div class="field"><label for="quick-category">Category</label><select id="quick-category" required><option value="">Loading categories...</option></select></div><div class="field"><label for="quick-budget">Budget (USD)</label><input id="quick-budget" type="number" min="1" step="0.01" value="10" required></div><button class="button button-primary" type="submit">Publish task</button></form></section>
+        <section class="panel"><div class="panel-head"><div><h2>Publish task</h2></div><span class="badge">Simple</span></div><form id="quick-task-form"><div class="field"><label for="quick-title">Task title</label><input id="quick-title" required minlength="3" maxlength="160" placeholder="Task title"></div><div class="field"><label for="quick-description">Task description</label><textarea id="quick-description" required placeholder="Task description"></textarea></div><div class="field"><label for="quick-category">Category</label><select id="quick-category" required><option value="">Loading categories...</option></select></div><details class="task-details"><summary>Video and payout details</summary><div class="field"><label for="quick-video">Video URL</label><input id="quick-video" type="url" required placeholder="https://example.com/video"></div><div class="field"><label for="quick-budget">Budget (USD)</label><input id="quick-budget" type="number" min="1" step="0.01" value="10" required></div></details><button class="button button-primary" type="submit">Publish task</button></form></section>
         <section class="panel"><div class="panel-head"><h2>Recent notifications</h2><a href="/vendor" class="button-quiet" data-route="vendor">View all</a></div><div class="feed" id="overview-notifications">${emptyState('No recent notifications.')}</div></section>
       </div>
     </div>`);
-  const [summary, wallet, tasks, listings, gigs, notifications, offers] = await Promise.all([
+  const [summary, wallet, tasks, gigs, notifications, offers] = await Promise.all([
     api('/api/summary').catch(() => ({})), api('/api/wallet').catch(() => ({ balanceCents: 0 })),
-    api('/api/tasks').catch(() => ({ tasks: [] })), api('/api/listings').catch(() => ({ listings: [] })),
+    api('/api/tasks').catch(() => ({ tasks: [] })),
     api('/api/gigs').catch(() => ({ gigs: [] })), api('/api/notifications').catch(() => ({ notifications: [] })),
     api('/api/content-offers').catch(() => ({ offers: [] }))
   ]);
   const balance = Number(wallet.balanceCents || 0);
   $('#metric-wallet').textContent = money(balance);
-  $('#overview-wallet-small').textContent = money(balance);
   $('#metric-tasks').textContent = String(tasks.tasks?.length ?? summary.activeTasks ?? 0);
-  $('#metric-listings').textContent = String(listings.listings?.length ?? summary.activeListings ?? 0);
   $('#metric-gigs').textContent = String(gigs.gigs?.length ?? 0);
   $('#overview-notifications').innerHTML = notificationMarkup(notifications.notifications || []);
-  $('#overview-identity').textContent = currentUser?.name || 'Husnain';
   $('#overview-tier').textContent = (currentUser?.subscriptionTier || 'standard').replace(/^./, (letter) => letter.toUpperCase());
-  $('#overview-trust').textContent = currentUser?.trustScore == null ? 'Not rated' : `${currentUser.trustScore}%`;
-  $('#overview-country').textContent = currentUser?.country || 'US';
   $('#overview-messages').innerHTML = offers.offers?.length ? offers.offers.slice(0, 5).map((offer) => `<div class="data-row"><div><strong>${escapeHtml(offer.content_type)} offer</strong><small>${escapeHtml(offer.status)}</small></div><span>${money(offer.amount_cents)}</span></div>`).join('') : emptyState('No conversations or offers yet.');
   const categories = await loadCategories();
   $('#quick-category').innerHTML = categoryOptions(categories);
@@ -323,6 +316,10 @@ document.addEventListener('click', async (event) => {
   }
 });
 
+document.addEventListener('invalid', (event) => {
+  const details = event.target.closest('details.task-details');
+  if (details) details.open = true;
+}, true);
 document.addEventListener('submit', onSubmit);
 document.addEventListener('input', (event) => { if (event.target.id === 'market-search') renderMarketplaceCards(marketplaceItems); });
 document.addEventListener('change', (event) => { if (event.target.id === 'market-category') renderMarketplaceCards(marketplaceItems); });

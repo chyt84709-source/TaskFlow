@@ -100,6 +100,9 @@
     .field textarea { min-height: 86px; resize: vertical; }
     .field input:focus, .field select:focus, .field textarea:focus, .filter-input:focus { border-color: #5eead4; box-shadow: 0 0 0 3px rgba(20,184,166,.1); }
     .form-actions { display: flex; align-items: center; gap: 8px; }
+    .task-details { margin: 0 0 13px; }
+    .task-details summary { width: fit-content; color: var(--muted); font-size: 10px; font-weight: 600; cursor: pointer; }
+    .task-details[open] summary { margin-bottom: 12px; }
     .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
     .listing-placeholder { display: grid; place-items: center; height: 150px; background: #f1f5f9; color: #94a3b8; }
     .listing-placeholder svg { width: 22px; height: 22px; }
@@ -122,43 +125,43 @@
     @media (max-width: 860px) { .shell { grid-template-columns: 1fr; } .sidebar { position: static; height: auto; padding: 12px 14px; border-right: 0; border-bottom: 1px solid var(--line); } .brand { padding: 0 6px 12px; } .nav { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: thin; } .nav-link { flex: 0 0 auto; min-height: 36px; padding: 8px 10px; } .sidebar-bottom { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; padding-top: 8px; } .sidebar-bottom .sidebar-user { padding: 4px; } .dashboard-columns { grid-template-columns: 1fr; } }
     @media (max-width: 620px) { .main { padding: 19px 14px 34px; } .topbar { align-items: stretch; gap: 10px; margin-bottom: 21px; } .search { flex-basis: 100%; max-width: none; } .top-actions { justify-content: space-between; flex-wrap: wrap; } .profile-copy { display: none; } .metric-grid { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 9px; } .metric { padding: 14px; } .metric strong { font-size: 23px; } .panel { padding: 15px; } .form-grid { grid-template-columns: 1fr; } .field-full { grid-column: auto; } .cards-grid { grid-template-columns: repeat(auto-fill, minmax(155px,1fr)); gap: 9px; } .listing-card img, .listing-card video { height: 120px; } .page-heading h1 { font-size: 22px; } }
   </style>
-+</head>
-+<body>
-+  <div class="shell">
-+    <aside class="sidebar">
-+      <a class="brand" href="/overview" data-route="overview"><span class="brand-mark"><i data-lucide="arrow-up-right"></i></span>TaskFlow</a>
-+      <nav class="nav" aria-label="Main navigation">
-+        <a class="nav-link" href="/overview" data-route="overview"><i data-lucide="layout-dashboard"></i>Overview</a>
-+        <a class="nav-link" href="/tasks" data-route="tasks"><i data-lucide="list-checks"></i>Tasks</a>
-+        <a class="nav-link" href="/marketplace" data-route="marketplace"><i data-lucide="store"></i>Marketplace</a>
-+        <a class="nav-link" href="/products" data-route="products"><i data-lucide="package"></i>Products</a>
-+        <a class="nav-link" href="/vendor" data-route="vendor"><i data-lucide="building-2"></i>Vendor dashboard</a>
-+        <a class="nav-link" href="/gigs" data-route="gigs"><i data-lucide="briefcase-business"></i>Gigs</a>
-+        <a class="nav-link" href="/wallet" data-route="wallet"><i data-lucide="wallet"></i>Wallet</a>
-+        <a class="nav-link" href="/profile" data-route="profile"><i data-lucide="user-round"></i>Profile</a>
-+        <a class="nav-link" href="/support" data-route="support"><i data-lucide="life-buoy"></i>Contact support</a>
-+        <a class="nav-link" href="/premium" data-route="premium"><i data-lucide="sparkles"></i>Premium</a>
-+      </nav>
-+      <div class="sidebar-bottom">
-+        <a class="nav-link" href="/settings" data-route="settings"><i data-lucide="settings-2"></i>Settings</a>
-+        <button class="nav-link" id="sign-out" type="button"><i data-lucide="log-out"></i>Sign out</button>
-+        <div class="sidebar-user"><span class="avatar" data-user-initials>TF</span><span class="sidebar-user-copy"><strong data-user-name>Husnain</strong><small data-user-email>Account</small></span></div>
-+      </div>
-+    </aside>
-+    <main class="main">
-+      <header class="topbar">
-+        <label class="search"><i data-lucide="search"></i><input id="global-search" type="search" placeholder="Search tasks, listings, products, gigs..." aria-label="Search TaskFlow"></label>
-+        <div class="top-actions">
-+          <a class="button button-primary" href="/premium" data-route="premium">Upgrade to Premium</a>
-+          <a class="button" href="/profile" data-route="profile">Edit profile</a>
-+          <div class="profile-pill"><span class="avatar" data-user-initials>TF</span><span class="profile-copy"><strong><span data-user-name>Husnain</span><span class="verify" data-verified>✓</span><span class="premium" data-premium>PREMIUM</span></strong><small data-user-email>Account</small></span></div>
-+        </div>
-+      </header>
-+      <div class="page-heading"><p class="eyebrow" id="page-eyebrow">Workspace</p><h1 id="page-title">Overview</h1></div>
-+      <div class="page-content" id="page-content" aria-live="polite"></div>
-+    </main>
-+  </div>
-+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
-+  <script src="/dashboard.js" defer></script>
-+</body>
-+</html>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="/overview" data-route="overview"><span class="brand-mark"><i data-lucide="arrow-up-right"></i></span>TaskFlow</a>
+      <nav class="nav" aria-label="Main navigation">
+        <a class="nav-link" href="/overview" data-route="overview"><i data-lucide="layout-dashboard"></i>Overview</a>
+        <a class="nav-link" href="/tasks" data-route="tasks"><i data-lucide="list-checks"></i>Tasks</a>
+        <a class="nav-link" href="/marketplace" data-route="marketplace"><i data-lucide="store"></i>Marketplace</a>
+        <a class="nav-link" href="/products" data-route="products"><i data-lucide="package"></i>Products</a>
+        <a class="nav-link" href="/vendor" data-route="vendor"><i data-lucide="building-2"></i>Vendor dashboard</a>
+        <a class="nav-link" href="/gigs" data-route="gigs"><i data-lucide="briefcase-business"></i>Gigs</a>
+        <a class="nav-link" href="/wallet" data-route="wallet"><i data-lucide="wallet"></i>Wallet</a>
+        <a class="nav-link" href="/profile" data-route="profile"><i data-lucide="user-round"></i>Profile</a>
+        <a class="nav-link" href="/support" data-route="support"><i data-lucide="life-buoy"></i>Contact support</a>
+        <a class="nav-link" href="/premium" data-route="premium"><i data-lucide="sparkles"></i>Premium</a>
+      </nav>
+      <div class="sidebar-bottom">
+        <a class="nav-link" href="/settings" data-route="settings"><i data-lucide="settings-2"></i>Settings</a>
+        <button class="nav-link" id="sign-out" type="button"><i data-lucide="log-out"></i>Sign out</button>
+        <div class="sidebar-user"><span class="avatar" data-user-initials>TF</span><span class="sidebar-user-copy"><strong data-user-name>Husnain</strong><small data-user-email>Account</small></span></div>
+      </div>
+    </aside>
+    <main class="main">
+      <header class="topbar">
+        <label class="search"><i data-lucide="search"></i><input id="global-search" type="search" placeholder="Search tasks, listings, products, gigs..." aria-label="Search TaskFlow"></label>
+        <div class="top-actions">
+          <a class="button button-primary" href="/premium" data-route="premium">Upgrade to Premium</a>
+          <a class="button" href="/profile" data-route="profile">Edit profile</a>
+          <div class="profile-pill"><span class="avatar" data-user-initials>TF</span><span class="profile-copy"><strong><span data-user-name>Husnain</span><span class="verify" data-verified>✓</span><span class="premium" data-premium>PREMIUM</span></strong><small data-user-email>Account</small></span></div>
+        </div>
+      </header>
+      <div class="page-heading"><p class="eyebrow" id="page-eyebrow">Workspace</p><h1 id="page-title">Overview</h1></div>
+      <div class="page-content" id="page-content" aria-live="polite"></div>
+    </main>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="/dashboard.js" defer></script>
+</body>
+</html>
