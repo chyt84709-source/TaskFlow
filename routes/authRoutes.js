@@ -221,7 +221,7 @@ router.post('/api/auth/phone/verify', async (req, res, next) => {
 });
 
 router.get('/api/auth/google', (req, res) => {
-  if (req.session.user) return res.redirect('/#overview');
+  if (req.session.user) return res.redirect('/overview');
   if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) return res.status(501).json({ error: 'Google OAuth is not configured' });
   const state = crypto.randomBytes(24).toString('hex');
   req.session.oauthState = state;
@@ -259,7 +259,7 @@ router.get('/api/auth/google/callback', async (req, res, next) => {
     const user = result.rows[0];
     if (user.account_status !== 'active') return res.redirect('/?auth=account-unavailable');
     req.session.user = { id: user.id, name: user.name, email: user.email, role: user.role, country: normalizeCountry(user.country || 'US'), subscriptionTier: user.subscription_tier || 'standard', trustScore: user.trust_score ?? null, twoFactor: Boolean(user.two_factor), isAdmin: false };
-    res.redirect('/#overview');
+    res.redirect('/overview');
   } catch (error) {
     next(error);
   }
