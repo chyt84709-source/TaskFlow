@@ -296,6 +296,53 @@
       display: grid;
       gap: 12px;
     }
+    .promotion-list { display: grid; gap: 14px; }
+    .promotion-card {
+      display: grid;
+      gap: 14px;
+      padding: clamp(14px, 2vw, 22px);
+      border: 1px solid #dce8e1;
+      border-radius: 14px;
+      background: linear-gradient(120deg, #f3f8f5, #fff 58%, #fff8e9);
+      overflow: hidden;
+    }
+    .promotion-kicker {
+      color: var(--primary);
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .promotion-copy h4 { margin: 5px 0; font-size: 1.2rem; }
+    .promotion-copy p { margin: 0; color: var(--muted); line-height: 1.5; }
+    .promotion-media-list { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px; min-width: 0; }
+    .promotion-media-frame {
+      display: grid;
+      place-items: center;
+      width: fit-content;
+      max-width: 100%;
+      overflow: hidden;
+      border-radius: 12px;
+      background: #17251f;
+    }
+    .promotion-media {
+      display: block;
+      width: auto;
+      height: auto;
+      max-width: 100%;
+      max-height: min(70vh, 620px);
+      object-fit: contain;
+    }
+    .promotion-link { display: inline-flex; align-items: center; gap: 8px; color: var(--primary); font-weight: 800; }
+    .marketplace-media {
+      display: block;
+      width: 100%;
+      max-height: 240px;
+      object-fit: contain;
+      border-radius: 10px;
+      background: #f2f6f3;
+    }
+    .gig-portfolio { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin: 10px 0; }
     .item-card {
       padding: 14px 14px 12px;
       border: 1px solid var(--line);
@@ -438,6 +485,10 @@
       font-size: 0.75rem;
       font-weight: 900;
       vertical-align: middle;
+    }
+    .green-tick.admin-verified-tick {
+      background: #1877f2;
+      box-shadow: 0 0 0 2px #e7f1ff;
     }
     .compact-grid {
       display: grid;
@@ -738,7 +789,7 @@
             <div><h3>Ad</h3></div>
             <span class="tag">Promotion</span>
           </div>
-          <div class="meta-list" id="promotion-list"><p class="muted">No ads right now.</p></div>
+          <div class="promotion-list" id="promotion-list"><p class="muted">No ads right now.</p></div>
         </section>
 
         <section class="section-panel" style="margin-top: 16px;">
@@ -1334,6 +1385,8 @@
     let stripeClient = null;
     let stripeElements = null;
     let stripeCardElement = null;
+    let profilePhoneCountry = 'US';
+    const countryDialCodes = { US: '+1', PK: '+92', IN: '+91', AE: '+971', GB: '+44', CA: '+1', SA: '+966', BD: '+880', NG: '+234' };
 
     function notify(message) {
       toast.textContent = message;
@@ -1379,6 +1432,7 @@
       $('profile-name-field').value = userName;
       $('profile-phone').value = user?.phone || '';
       $('profile-country').value = countryCode;
+      profilePhoneCountry = countryCode;
       $('premium-status').textContent = tierLabel;
       $('premium-fee').textContent = formatMoney(500, countryCode);
       $('premium-referral-count').textContent = `${Math.min(10, Number(user?.referral_count || user?.referralCount || 0))} / 10`;
@@ -1395,6 +1449,12 @@
       $('profile-tier-pill').textContent = tierLabel;
       $('profile-green-tick').classList.toggle('hidden', !greenTick);
       $('display-green-tick').classList.toggle('hidden', !greenTick);
+      ['profile-green-tick', 'display-green-tick'].forEach((id) => {
+        const tick = $(id);
+        tick.classList.toggle('admin-verified-tick', user?.role === 'admin' || user?.isAdmin);
+        tick.title = user?.role === 'admin' || user?.isAdmin ? 'Verified administrator' : 'Verified Premium member';
+        tick.setAttribute('aria-label', tick.title);
+      });
       $('profile-bio').value = bio;
       ['profile-avatar-pip', 'profile-avatar-pip-preview'].forEach((id) => {
         const element = $(id);
@@ -1473,8 +1533,8 @@
         if (!url) return '';
         const safeUrl = escapeHtml(url);
         return /^video\//i.test(mimeType)
-          ? `<video src="${safeUrl}" controls preload="metadata" style="width:100%;max-height:220px;border-radius:10px;"></video>`
-          : `<img src="${safeUrl}" alt="${escapeHtml(item.title)}" loading="lazy" style="width:100%;max-height:220px;object-fit:cover;border-radius:10px;">`;
+          ? `<video class="marketplace-media" src="${safeUrl}" controls preload="metadata"></video>`
+          : `<img class="marketplace-media" src="${safeUrl}" alt="${escapeHtml(item.title)}" loading="lazy">`;
       }).join('');
     }
 
@@ -1489,15 +1549,12 @@
           if (!url) return '';
           const safeUrl = escapeHtml(url);
           const isVideo = /^video\//i.test(mimeType) || /\.(mp4|webm|mov|avi|mkv)(?:$|\?)/i.test(String(url));
-          return isVideo
-            ? `<video src="${safeUrl}" autoplay muted playsinline controls preload="auto" style="max-width:100%;max-height:280px;border-radius:10px;"></video>`
-            : `<img src="${safeUrl}" alt="${escapeHtml(ad.title)}" loading="lazy" style="max-width:100%;max-height:280px;object-fit:cover;border-radius:10px;">`;
+          return `<div class="promotion-media-frame">${isVideo
+            ? `<video class="promotion-media" src="${safeUrl}" autoplay muted playsinline controls preload="metadata"></video>`
+            : `<img class="promotion-media" src="${safeUrl}" alt="${escapeHtml(ad.title)}" loading="lazy">`}</div>`;
         }).join('');
         const skipButton = adIndex === 0 ? `<button type="button" class="ghost-btn promotion-skip hidden" data-skip-promotion>Skip ad</button>` : '';
-        const content = `<div><h4>${escapeHtml(ad.title)}</h4>${mediaMarkup ? `<div class="row-actions" style="flex-wrap:wrap;">${mediaMarkup}</div>` : ''}${skipButton}</div>`;
-        return ad.destination_url
-          ? `<a href="${escapeHtml(ad.destination_url)}" target="_blank" rel="noopener noreferrer" style="display:block;color:inherit;text-decoration:none;">${content}<span class="tag" style="display:inline-block;margin-top:10px;">Visit partner</span></a>`
-          : `<div>${content}</div>`;
+        return `<article class="promotion-card"><div class="promotion-copy"><span class="promotion-kicker">Sponsored · ${escapeHtml(ad.category || 'Featured')}</span><h4>${escapeHtml(ad.title)}</h4><p>${escapeHtml(ad.description || 'Discover this featured offer.')}</p></div>${mediaMarkup ? `<div class="promotion-media-list">${mediaMarkup}</div>` : ''}${ad.destination_url ? `<a class="promotion-link" href="${escapeHtml(ad.destination_url)}" target="_blank" rel="noopener noreferrer">Explore offer <span aria-hidden="true">↗</span></a>` : ''}${skipButton}</article>`;
       }).join('') : '<p class="muted">No ads right now.</p>';
       const skipButton = document.querySelector('[data-skip-promotion]');
       if (skipButton) {
@@ -1777,7 +1834,26 @@
     });
     $('check-referrals-btn').addEventListener('click', () => activatePremium('referrals'));
     $('profile-country').addEventListener('change', (event) => {
-      $('premium-fee').textContent = formatMoney(500, event.target.value);
+      const country = event.target.value;
+      const previousDialCode = countryDialCodes[profilePhoneCountry] || '+1';
+      const nextDialCode = countryDialCodes[country] || '+1';
+      const phoneField = $('profile-phone');
+      const enteredPhone = phoneField.value.trim();
+      if (enteredPhone) {
+        const normalizedPhone = enteredPhone.replace(/[\s().-]/g, '');
+        const existingDialCode = Object.values(countryDialCodes)
+          .sort((left, right) => right.length - left.length)
+          .find((dialCode) => normalizedPhone.startsWith(dialCode));
+        const nationalNumber = normalizedPhone.startsWith(previousDialCode)
+          ? normalizedPhone.slice(previousDialCode.length)
+          : existingDialCode ? normalizedPhone.slice(existingDialCode.length)
+            : normalizedPhone.startsWith('+') ? normalizedPhone.slice(1) : normalizedPhone;
+        phoneField.value = `${nextDialCode}${nationalNumber ? ` ${nationalNumber}` : ''}`;
+      } else {
+        phoneField.value = nextDialCode;
+      }
+      profilePhoneCountry = country;
+      $('premium-fee').textContent = formatMoney(500, country);
     });
 
     $('logout').addEventListener('click', async () => {
@@ -2062,12 +2138,13 @@
         `).join('') : '<p class="muted">No products yet.</p>';
 
         $('gig-page-list').innerHTML = gigItems.length ? gigItems.slice(0, 6).map((item) => `
-          <div class="item-card"><h4>${escapeHtml(item.title)}</h4><p>${escapeHtml(item.category || 'General')}</p><div class="item-row"><span>${Number(item.delivery_days || item.deliveryDays || 0)} days</span><span class="tag">${formatMoney(item.price_cents || item.priceCents || 0)}</span></div></div>
+          <div class="item-card"><h4>${escapeHtml(item.title)}</h4>${item.portfolioMedia?.length ? `<div class="gig-portfolio">${renderListingMedia({ ...item, media: item.portfolioMedia })}</div>` : ''}<p>${escapeHtml(item.category || 'General')}</p><div class="item-row"><span>${Number(item.delivery_days || item.deliveryDays || 0)} days</span><span class="tag">${formatMoney(item.price_cents || item.priceCents || 0)}</span></div></div>
         `).join('') : '<p class="muted">No gigs available.</p>';
 
         $('gigs-list').innerHTML = gigItems.length ? gigItems.slice(0, 6).map((item) => `
           <div class="item-card">
             <h4>${escapeHtml(item.title)}</h4>
+            ${item.portfolioMedia?.length ? `<div class="gig-portfolio">${renderListingMedia({ ...item, media: item.portfolioMedia })}</div>` : ''}
             <p>${escapeHtml(item.description || 'Professional service package')}</p>
             <div class="item-row">
               <span>${escapeHtml(item.category)}</span>

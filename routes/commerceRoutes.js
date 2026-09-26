@@ -227,7 +227,33 @@ router.post('/api/ads/:id/messages', requireUser, async (req, res, next) => {
 router.get('/api/gigs', async (_req, res, next) => {
   try {
     const result = await db.query('SELECT * FROM gigs ORDER BY created_at DESC');
-    res.json({ gigs: result.rows });
+    const portfolioByGig = new Map(result.rows.map((gig) => {
+      let portfolio = gig.portfolio;
+      if (typeof portfolio === 'string') {
+        try {
+          portfolio = JSON.parse(portfolio);
+        } catch {
+          portfolio = portfolio ? [portfolio] : [];
+        }
+      }
+      return [gig.id, Array.isArray(portfolio) ? portfolio : []];
+    }));
+    const mediaIds = [...portfolioByGig.values()].flat()
+      .map((item) => typeof item === 'string' ? item.match(/^\/api\/media\/([^/?#]+)/)?.[1] : item?.url?.match(/^\/api\/media\/([^/?#]+)/)?.[1])
+      .filter(Boolean);
+    const mediaResult = mediaIds.length
+      ? await db.query('SELECT id,mime_type AS "mimeType" FROM media_files WHERE id = ANY($1::text[])', [mediaIds])
+      : { rows: [] };
+    const mediaTypes = new Map(mediaResult.rows.map((item) => [item.id, item.mimeType]));
+    const gigs = result.rows.map((gig) => ({
+      ...gig,
+      portfolioMedia: (portfolioByGig.get(gig.id) || []).map((item) => {
+        const url = typeof item === 'string' ? item : item?.url;
+        const mediaId = url?.match(/^\/api\/media\/([^/?#]+)/)?.[1];
+        return url ? { url, mimeType: mediaTypes.get(mediaId) || item?.mimeType || '' } : null;
+      }).filter(Boolean),
+    }));
+    res.json({ gigs });
   } catch (error) {
     next(error);
   }
@@ -240,7 +266,7 @@ router.post('/api/gigs', requireUser, async (req, res, next) => {
 
     const priceCents = Number(parsed.data.priceCents ?? Math.round((parsed.data.priceDollars || 0) * 100));
     const gig = { id: nanoid(), sellerId: req.session.user.id, title: parsed.data.title, description: parsed.data.description, category: parsed.data.category, priceCents, deliveryDays: parsed.data.deliveryDays, portfolioMedia: parsed.data.portfolioMedia, createdAt: new Date().toISOString() };
-    await db.query('INSERT INTO gigs (id,seller_id,title,description,category,price_cents,delivery_days,status,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)', [gig.id, gig.sellerId, gig.title, gig.description, gig.category, gig.priceCents, gig.deliveryDays, 'active', gig.createdAt]);
+    await db.query('INSERT INTO gigs (id,seller_id,title,description,category,price_cents,delivery_days,portfolio,status,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [gig.id, gig.sellerId, gig.title, gig.description, gig.category, gig.priceCents, gig.deliveryDays, JSON.stringify(gig.portfolioMedia), 'active', gig.createdAt]);
     res.status(201).json({ gig });
   } catch (error) {
     next(error);
