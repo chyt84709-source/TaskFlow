@@ -131,6 +131,7 @@ async function initializeSchema() {
     CREATE TABLE IF NOT EXISTS task_submissions (id TEXT PRIMARY KEY, task_id TEXT NOT NULL, worker_id TEXT NOT NULL, proof_url TEXT, notes TEXT, status TEXT NOT NULL DEFAULT 'submitted', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
     CREATE TABLE IF NOT EXISTS withdrawals (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, amount_cents INTEGER NOT NULL, destination TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
     CREATE TABLE IF NOT EXISTS reports (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, subject TEXT NOT NULL, reason TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
+    CREATE TABLE IF NOT EXISTS premium_requests (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, reason TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending', reviewed_by TEXT, reviewed_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
     CREATE TABLE IF NOT EXISTS categories (id TEXT PRIMARY KEY, name TEXT NOT NULL, parent_id TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
     CREATE TABLE IF NOT EXISTS wallet_cards (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, holder_name TEXT NOT NULL, card_brand TEXT NOT NULL, last4 TEXT NOT NULL, expiry TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
     CREATE TABLE IF NOT EXISTS wallet_card_verifications (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, holder_name TEXT NOT NULL, card_type TEXT NOT NULL, card_brand TEXT NOT NULL, last4 TEXT NOT NULL, expiry TEXT NOT NULL, setup_intent_id TEXT, otp_hash TEXT NOT NULL, expires_at TIMESTAMPTZ NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
@@ -272,6 +273,7 @@ function hydrateSessionUser(user) {
     role: String(user.role || 'worker'),
     country: normalizeCountry(user.country || 'US'),
     subscriptionTier: user.subscription_tier || user.subscriptionTier || 'standard',
+    greenTick: Boolean(user.green_tick ?? user.greenTick ?? (user.subscription_tier || user.subscriptionTier) === 'premium'),
     trustScore: user.trust_score ?? user.trustScore ?? null,
     twoFactor: Boolean(user.two_factor ?? user.twoFactor),
     isAdmin: Boolean(user.role === 'admin' || user.isAdmin || false)
@@ -487,8 +489,19 @@ app.post('/api/admin/login', (req, res) => { const parsed = z.object({ username:
 app.get('/api/admin/overview', requireAdmin, async (_req, res, next) => { try { const [usersCount, escrow, disputesCount, listingsCount, productsCount, adsCount, gigsCount, categoriesCount, reportsCount, users, disputes, transactions, withdrawals] = await Promise.all([db.query('SELECT COUNT(*)::int AS count FROM users'), db.query('SELECT COALESCE(SUM(amount_cents),0)::int AS total FROM transactions'), db.query("SELECT COUNT(*)::int AS count FROM disputes WHERE status='open'"), db.query("SELECT COUNT(*)::int AS count FROM listings WHERE status='flagged'"), db.query('SELECT COUNT(*)::int AS count FROM products'), db.query('SELECT COUNT(*)::int AS count FROM ads WHERE status = \'active\''), db.query('SELECT COUNT(*)::int AS count FROM gigs WHERE status = \'active\''), db.query('SELECT COUNT(*)::int AS count FROM categories'), db.query('SELECT COUNT(*)::int AS count FROM reports WHERE status = \'open\''), db.query('SELECT id,name,phone,email,role,trust_score AS "trustScore",two_factor AS "twoFactor",created_at AS "createdAt" FROM users ORDER BY created_at DESC LIMIT 100'), db.query('SELECT * FROM disputes ORDER BY created_at DESC LIMIT 100'), db.query('SELECT * FROM transactions ORDER BY created_at DESC LIMIT 100'), db.query('SELECT * FROM withdrawals ORDER BY created_at DESC LIMIT 100')]); res.json({ stats: { activeUsers: usersCount.rows[0].count, escrowCents: escrow.rows[0].total, openDisputes: disputesCount.rows[0].count, flaggedListings: listingsCount.rows[0].count, activeProducts: productsCount.rows[0].count, activeAds: adsCount.rows[0].count, activeGigs: gigsCount.rows[0].count, categories: categoriesCount.rows[0].count, openReports: reportsCount.rows[0].count }, users: users.rows, disputes: disputes.rows, transactions: transactions.rows, withdrawals: withdrawals.rows }); } catch (error) { next(error); } });
 app.get('/api/admin/users', requireAdmin, async (_req, res, next) => {
   try {
-    const result = await db.query('SELECT id,name,email,phone,role,account_status AS "accountStatus",trust_score AS "trustScore",created_at AS "createdAt" FROM users ORDER BY created_at DESC');
+    const result = await db.query('SELECT id,name,email,phone,role,account_status AS "accountStatus",subscription_tier AS "subscriptionTier",green_tick AS "greenTick",trust_score AS "trustScore",created_at AS "createdAt" FROM users ORDER BY created_at DESC');
     res.json({ users: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+app.patch('/api/admin/users/:id/premium', requireAdmin, async (req, res, next) => {
+  try {
+    const parsed = z.object({ enabled: z.boolean() }).safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Choose whether Premium should be enabled.' });
+    const result = await db.query('UPDATE users SET subscription_tier=$1,green_tick=$2,premium_source=$3,premium_activated_at=CASE WHEN $2 THEN COALESCE(premium_activated_at,NOW()) ELSE NULL END WHERE id=$4 AND role <> $5 RETURNING id,name,email,subscription_tier AS "subscriptionTier",green_tick AS "greenTick"', [parsed.data.enabled ? 'premium' : 'standard', parsed.data.enabled, parsed.data.enabled ? 'admin' : null, req.params.id, 'admin']);
+    if (!result.rows[0]) return res.status(404).json({ error: 'User not found or owner accounts cannot be changed.' });
+    res.json({ updated: true, user: result.rows[0] });
   } catch (error) {
     next(error);
   }

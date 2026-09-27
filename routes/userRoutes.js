@@ -4,11 +4,44 @@ import Stripe from 'stripe';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import { calculateInternationalTax, db, getCurrencyMeta, getRegionalPaymentMethods, hash, issueOtp, normalizeCountry, reqOtp } from '../config/database.js';
-import { requireUser } from '../utils/helpers.js';
+import { requireAdmin, requireUser } from '../utils/helpers.js';
 import { decryptImage, processAndEncryptImage, readEncryptedImage, saveEncryptedImage } from '../services/media.js';
 
 const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 }, fileFilter: (_req, file, callback) => callback(null, /^image\/(jpeg|png|webp|gif|avif|heic)$/.test(file.mimetype)) });
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
+
+router.post('/api/premium/requests', requireUser, async (req, res, next) => {
+  try {
+    const parsed = z.object({ reason: z.string().trim().max(500).default('I would like to be considered for Premium access.') }).safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: 'Enter a valid Premium request.' });
+    const existing = await db.query("SELECT id FROM premium_requests WHERE user_id=$1 AND status='pending'", [req.session.user.id]);
+    if (existing.rows[0]) return res.json({ requested: true, status: 'pending' });
+    await db.query('INSERT INTO premium_requests (id,user_id,reason,status) VALUES ($1,$2,$3,$4)', [nanoid(), req.session.user.id, parsed.data.reason, 'pending']);
+    res.status(201).json({ requested: true, status: 'pending' });
+  } catch (error) { next(error); }
+});
+
+router.get('/api/admin/premium-requests', requireAdmin, async (_req, res, next) => {
+  try {
+    const result = await db.query(`SELECT r.id,r.user_id AS "userId",r.reason,r.status,r.created_at AS "createdAt",u.name AS "userName",u.email AS "userEmail"
+      FROM premium_requests r JOIN users u ON u.id=r.user_id ORDER BY r.created_at DESC`);
+    res.json({ requests: result.rows });
+  } catch (error) { next(error); }
+});
+
+router.post('/api/admin/premium-requests/:id/review', requireAdmin, async (req, res, next) => {
+  try {
+    const parsed = z.object({ decision: z.enum(['approved', 'rejected']) }).safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Choose approve or reject.' });
+    const request = await db.query('SELECT user_id AS "userId" FROM premium_requests WHERE id=$1 AND status=$2', [req.params.id, 'pending']);
+    if (!request.rows[0]) return res.status(404).json({ error: 'Pending Premium request not found.' });
+    const approved = parsed.data.decision === 'approved';
+    await db.query('UPDATE premium_requests SET status=$1,reviewed_by=$2,reviewed_at=NOW() WHERE id=$3', [parsed.data.decision, req.session.user.id, req.params.id]);
+    await db.query('UPDATE users SET subscription_tier=$1,green_tick=$2,premium_source=$3,premium_activated_at=CASE WHEN $2 THEN NOW() ELSE NULL END WHERE id=$4', [approved ? 'premium' : 'standard', approved, approved ? 'admin' : null, request.rows[0].userId]);
+    await db.query('INSERT INTO notifications (id,user_id,kind,body,created_at) VALUES ($1,$2,$3,$4,NOW())', [nanoid(), request.rows[0].userId, 'premium', approved ? 'Your Premium request was approved. Your verified blue tick is now active.' : 'Your Premium request was not approved at this time.']);
+    res.json({ reviewed: true, approved });
+  } catch (error) { next(error); }
+});
 
 async function verifyTurnstile(token, remoteIp) {
   if (!process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY) return false;

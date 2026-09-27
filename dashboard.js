@@ -48,7 +48,10 @@ function setShellUser(user) {
   document.querySelectorAll('[data-user-email]').forEach((element) => { element.textContent = user?.email || '@taskflow'; });
   document.querySelectorAll('[data-user-initials]').forEach((element) => { element.textContent = initials(user?.name || 'Husnain'); });
   $('[data-verified]').classList.toggle('hidden', !user?.greenTick && !user?.green_tick);
-  $('[data-premium]').classList.toggle('hidden', (user?.subscriptionTier || user?.subscription_tier) !== 'premium');
+  const isPremium = (user?.subscriptionTier || user?.subscription_tier) === 'premium';
+  $('[data-tier]').textContent = isPremium ? 'PREMIUM' : 'STANDARD';
+  $('[data-tier]').classList.toggle('premium', true);
+  $('[data-verified]').classList.toggle('hidden', !user?.greenTick && !user?.green_tick);
   $('[data-route="admin"]').classList.toggle('hidden', !user?.isAdmin && user?.role !== 'admin');
 }
 
@@ -238,7 +241,7 @@ async function renderSettings() {
 }
 
 async function renderPremium() {
-  pageFrame('premium', `<div class="dashboard-columns"><section class="panel"><div class="panel-head"><h2>Premium membership</h2><span class="badge">Account boost</span></div><p class="panel-subtitle">Priority visibility, a verified profile badge, and member benefits.</p><div class="trust-grid"><div class="trust-stat"><span>Visibility</span><strong>Priority placement</strong></div><div class="trust-stat"><span>Profile</span><strong>Premium badge</strong></div><div class="trust-stat"><span>Marketplace</span><strong>Member discounts</strong></div><div class="trust-stat"><span>Referrals</span><strong>10 verified</strong></div></div></section><section class="panel"><div class="panel-head"><h2>Activate Premium</h2><span class="badge" id="premium-state">Standard</span></div><p class="panel-subtitle">Upgrade through a verified checkout or referral qualification.</p><div class="form-actions"><button class="button button-primary" id="premium-pay" type="button">Upgrade to Premium</button><button class="button" id="premium-referrals" type="button">View referrals</button></div><p class="panel-subtitle" id="premium-note"></p></section></div>`);
+  pageFrame('premium', `<div class="dashboard-columns"><section class="panel"><div class="panel-head"><h2>Premium membership</h2><span class="badge">Account boost</span></div><p class="panel-subtitle">Priority visibility, a verified profile badge, and member benefits.</p><div class="trust-grid"><div class="trust-stat"><span>Visibility</span><strong>Priority placement</strong></div><div class="trust-stat"><span>Profile</span><strong>Premium badge</strong></div><div class="trust-stat"><span>Marketplace</span><strong>Member discounts</strong></div><div class="trust-stat"><span>Referrals</span><strong>10 verified</strong></div></div></section><section class="panel"><div class="panel-head"><h2>Premium status</h2><span class="badge" id="premium-state">Standard</span></div><p class="panel-subtitle">You can pay through checkout, qualify by referrals, or request owner review.</p><div class="form-actions"><button class="button button-primary" id="premium-pay" type="button">Upgrade to Premium</button><button class="button" id="premium-referrals" type="button">View referrals</button><button class="button" id="premium-request" type="button">Request Premium</button></div><p class="panel-subtitle" id="premium-note"></p></section></div>`);
   $('#premium-state').textContent = currentUser?.subscriptionTier || 'Standard';
 }
 
@@ -253,21 +256,22 @@ async function renderAdmin() {
     return;
   }
   pageFrame('admin', `<div class="metric-grid" id="admin-metrics">${['Users', 'Products', 'Listings', 'Gigs'].map((label) => `<article class="metric"><div class="metric-top"><span>${label}</span><i data-lucide="bar-chart-3"></i></div><strong>...</strong><small>Loading owner data</small></article>`).join('')}</div><div class="stack" id="admin-content"><section class="panel"><p class="empty">Loading complete platform control center...</p></section></div>`,'Owner control center');
-  const [overview, content, users, stores, support, reports, categories, ads] = await Promise.all([
-    api('/api/admin/overview'), api('/api/admin/content'), api('/api/admin/users'), api('/api/admin/store-requests'), api('/api/admin/support/threads'), api('/api/admin/reports'), api('/api/admin/categories'), api('/api/ads')
+  const [overview, content, users, stores, support, reports, categories, ads, premiumRequests] = await Promise.all([
+    api('/api/admin/overview'), api('/api/admin/content'), api('/api/admin/users'), api('/api/admin/store-requests'), api('/api/admin/support/threads'), api('/api/admin/reports'), api('/api/admin/categories'), api('/api/ads'), api('/api/admin/premium-requests')
   ]);
   const stats = overview.stats || {};
   const metrics = [stats.activeUsers || 0, stats.activeProducts || 0, content.listings?.length || 0, stats.activeGigs || 0];
   document.querySelectorAll('#admin-metrics .metric strong').forEach((element, index) => { element.textContent = String(metrics[index]); });
   const action = (type, id, label = 'Delete') => `<button class="button" type="button" data-admin-delete="${type}" data-id="${escapeHtml(id)}">${label}</button>`;
-  const userRows = (users.users || []).map((user) => ({ ...user, action: user.role === 'admin' ? '<span class="badge">Protected owner</span>' : action('users', user.id, 'Remove') }));
+  const userRows = (users.users || []).map((user) => ({ ...user, action: user.role === 'admin' ? '<span class="badge">Protected owner</span>' : `<button class="button" type="button" data-premium-user="${escapeHtml(user.id)}" data-enabled="${user.subscriptionTier === 'premium'}">${user.subscriptionTier === 'premium' ? 'Revoke Premium' : 'Grant Premium'}</button> ${action('users', user.id, 'Remove')}` }));
   const taskRows = (content.tasks || []).map((task) => ({ ...task, action: action('tasks', task.id) }));
   const productRows = (content.products || []).map((product) => ({ ...product, action: action('products', product.id) }));
   const listingRows = (content.listings || []).map((listing) => ({ ...listing, action: action('listings', listing.id) }));
   const gigRows = (content.gigs || []).map((gig) => ({ ...gig, action: action('gigs', gig.id) }));
   const storeRows = (stores.requests || []).map((store) => ({ ...store, action: store.status === 'pending' ? `<button class="button" type="button" data-store-review="${escapeHtml(store.id)}" data-decision="verified">Verify</button> <button class="button" type="button" data-store-review="${escapeHtml(store.id)}" data-decision="rejected">Changes</button>` : '<span class="badge">Reviewed</span>' }));
   const adRows = (ads.ads || []).map((ad) => ({ ...ad, action: action('ads', ad.id) }));
-  $('#admin-content').innerHTML = `<section class="panel"><div class="panel-head"><div><h2>Create third-party ad</h2><p class="panel-subtitle">Upload a banner or video and choose where it appears.</p></div><span class="badge">Admin only</span></div><form id="admin-ad-form" class="form-grid"><div class="field"><label for="admin-ad-title">Campaign title</label><input id="admin-ad-title" required minlength="3" maxlength="120"></div><div class="field"><label for="admin-ad-category">Category</label><select id="admin-ad-category" required>${categoryOptions(categories.categories || [])}</select></div><div class="field"><label for="admin-ad-placement">Placement</label><select id="admin-ad-placement" required><option value="homepage-top">Homepage top</option><option value="sidebar">Sidebar</option><option value="featured">Featured</option></select></div><div class="field"><label for="admin-ad-duration">Campaign duration (days)</label><input id="admin-ad-duration" type="number" min="1" max="365" value="7" required></div><div class="field field-full"><label for="admin-ad-description">Description</label><textarea id="admin-ad-description" required minlength="5"></textarea></div><div class="field"><label for="admin-ad-media">Picture or video</label><input id="admin-ad-media" type="file" accept="image/*,video/*" required></div><div class="field"><label for="admin-ad-skip">Skip ad</label><select id="admin-ad-skip"><option value="true">Allow skip after 3 seconds</option><option value="false">Do not allow skip</option></select></div><div class="field-full"><button class="button button-primary" type="submit">Publish ad</button></div></form></section>${adminTable('Users', userRows, 'No registered users.')}${adminTable('Tasks', taskRows)}${adminTable('Products', productRows)}${adminTable('Marketplace listings', listingRows)}${adminTable('Gigs', gigRows)}${adminTable('Third-party ads', adRows)}${adminTable('Store requests', storeRows)}${adminTable('Support inbox', support.threads || [])}${adminTable('Reports', reports.reports || [])}${adminTable('Categories', categories.categories || [])}<section class="panel"><div class="panel-head"><div><h2>Platform totals</h2><p class="panel-subtitle">Owner-only operational visibility.</p></div><span class="badge">Protected API</span></div><div class="rows"><div class="data-row"><strong>Open disputes</strong><span>${Number(stats.openDisputes || 0)}</span></div><div class="data-row"><strong>Open reports</strong><span>${Number(stats.openReports || 0)}</span></div><div class="data-row"><strong>Active ads</strong><span>${Number(stats.activeAds || 0)}</span></div><div class="data-row"><strong>Categories</strong><span>${Number(stats.categories || 0)}</span></div></div></section>`;
+  const premiumRows = (premiumRequests.requests || []).map((request) => ({ ...request, title: request.userName, ownerEmail: request.userEmail, action: request.status === 'pending' ? `<button class="button" type="button" data-premium-review="${escapeHtml(request.id)}" data-decision="approved">Approve</button> <button class="button" type="button" data-premium-review="${escapeHtml(request.id)}" data-decision="rejected">Reject</button>` : '<span class="badge">Reviewed</span>' }));
+  $('#admin-content').innerHTML = `<section class="panel"><div class="panel-head"><div><h2>Create third-party ad</h2><p class="panel-subtitle">Upload a banner or video and choose where it appears.</p></div><span class="badge">Admin only</span></div><form id="admin-ad-form" class="form-grid"><div class="field"><label for="admin-ad-title">Campaign title</label><input id="admin-ad-title" required minlength="3" maxlength="120"></div><div class="field"><label for="admin-ad-category">Category</label><select id="admin-ad-category" required>${categoryOptions(categories.categories || [])}</select></div><div class="field"><label for="admin-ad-placement">Placement</label><select id="admin-ad-placement" required><option value="homepage-top">Homepage top</option><option value="sidebar">Sidebar</option><option value="featured">Featured</option></select></div><div class="field"><label for="admin-ad-duration">Campaign duration (days)</label><input id="admin-ad-duration" type="number" min="1" max="365" value="7" required></div><div class="field field-full"><label for="admin-ad-description">Description</label><textarea id="admin-ad-description" required minlength="5"></textarea></div><div class="field"><label for="admin-ad-media">Picture or video</label><input id="admin-ad-media" type="file" accept="image/*,video/*" required></div><div class="field"><label for="admin-ad-skip">Skip ad</label><select id="admin-ad-skip"><option value="true">Allow skip after 3 seconds</option><option value="false">Do not allow skip</option></select></div><div class="field-full"><button class="button button-primary" type="submit">Publish ad</button></div></form></section>${adminTable('Premium requests', premiumRows, 'No Premium requests.')}${adminTable('Users', userRows, 'No registered users.')}${adminTable('Tasks', taskRows)}${adminTable('Products', productRows)}${adminTable('Marketplace listings', listingRows)}${adminTable('Gigs', gigRows)}${adminTable('Third-party ads', adRows)}${adminTable('Store requests', storeRows)}${adminTable('Support inbox', support.threads || [])}${adminTable('Reports', reports.reports || [])}${adminTable('Categories', categories.categories || [])}<section class="panel"><div class="panel-head"><div><h2>Platform totals</h2><p class="panel-subtitle">Owner-only operational visibility.</p></div><span class="badge">Protected API</span></div><div class="rows"><div class="data-row"><strong>Open disputes</strong><span>${Number(stats.openDisputes || 0)}</span></div><div class="data-row"><strong>Open reports</strong><span>${Number(stats.openReports || 0)}</span></div><div class="data-row"><strong>Active ads</strong><span>${Number(stats.activeAds || 0)}</span></div><div class="data-row"><strong>Categories</strong><span>${Number(stats.categories || 0)}</span></div></div></section>`;
 }
 
 async function renderRoute(route) {
@@ -379,6 +383,25 @@ document.addEventListener('click', async (event) => {
     } catch (error) { notify(error.message); }
     return;
   }
+  const premiumButton = event.target.closest('[data-premium-user]');
+  if (premiumButton) {
+    try {
+      const enabled = premiumButton.dataset.enabled !== 'true';
+      await api(`/api/admin/users/${encodeURIComponent(premiumButton.dataset.premiumUser)}/premium`, { method: 'PATCH', body: JSON.stringify({ enabled }) });
+      notify(enabled ? 'Premium and verified blue tick granted.' : 'Premium and verified blue tick revoked.');
+      await renderAdmin();
+    } catch (error) { notify(error.message); }
+    return;
+  }
+  const premiumReview = event.target.closest('[data-premium-review]');
+  if (premiumReview) {
+    try {
+      await api(`/api/admin/premium-requests/${encodeURIComponent(premiumReview.dataset.premiumReview)}/review`, { method: 'POST', body: JSON.stringify({ decision: premiumReview.dataset.decision }) });
+      notify(premiumReview.dataset.decision === 'approved' ? 'Premium approved and blue tick enabled.' : 'Premium request rejected.');
+      await renderAdmin();
+    } catch (error) { notify(error.message); }
+    return;
+  }
   const storeReview = event.target.closest('[data-store-review]');
   if (storeReview) {
     const note = storeReview.dataset.decision === 'rejected' ? window.prompt('What should the vendor change?', 'Please update your store details and resubmit.') : '';
@@ -398,6 +421,13 @@ document.addEventListener('click', async (event) => {
   if (event.target.closest('#premium-referrals')) {
     try { const result = await api('/api/referrals'); $('#premium-note').textContent = `${result.referralCount || 0} verified referrals. Share your link: ${result.referralUrl}`; }
     catch (error) { notify(error.message); }
+  }
+  if (event.target.closest('#premium-request')) {
+    try {
+      await api('/api/premium/requests', { method: 'POST', body: JSON.stringify({ reason: 'Please review my account for Premium access.' }) });
+      notify('Premium request sent to the owner.');
+      $('#premium-note').textContent = 'Your request is pending owner review.';
+    } catch (error) { notify(error.message); }
   }
 });
 
