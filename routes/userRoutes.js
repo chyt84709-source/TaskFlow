@@ -42,10 +42,22 @@ router.post('/api/premium/requests', requireUser, async (req, res, next) => {
   try {
     const parsed = z.object({ reason: z.string().trim().max(500).default('I would like to be considered for Premium access.') }).safeParse(req.body || {});
     if (!parsed.success) return res.status(400).json({ error: 'Enter a valid Premium request.' });
+    const userResult = await db.query('SELECT referral_count,subscription_tier FROM users WHERE id=$1', [req.session.user.id]);
+    const user = userResult.rows[0];
+    if (!user) return res.status(404).json({ error: 'User not found.' });
+    if (user.subscription_tier === 'premium') return res.json({ requested: true, status: 'approved', tier: 'premium' });
     const existing = await db.query("SELECT id FROM premium_requests WHERE user_id=$1 AND status='pending'", [req.session.user.id]);
     if (existing.rows[0]) return res.json({ requested: true, status: 'pending' });
-    await db.query('INSERT INTO premium_requests (id,user_id,reason,status) VALUES ($1,$2,$3,$4)', [nanoid(), req.session.user.id, parsed.data.reason, 'pending']);
-    res.status(201).json({ requested: true, status: 'pending' });
+    const qualifiesByReferral = Number(user.referral_count || 0) >= 10;
+    const status = qualifiesByReferral ? 'approved' : 'pending';
+    await db.query('INSERT INTO premium_requests (id,user_id,reason,status,reviewed_by,reviewed_at) VALUES ($1,$2,$3,$4,$5,CASE WHEN $4=$6 THEN NOW() ELSE NULL END)', [nanoid(), req.session.user.id, parsed.data.reason, status, qualifiesByReferral ? 'system-referrals' : null, 'approved']);
+    if (qualifiesByReferral) {
+      await db.query("UPDATE users SET subscription_tier='premium',green_tick=TRUE,premium_source='referrals',premium_activated_at=COALESCE(premium_activated_at,NOW()) WHERE id=$1", [req.session.user.id]);
+      req.session.user.subscriptionTier = 'premium';
+      req.session.user.greenTick = true;
+      await db.query('INSERT INTO notifications (id,user_id,kind,body,created_at) VALUES ($1,$2,$3,$4,NOW())', [nanoid(), req.session.user.id, 'premium', 'Your 10 verified referrals qualified you for Premium. Your verified blue tick is now active.']);
+    }
+    res.status(201).json({ requested: true, status, tier: qualifiesByReferral ? 'premium' : 'standard' });
   } catch (error) { next(error); }
 });
 
@@ -93,11 +105,20 @@ router.get('/api/summary', async (_req, res, next) => {
 router.get('/api/me', async (req, res, next) => {
   if (!req.session.user || req.session.user.isAdmin || req.session.user.role === 'admin') return res.json({ user: req.session.user || null });
   try {
-    const result = await db.query('SELECT account_status FROM users WHERE id=$1', [req.session.user.id]);
+    const result = await db.query('SELECT account_status,subscription_tier,green_tick,name,email,role,country FROM users WHERE id=$1', [req.session.user.id]);
     if (result.rows[0]?.account_status !== 'active') {
       req.session = null;
       return res.json({ user: null });
     }
+    req.session.user = {
+      ...req.session.user,
+      name: result.rows[0].name || req.session.user.name,
+      email: result.rows[0].email || req.session.user.email || null,
+      role: result.rows[0].role || req.session.user.role,
+      country: normalizeCountry(result.rows[0].country || req.session.user.country || 'US'),
+      subscriptionTier: result.rows[0].subscription_tier || 'standard',
+      greenTick: result.rows[0].subscription_tier === 'premium' && Boolean(result.rows[0].green_tick)
+    };
     res.json({ user: req.session.user });
   } catch (error) {
     next(error);
