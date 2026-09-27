@@ -89,6 +89,15 @@
     .primary-btn:hover { background: #1e293b; }
     .page-section { display: none; }
     .page-section.active { display: grid; }
+    .promo-card { display: grid; align-content: start; gap: 8px; min-height: 142px; border-radius: 12px; padding: 15px; }
+    .promo-card span { color: var(--primary); font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+    .promo-card strong { display: block; font-size: 1rem; line-height: 1.25; }
+    .promo-card p { margin: 0; color: var(--muted); font-size: 0.82rem; line-height: 1.45; }
+    .landing-featured-ad { display: grid; grid-template-columns: minmax(0, 1fr) minmax(120px, .7fr); gap: 12px; align-items: center; margin-top: 14px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.72); }
+    .landing-featured-ad[hidden] { display: none; }
+    .landing-featured-ad img, .landing-featured-ad video { display: block; width: 100%; max-height: 130px; border-radius: 8px; object-fit: cover; background: #e9efeb; }
+    .landing-featured-ad strong { display: block; margin-bottom: 4px; }
+    .landing-featured-ad p { margin: 0; color: var(--muted); font-size: .84rem; line-height: 1.4; }
     .overview-columns { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 18px; align-items: start; }
     .overview-primary, .overview-aside { display: grid; gap: 18px; min-width: 0; }
     .quick-task-form .field { margin-bottom: 10px; }
@@ -669,6 +678,7 @@
       pointer-events: none;
       z-index: 999;
       box-shadow: var(--shadow);
+        <section class="landing-featured-ad" id="landing-featured-ad" aria-label="Featured store" hidden></section>
     }
     .toast.show { opacity: 1; transform: translateY(0); }
     .modal-backdrop {
@@ -735,9 +745,8 @@
       .tabs {
         grid-template-columns: 1fr;
       }
-      .mini-stat strong {
-        font-size: 1.5rem;
-      }
+      .mini-stat strong { font-size: 1.5rem; }
+      .promo-card strong { font-size: 1rem; }
       .item-row, .ops-item {
         flex-direction: column;
         align-items: flex-start;
@@ -828,9 +837,9 @@
           <p class="muted">A unified marketplace for verified tasks, commerce, services, influence campaigns, and wallet-based payouts.</p>
         </div>
         <div class="stats-strip">
-          <div class="mini-stat"><span>Users</span><strong id="public-users">0</strong></div>
-          <div class="mini-stat"><span>Tasks</span><strong id="public-tasks">0</strong></div>
-          <div class="mini-stat"><span>Listings</span><strong id="public-listings">0</strong></div>
+          <article class="mini-stat promo-card"><span>01 / Marketplace</span><strong>Your product, our promotion.</strong><p>Reach buyers looking for quality products.</p></article>
+          <article class="mini-stat promo-card"><span>02 / Storefront</span><strong>Your store, in our advertising.</strong><p>Build a polished home for your brand.</p></article>
+          <article class="mini-stat promo-card"><span>03 / Premium</span><strong>Get a free 7-day homepage feature.</strong><p>Premium stores can request a featured placement.</p></article>
         </div>
       </div>
     </section>
@@ -1603,6 +1612,25 @@
       </form>
     </div>
   </div>
+    async function loadPublicFeaturedStore() {
+      try {
+        const response = await api('/api/ads');
+        const ad = (response.ads || []).find((item) => item.placement === 'premium-store');
+        const slot = $('landing-featured-ad');
+        const media = Array.isArray(ad?.media) ? ad.media[0] : null;
+        const url = typeof media === 'string' ? media : media?.url;
+        if (!ad || !url || !url.startsWith('/api/media/')) return;
+        const publicUrl = url.replace('/api/media/', '/api/public/ad-media/');
+        const preview = /^video\//i.test(media?.mimeType || '')
+          ? `<video src="${escapeHtml(publicUrl)}" controls muted playsinline preload="metadata"></video>`
+          : `<img src="${escapeHtml(publicUrl)}" alt="${escapeHtml(ad.title)}" loading="lazy">`;
+        slot.innerHTML = `<div><strong>Featured store ?? ${escapeHtml(ad.title)}</strong><p>${escapeHtml(ad.description || 'Discover a Premium TaskFlow store.')}</p></div>${preview}`;
+        slot.hidden = false;
+      } catch (error) {
+        console.error('Featured store could not load:', error);
+      }
+    }
+
   <div id="conversation-modal" class="modal-backdrop hidden">
     <div class="auth-card" style="width:min(620px,92vw);">
       <div class="section-header"><h3 id="conversation-title">Conversation</h3><button type="button" class="ghost-btn" id="close-conversation-modal">Close</button></div>
@@ -1752,7 +1780,6 @@
         syncAdminNavVisibility(currentUser);
         await loadCategories();
         await hydrateProfile();
-        await loadPublicStats();
         await loadDashboard();
         setActiveView(viewFromLocation());
       } catch (error) {
@@ -2574,17 +2601,6 @@
       }
     });
 
-    async function loadPublicStats() {
-      try {
-        const data = await api('/api/summary');
-        $('public-users').textContent = data.users?.toLocaleString() || '0';
-        $('public-tasks').textContent = data.activeTasks?.toLocaleString() || '0';
-        $('public-listings').textContent = data.activeListings?.toLocaleString() || '0';
-      } catch (error) {
-        console.error(error);
-      }
-    }
-
     async function loadDashboard() {
       try {
         const [summary, tasks, listings, products, gigs, wallet, cards, adsResponse] = await Promise.all([
@@ -3004,7 +3020,7 @@
     $('marketplace-filter-category').addEventListener('change', loadDashboard);
 
     async function initializeAppShell() {
-      await loadPublicStats();
+      await loadPublicFeaturedStore();
       await restoreSessionIfLoggedIn();
     }
 

@@ -19,7 +19,7 @@ router.get('/api/categories', async (_req, res, next) => {
 
 router.get('/api/store/me', requireUser, async (req, res, next) => {
   try {
-    const result = await db.query('SELECT id,business_name AS "businessName",description,logo_url AS "logoUrl",status,review_note AS "reviewNote",submitted_at AS "submittedAt",reviewed_at AS "reviewedAt" FROM stores WHERE owner_id=$1', [req.session.user.id]);
+    const result = await db.query('SELECT id,business_name AS "businessName",category,description,logo_url AS "logoUrl",cover_url AS "coverUrl",status,review_note AS "reviewNote",submitted_at AS "submittedAt",reviewed_at AS "reviewedAt" FROM stores WHERE owner_id=$1', [req.session.user.id]);
     res.json({ store: result.rows[0] || null });
   } catch (error) {
     next(error);
@@ -30,16 +30,40 @@ router.put('/api/store/me', requireUser, async (req, res, next) => {
   try {
     const parsed = z.object({
       businessName: z.string().trim().min(2).max(120),
+      category: z.string().trim().min(2).max(80),
       description: z.string().trim().min(10).max(1500),
-      logoUrl: z.string().max(500).refine((value) => value.startsWith('/api/media/') || /^https?:\/\//i.test(value), 'Invalid logo URL').nullable().optional(),
+      logoUrl: z.string().max(500).refine((value) => value.startsWith('/api/media/') || /^https?:\/\//i.test(value), 'Invalid logo URL'),
+      coverUrl: z.string().max(500).refine((value) => value.startsWith('/api/media/') || /^https?:\/\//i.test(value), 'Invalid cover URL'),
     }).safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: 'Enter a business name and a description of at least 10 characters.' });
-    const result = await db.query(`INSERT INTO stores (id,owner_id,business_name,description,logo_url,status,submitted_at)
-      VALUES ($1,$2,$3,$4,$5,'pending',NOW())
-      ON CONFLICT (owner_id) DO UPDATE SET business_name=EXCLUDED.business_name,description=EXCLUDED.description,logo_url=EXCLUDED.logo_url,status='pending',review_note=NULL,submitted_at=NOW(),reviewed_at=NULL,reviewed_by=NULL
-      RETURNING id,business_name AS "businessName",description,logo_url AS "logoUrl",status,review_note AS "reviewNote",submitted_at AS "submittedAt"`,
-    [nanoid(), req.session.user.id, parsed.data.businessName, parsed.data.description, parsed.data.logoUrl || null]);
+    if (!parsed.success) return res.status(400).json({ error: 'Enter a business name, store type, description, profile picture, and cover photo.' });
+    const result = await db.query(`INSERT INTO stores (id,owner_id,business_name,category,description,logo_url,cover_url,status,submitted_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,'pending',NOW())
+      ON CONFLICT (owner_id) DO UPDATE SET business_name=EXCLUDED.business_name,category=EXCLUDED.category,description=EXCLUDED.description,logo_url=EXCLUDED.logo_url,cover_url=EXCLUDED.cover_url,status='pending',review_note=NULL,submitted_at=NOW(),reviewed_at=NULL,reviewed_by=NULL
+      RETURNING id,business_name AS "businessName",category,description,logo_url AS "logoUrl",cover_url AS "coverUrl",status,review_note AS "reviewNote",submitted_at AS "submittedAt"`,
+    [nanoid(), req.session.user.id, parsed.data.businessName, parsed.data.category, parsed.data.description, parsed.data.logoUrl, parsed.data.coverUrl]);
     res.status(200).json({ store: result.rows[0], submitted: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/api/store/promotion', requireUser, async (req, res, next) => {
+  try {
+    const result = await db.query(`SELECT u.subscription_tier AS "subscriptionTier",s.id,s.business_name AS "businessName",s.category,s.description,s.cover_url AS "coverUrl",s.status AS "storeStatus"
+      FROM users u LEFT JOIN stores s ON s.owner_id=u.id WHERE u.id=$1`, [req.session.user.id]);
+    const account = result.rows[0];
+    if (account?.subscriptionTier !== 'premium') return res.status(403).json({ error: 'A Premium membership is required for the free store feature.' });
+    if (account.storeStatus !== 'verified' || !account.coverUrl) return res.status(400).json({ error: 'Submit your storefront and wait for verification before requesting a homepage feature.' });
+    const existing = await db.query("SELECT id,status FROM ads WHERE seller_id=$1 AND placement='premium-store' ORDER BY created_at DESC LIMIT 1", [req.session.user.id]);
+    if (existing.rows[0] && existing.rows[0].status !== 'rejected') return res.json({ status: existing.rows[0].status, adId: existing.rows[0].id });
+    const adId = nanoid();
+    if (existing.rows[0]) {
+      await db.query("UPDATE ads SET title=$1,description=$2,category=$3,location=$4,media=$5,status='pending',duration_days=7,created_at=NOW() WHERE id=$6", [account.businessName, account.description, account.category, 'homepage', JSON.stringify([{ url: account.coverUrl, mimeType: 'image/webp' }]), existing.rows[0].id]);
+      return res.status(202).json({ status: 'pending', adId: existing.rows[0].id });
+    }
+    await db.query(`INSERT INTO ads (id,seller_id,title,description,category,price_cents,location,media,status,placement,duration_days,skip_allowed,created_at)
+      VALUES ($1,$2,$3,$4,$5,1,'homepage',$6,'pending','premium-store',7,TRUE,NOW())`, [adId, req.session.user.id, account.businessName, account.description, account.category, JSON.stringify([{ url: account.coverUrl, mimeType: 'image/webp' }])]);
+    res.status(202).json({ status: 'pending', adId });
   } catch (error) {
     next(error);
   }
@@ -47,7 +71,7 @@ router.put('/api/store/me', requireUser, async (req, res, next) => {
 
 router.get('/api/admin/store-requests', requireAdmin, async (_req, res, next) => {
   try {
-    const result = await db.query(`SELECT s.id,s.owner_id AS "ownerId",s.business_name AS "businessName",s.description,s.logo_url AS "logoUrl",s.status,s.review_note AS "reviewNote",s.submitted_at AS "submittedAt",u.name AS "ownerName",u.email AS "ownerEmail"
+    const result = await db.query(`SELECT s.id,s.owner_id AS "ownerId",s.business_name AS "businessName",s.category,s.description,s.logo_url AS "logoUrl",s.cover_url AS "coverUrl",s.status,s.review_note AS "reviewNote",s.submitted_at AS "submittedAt",u.name AS "ownerName",u.email AS "ownerEmail"
       FROM stores s LEFT JOIN users u ON u.id=s.owner_id ORDER BY CASE s.status WHEN 'pending' THEN 0 WHEN 'rejected' THEN 1 ELSE 2 END,s.submitted_at`);
     res.json({ requests: result.rows });
   } catch (error) {
@@ -86,7 +110,7 @@ router.get('/api/products', async (req, res, next) => {
   try {
     const search = String(req.query.search || '').trim();
     const category = String(req.query.category || '').trim();
-    let query = `SELECT p.*, COALESCE(AVG(r.rating), 0)::float AS avg_rating, COUNT(r.id)::int AS review_count FROM products p LEFT JOIN reviews r ON r.product_id = p.id WHERE p.status = 'active'`;
+    let query = `SELECT p.*, COALESCE(AVG(r.rating), 0)::float AS avg_rating, COUNT(r.id)::int AS review_count,s.business_name AS store_name,s.logo_url AS store_logo_url,s.cover_url AS store_cover_url FROM products p LEFT JOIN reviews r ON r.product_id = p.id LEFT JOIN stores s ON s.owner_id=p.vendor_id WHERE p.status = 'active'`;
     const params = [];
 
     if (search) {
@@ -98,7 +122,7 @@ router.get('/api/products', async (req, res, next) => {
       query += ' AND';
       query += ` p.category = $${params.length}`;
     }
-    query += ' GROUP BY p.id ORDER BY p.created_at DESC';
+    query += ' GROUP BY p.id,s.business_name,s.logo_url,s.cover_url ORDER BY p.created_at DESC';
 
     const result = await db.query(query, params);
     res.json({ products: result.rows });
@@ -466,7 +490,10 @@ router.delete('/api/admin/ads/:id', requireAdmin, async (req, res, next) => {
 
 router.get('/api/ads/:id/messages', requireUser, async (req, res, next) => {
   try {
-    const result = await db.query('SELECT * FROM ad_messages WHERE ad_id=$1 ORDER BY created_at ASC', [req.params.id]);
+    const isAdmin = Boolean(req.session.user?.isAdmin || req.session.user?.role === 'admin');
+    const result = await db.query(`SELECT m.id,m.ad_id AS "adId",m.sender_id AS "senderId",m.body,m.status,m.created_at AS "createdAt",u.name AS "senderName"
+      FROM ad_messages m LEFT JOIN users u ON u.id=m.sender_id
+      WHERE m.ad_id=$1 AND ($2=TRUE OR m.status='approved' OR m.sender_id=$3) ORDER BY m.created_at ASC`, [req.params.id, isAdmin, req.session.user.id]);
     res.json({ messages: result.rows });
   } catch (error) {
     next(error);
@@ -478,9 +505,68 @@ router.post('/api/ads/:id/messages', requireUser, async (req, res, next) => {
     const parsed = z.object({ body: z.string().min(1).max(1000) }).safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Message required' });
 
-    const message = { id: nanoid(), adId: req.params.id, senderId: req.session.user.id, body: parsed.data.body, createdAt: new Date().toISOString() };
+    const ad = await db.query("SELECT id FROM ads WHERE id=$1 AND status='active'", [req.params.id]);
+    if (!ad.rows[0]) return res.status(404).json({ error: 'Advertisement not found.' });
+    const message = { id: nanoid(), adId: req.params.id, senderId: req.session.user.id, body: parsed.data.body, status: 'pending', createdAt: new Date().toISOString() };
     await db.query('INSERT INTO ad_messages (id,ad_id,sender_id,body,created_at) VALUES ($1,$2,$3,$4,$5)', [message.id, message.adId, message.senderId, message.body, message.createdAt]);
-    res.status(201).json({ message });
+    res.status(201).json({ message, reviewStatus: 'pending' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/api/admin/ads', requireAdmin, async (_req, res, next) => {
+  try {
+    const result = await db.query(`SELECT a.*,u.name AS owner_name,u.email AS owner_email FROM ads a
+      LEFT JOIN users u ON u.id=a.seller_id ORDER BY CASE a.status WHEN 'pending' THEN 0 WHEN 'active' THEN 1 ELSE 2 END,a.created_at DESC`);
+    const mediaIds = result.rows.flatMap((ad) => Array.isArray(ad.media) ? ad.media : [])
+      .map((item) => typeof item === 'string' ? item.match(/^\/api\/media\/([^/?#]+)/)?.[1] : item?.url?.match(/^\/api\/media\/([^/?#]+)/)?.[1])
+      .filter(Boolean);
+    const mediaResult = mediaIds.length ? await db.query('SELECT id,mime_type AS "mimeType" FROM media_files WHERE id=ANY($1::text[])', [mediaIds]) : { rows: [] };
+    const mediaTypes = new Map(mediaResult.rows.map((file) => [file.id, file.mimeType]));
+    const ads = result.rows.map((ad) => ({ ...ad, media: (Array.isArray(ad.media) ? ad.media : []).map((item) => {
+      const url = typeof item === 'string' ? item : item?.url;
+      const mediaId = url?.match(/^\/api\/media\/([^/?#]+)/)?.[1];
+      return url ? { url, mimeType: mediaTypes.get(mediaId) || item?.mimeType || '' } : null;
+    }).filter(Boolean) }));
+    res.json({ ads });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch('/api/admin/ads/:id/review', requireAdmin, async (req, res, next) => {
+  const parsed = z.object({ decision: z.enum(['approved', 'rejected']) }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Choose approve or reject.' });
+  try {
+    const result = await db.query(`UPDATE ads SET status=$1,created_at=CASE WHEN $1='active' THEN NOW() ELSE created_at END
+      WHERE id=$2 RETURNING id,status`, [parsed.data.decision === 'approved' ? 'active' : 'rejected', req.params.id]);
+    if (!result.rows[0]) return res.status(404).json({ error: 'Advertisement not found.' });
+    res.json({ reviewed: true, ad: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/api/admin/ad-messages', requireAdmin, async (_req, res, next) => {
+  try {
+    const result = await db.query(`SELECT m.id,m.ad_id AS "adId",m.sender_id AS "senderId",m.body,m.status,m.created_at AS "createdAt",
+      u.name AS "senderName",u.email AS "senderEmail",a.title AS "adTitle"
+      FROM ad_messages m LEFT JOIN users u ON u.id=m.sender_id LEFT JOIN ads a ON a.id=m.ad_id
+      ORDER BY CASE m.status WHEN 'pending' THEN 0 ELSE 1 END,m.created_at DESC`);
+    res.json({ messages: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch('/api/admin/ad-messages/:id/review', requireAdmin, async (req, res, next) => {
+  const parsed = z.object({ decision: z.enum(['approved', 'rejected']) }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Choose approve or reject.' });
+  try {
+    const result = await db.query('UPDATE ad_messages SET status=$1 WHERE id=$2 RETURNING id,status', [parsed.data.decision, req.params.id]);
+    if (!result.rows[0]) return res.status(404).json({ error: 'Advertisement message not found.' });
+    res.json({ reviewed: true, message: result.rows[0] });
   } catch (error) {
     next(error);
   }

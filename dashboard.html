@@ -120,6 +120,23 @@
     .listing-body { padding: 13px; }
     .listing-body h3 { margin-bottom: 6px; font-size: 12px; }
     .listing-body p { margin: 0 0 10px; font-size: 10px; line-height: 1.5; }
+    .product-card { display: flex; flex-direction: column; border-color: #d7e3e4; box-shadow: 0 8px 22px rgba(15, 45, 54, .07); transition: transform .18s ease, box-shadow .18s ease; }
+    .product-card:hover { transform: translateY(-3px); box-shadow: 0 14px 28px rgba(15, 45, 54, .12); }
+    .product-card > img, .product-card > video, .product-card > .listing-placeholder { height: 205px; }
+    .product-card .listing-body { display: flex; flex: 1; flex-direction: column; padding: 15px; }
+    .product-card .listing-body h3 { margin: 10px 0 5px; font-size: 15px; }
+    .product-card .listing-description { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; line-clamp: 3; -webkit-line-clamp: 3; line-height: 1.5; }
+    .product-card .product-brand { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 10px; }
+    .product-card .product-brand img { width: 22px; height: 22px; border: 1px solid var(--line); border-radius: 50%; object-fit: cover; }
+    .product-card .product-rating { color: #9a6418; font-size: 10px; font-weight: 700; }
+    .product-card .listing-meta { margin-top: auto; padding: 10px 0; }
+    .product-card .listing-meta strong { font-size: 16px; }
+    .store-cover-preview { display: block; width: 100%; height: 150px; margin: 0 0 12px; border-radius: 8px; background: var(--soft); object-fit: cover; }
+    .store-logo-preview { display: block; width: 64px; height: 64px; margin: -38px 0 12px 14px; border: 3px solid white; border-radius: 50%; background: white; object-fit: cover; }
+    .admin-review-details { margin-top: 9px; }
+    .admin-review-details summary { color: var(--teal); font-size: 11px; font-weight: 600; cursor: pointer; }
+    .admin-review-details p { margin: 8px 0; white-space: pre-wrap; }
+    .admin-review-media { display: block; width: min(100%, 420px); max-height: 220px; margin-top: 8px; border-radius: 7px; object-fit: contain; background: var(--soft); }
     .listing-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 10px 0; }
     .listing-meta strong { color: var(--ink); font-size: 13px; }
     .table-wrap { overflow-x: auto; }

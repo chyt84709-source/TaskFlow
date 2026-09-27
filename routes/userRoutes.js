@@ -250,6 +250,22 @@ router.post('/api/wallet/cards/confirm-setup', requireUser, async (req, res, nex
   } catch (error) {
     next(error);
   }
+router.get('/api/public/ad-media/:id', async (req, res, next) => {
+  try {
+    const result = await db.query('SELECT filename,mime_type AS "mimeType",purpose FROM media_files WHERE id=$1', [req.params.id]);
+    const media = result.rows[0];
+    if (!media || !['marketplace-media', 'ad-media'].includes(media.purpose)) return res.status(404).end();
+    const mediaUrl = `/api/media/${req.params.id}`;
+    const adReference = await db.query("SELECT 1 FROM ads WHERE status='active' AND (media @> $1::jsonb OR media @> $2::jsonb) LIMIT 1", [JSON.stringify([mediaUrl]), JSON.stringify([{ url: mediaUrl }])]);
+    if (!adReference.rows[0]) return res.status(404).end();
+    const encrypted = await readEncryptedImage(media.filename);
+    res.type(media.mimeType).send(decryptImage(encrypted));
+  } catch (error) {
+    if (error.code === 'ENOENT') return res.status(404).end();
+    next(error);
+  }
+});
+
 });
 
 router.post('/api/wallet/cards/confirm-verification', requireUser, async (req, res, next) => {
