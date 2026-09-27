@@ -294,7 +294,20 @@ router.get('/api/media/:id', requireUser, async (req, res, next) => {
     if (!media || (!adminAccess && !ownerCanShare && media.userId !== req.session.user.id)) return res.status(404).end();
     try {
       const encrypted = await readEncryptedImage(media.filename);
-      res.type(media.mimeType).send(decryptImage(encrypted));
+      const payload = decryptImage(encrypted);
+      const totalBytes = payload.length;
+      const range = req.headers.range;
+      res.set('Accept-Ranges', 'bytes');
+      if (range) {
+        const match = /^bytes=(\d*)-(\d*)$/.exec(range);
+        if (!match) return res.status(416).set('Content-Range', `bytes */${totalBytes}`).end();
+        const start = match[1] ? Number(match[1]) : Math.max(0, totalBytes - Number(match[2] || 0));
+        const end = match[2] ? Number(match[2]) : totalBytes - 1;
+        if (start >= totalBytes || end < start || end >= totalBytes) return res.status(416).set('Content-Range', `bytes */${totalBytes}`).end();
+        const chunk = payload.subarray(start, end + 1);
+        return res.status(206).set({ 'Content-Range': `bytes ${start}-${end}/${totalBytes}`, 'Content-Length': String(chunk.length) }).type(media.mimeType).send(chunk);
+      }
+      res.set('Content-Length', String(totalBytes)).type(media.mimeType).send(payload);
     } catch (error) {
       if (error.code === 'ENOENT') return res.status(404).end();
       throw error;

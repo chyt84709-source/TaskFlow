@@ -91,23 +91,40 @@ function showAd(ad) {
   const mediaUrl = typeof media === 'string' ? media : media?.url;
   if (!mediaUrl) return;
   const safeUrl = escapeHtml(mediaUrl);
-  const mediaMarkup = /^video\//i.test(typeof media === 'object' ? media.mimeType || '' : '')
-    ? `<video src="${safeUrl}" autoplay muted playsinline loop></video>`
+  const isVideo = /^video\//i.test(typeof media === 'object' ? media.mimeType || '' : '');
+  const mediaMarkup = isVideo
+    ? `<video id="ad-video" src="${safeUrl}" autoplay muted playsinline loop preload="auto"></video>`
     : `<img src="${safeUrl}" alt="${escapeHtml(ad.title || 'Sponsored content')}" loading="eager">`;
   slot.innerHTML = `${mediaMarkup}<div class="ad-slot-copy"><div><strong>${escapeHtml(ad.title || 'Sponsored')}</strong><small>Sponsored · ${escapeHtml(ad.category || 'Featured')}</small></div>${ad.skip_allowed === false ? '' : '<button class="button ad-skip" type="button" disabled>Skip ad (3)</button>'}</div>`;
   slot.classList.add('is-visible');
   const skip = $('.ad-skip', slot);
   if (!skip) return;
+  const video = $('#ad-video', slot);
   let seconds = 3;
-  const timer = setInterval(() => {
-    seconds -= 1;
-    if (seconds <= 0) {
-      clearInterval(timer);
+  let timer;
+  const startCountdown = () => {
+    if (timer) return;
+    skip.disabled = true;
+    skip.textContent = 'Skip ad (3)';
+    timer = setInterval(() => {
+      seconds -= 1;
+      if (seconds <= 0) {
+        clearInterval(timer);
+        skip.disabled = false;
+        skip.textContent = 'Skip ad';
+        skip.addEventListener('click', () => slot.classList.remove('is-visible'), { once: true });
+      } else skip.textContent = `Skip ad (${seconds})`;
+    }, 1000);
+  };
+  if (video) {
+    video.addEventListener('playing', startCountdown, { once: true });
+    video.play().catch(() => {
+      video.controls = true;
       skip.disabled = false;
-      skip.textContent = 'Skip ad';
-      skip.addEventListener('click', () => slot.classList.remove('is-visible'), { once: true });
-    } else skip.textContent = `Skip ad (${seconds})`;
-  }, 1000);
+      skip.textContent = 'Play ad';
+      skip.addEventListener('click', () => video.play().catch(() => {}), { once: true });
+    });
+  } else startCountdown();
 }
 
 async function renderOverview() {
