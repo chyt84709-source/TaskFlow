@@ -93,7 +93,7 @@ function showAd(ad) {
   const safeUrl = escapeHtml(mediaUrl);
   const isVideo = /^video\//i.test(typeof media === 'object' ? media.mimeType || '' : '');
   const mediaMarkup = isVideo
-    ? `<video id="ad-video" src="${safeUrl}" autoplay muted playsinline loop preload="auto"></video>`
+    ? `<video id="ad-video" src="${safeUrl}" autoplay muted playsinline preload="auto"></video>`
     : `<img src="${safeUrl}" alt="${escapeHtml(ad.title || 'Sponsored content')}" loading="eager">`;
   slot.innerHTML = `${mediaMarkup}<div class="ad-slot-copy"><div><strong>${escapeHtml(ad.title || 'Sponsored')}</strong><small>Sponsored · ${escapeHtml(ad.category || 'Featured')}</small></div>${ad.skip_allowed === false ? '' : '<button class="button ad-skip" type="button" disabled>Skip ad (3)</button>'}</div>`;
   slot.classList.add('is-visible');

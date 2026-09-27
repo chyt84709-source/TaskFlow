@@ -109,7 +109,7 @@
     .listing-placeholder svg { width: 22px; height: 22px; }
     .ad-slot { position: relative; display: none; overflow: hidden; margin-bottom: 16px; border: 1px solid var(--line); border-radius: 11px; background: #fff; box-shadow: 0 1px 2px rgba(15,23,42,.035); }
     .ad-slot.is-visible { display: block; }
-    .ad-slot img, .ad-slot video { display: block; width: 100%; max-height: 260px; object-fit: cover; background: #f1f5f9; }
+    .ad-slot img, .ad-slot video { display: block; width: auto; max-width: 100%; height: auto; max-height: none; margin: 0 auto; object-fit: contain; background: #f1f5f9; }
     .ad-slot-copy { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; }
     .ad-slot-copy strong { color: var(--ink); font-size: 12px; }
     .ad-slot-copy small { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
