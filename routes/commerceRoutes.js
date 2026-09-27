@@ -454,6 +454,16 @@ router.post('/api/ads', requireAdmin, async (req, res, next) => {
   }
 });
 
+router.delete('/api/admin/ads/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const result = await db.query('DELETE FROM ads WHERE id = $1', [req.params.id]);
+    if (!result.rowCount) return res.status(404).json({ error: 'Ad not found' });
+    res.status(204).end();
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/api/ads/:id/messages', requireUser, async (req, res, next) => {
   try {
     const result = await db.query('SELECT * FROM ad_messages WHERE ad_id=$1 ORDER BY created_at ASC', [req.params.id]);

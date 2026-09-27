@@ -29,6 +29,7 @@
     .nav-link.active { background: #f1f5f9; color: var(--ink); font-weight: 600; }
     .nav-link svg { width: 17px; height: 17px; color: #64748b; stroke-width: 1.8; }
     .nav-link.active svg { color: var(--teal); }
+    .nav-link.admin-link { margin-top: 8px; border-top: 1px solid var(--line); border-radius: 0 0 8px 8px; padding-top: 16px; }
     .sidebar-bottom { display: grid; gap: 3px; margin-top: auto; padding-top: 14px; border-top: 1px solid var(--line); }
     .sidebar-user { display: flex; align-items: center; gap: 10px; padding: 13px 8px 2px; min-width: 0; }
     .avatar { flex: 0 0 auto; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: #ccfbf1; color: #0f766e; font-size: 12px; font-weight: 700; }
@@ -141,6 +142,7 @@
         <a class="nav-link" href="/profile" data-route="profile"><i data-lucide="user-round"></i>Profile</a>
         <a class="nav-link" href="/support" data-route="support"><i data-lucide="life-buoy"></i>Contact support</a>
         <a class="nav-link" href="/premium" data-route="premium"><i data-lucide="sparkles"></i>Premium</a>
+        <a class="nav-link admin-link hidden" href="/admin" data-route="admin"><i data-lucide="shield-check"></i>Admin control center</a>
       </nav>
       <div class="sidebar-bottom">
         <a class="nav-link" href="/settings" data-route="settings"><i data-lucide="settings-2"></i>Settings</a>

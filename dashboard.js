@@ -49,6 +49,7 @@ function setShellUser(user) {
   document.querySelectorAll('[data-user-initials]').forEach((element) => { element.textContent = initials(user?.name || 'Husnain'); });
   $('[data-verified]').classList.toggle('hidden', !user?.greenTick && !user?.green_tick);
   $('[data-premium]').classList.toggle('hidden', (user?.subscriptionTier || user?.subscription_tier) !== 'premium');
+  $('[data-route="admin"]').classList.toggle('hidden', !user?.isAdmin && user?.role !== 'admin');
 }
 
 function categoryOptions(categories, includeAll = false) {
@@ -212,8 +213,36 @@ async function renderPremium() {
   $('#premium-state').textContent = currentUser?.subscriptionTier || 'Standard';
 }
 
+function adminTable(title, rows, emptyMessage = 'Nothing to review.') {
+  return `<section class="panel"><div class="panel-head"><h2>${escapeHtml(title)}</h2><span class="badge">${rows.length} records</span></div><div class="table-wrap"><table><thead><tr><th>Record</th><th>Owner / details</th><th>Status</th><th>Action</th></tr></thead><tbody>${rows.length ? rows.map((row) => `<tr><td><strong>${escapeHtml(row.title || row.name || row.businessName || row.subject || row.kind || row.id)}</strong><br><small>${escapeHtml(row.id || '')}</small></td><td>${escapeHtml(row.owner_name || row.ownerEmail || row.email || row.description || row.body || row.category || '')}</td><td><span class="badge">${escapeHtml(row.status || row.accountStatus || 'active')}</span></td><td>${row.action || '<span class="badge">View</span>'}</td></tr>`).join('') : `<tr><td colspan="4">${escapeHtml(emptyMessage)}</td></tr>`}</tbody></table></div></section>`;
+}
+
+async function renderAdmin() {
+  if (!currentUser?.isAdmin && currentUser?.role !== 'admin') {
+    navigate('overview');
+    notify('Admin access is required.');
+    return;
+  }
+  pageFrame('admin', `<div class="metric-grid" id="admin-metrics">${['Users', 'Products', 'Listings', 'Gigs'].map((label) => `<article class="metric"><div class="metric-top"><span>${label}</span><i data-lucide="bar-chart-3"></i></div><strong>...</strong><small>Loading owner data</small></article>`).join('')}</div><div class="stack" id="admin-content"><section class="panel"><p class="empty">Loading complete platform control center...</p></section></div>`,'Owner control center');
+  const [overview, content, users, stores, support, reports, categories, ads] = await Promise.all([
+    api('/api/admin/overview'), api('/api/admin/content'), api('/api/admin/users'), api('/api/admin/store-requests'), api('/api/admin/support/threads'), api('/api/admin/reports'), api('/api/admin/categories'), api('/api/ads')
+  ]);
+  const stats = overview.stats || {};
+  const metrics = [stats.activeUsers || 0, stats.activeProducts || 0, content.listings?.length || 0, stats.activeGigs || 0];
+  document.querySelectorAll('#admin-metrics .metric strong').forEach((element, index) => { element.textContent = String(metrics[index]); });
+  const action = (type, id, label = 'Delete') => `<button class="button" type="button" data-admin-delete="${type}" data-id="${escapeHtml(id)}">${label}</button>`;
+  const userRows = (users.users || []).map((user) => ({ ...user, action: user.role === 'admin' ? '<span class="badge">Protected owner</span>' : action('users', user.id, 'Remove') }));
+  const taskRows = (content.tasks || []).map((task) => ({ ...task, action: action('tasks', task.id) }));
+  const productRows = (content.products || []).map((product) => ({ ...product, action: action('products', product.id) }));
+  const listingRows = (content.listings || []).map((listing) => ({ ...listing, action: action('listings', listing.id) }));
+  const gigRows = (content.gigs || []).map((gig) => ({ ...gig, action: action('gigs', gig.id) }));
+  const storeRows = (stores.requests || []).map((store) => ({ ...store, action: store.status === 'pending' ? `<button class="button" type="button" data-store-review="${escapeHtml(store.id)}" data-decision="verified">Verify</button> <button class="button" type="button" data-store-review="${escapeHtml(store.id)}" data-decision="rejected">Changes</button>` : '<span class="badge">Reviewed</span>' }));
+  const adRows = (ads.ads || []).map((ad) => ({ ...ad, action: action('ads', ad.id) }));
+  $('#admin-content').innerHTML = `<section class="panel"><div class="panel-head"><div><h2>Create third-party ad</h2><p class="panel-subtitle">Only the owner account can publish platform promotions.</p></div><span class="badge">Admin only</span></div><form id="admin-ad-form" class="form-grid"><div class="field"><label for="admin-ad-title">Campaign title</label><input id="admin-ad-title" required minlength="3" maxlength="120"></div><div class="field"><label for="admin-ad-category">Category</label><input id="admin-ad-category" required maxlength="60" placeholder="Technology"></div><div class="field"><label for="admin-ad-location">Placement</label><input id="admin-ad-location" value="homepage-top" required maxlength="120"></div><div class="field"><label for="admin-ad-duration">Duration (days)</label><input id="admin-ad-duration" type="number" min="1" max="365" value="7" required></div><div class="field field-full"><label for="admin-ad-description">Description</label><textarea id="admin-ad-description" required minlength="5"></textarea></div><div class="field"><label for="admin-ad-destination">Destination URL</label><input id="admin-ad-destination" type="url" placeholder="https://example.com"></div><div class="field"><label for="admin-ad-media">Media URL (optional)</label><input id="admin-ad-media" type="url" placeholder="https://example.com/banner.jpg"></div><div class="field-full"><button class="button button-primary" type="submit">Publish ad</button></div></form></section>${adminTable('Users', userRows, 'No registered users.')}${adminTable('Tasks', taskRows)}${adminTable('Products', productRows)}${adminTable('Marketplace listings', listingRows)}${adminTable('Gigs', gigRows)}${adminTable('Third-party ads', adRows)}${adminTable('Store requests', storeRows)}${adminTable('Support inbox', support.threads || [])}${adminTable('Reports', reports.reports || [])}${adminTable('Categories', categories.categories || [])}<section class="panel"><div class="panel-head"><div><h2>Platform totals</h2><p class="panel-subtitle">Owner-only operational visibility.</p></div><span class="badge">Protected API</span></div><div class="rows"><div class="data-row"><strong>Open disputes</strong><span>${Number(stats.openDisputes || 0)}</span></div><div class="data-row"><strong>Open reports</strong><span>${Number(stats.openReports || 0)}</span></div><div class="data-row"><strong>Active ads</strong><span>${Number(stats.activeAds || 0)}</span></div><div class="data-row"><strong>Categories</strong><span>${Number(stats.categories || 0)}</span></div></div></section>`;
+}
+
 async function renderRoute(route) {
-  const renderers = { overview: renderOverview, tasks: renderTasks, marketplace: renderMarketplace, products: renderProducts, vendor: renderVendor, gigs: renderGigs, wallet: renderWallet, profile: renderProfile, support: renderSupport, settings: renderSettings, premium: renderPremium };
+  const renderers = { overview: renderOverview, tasks: renderTasks, marketplace: renderMarketplace, products: renderProducts, vendor: renderVendor, gigs: renderGigs, wallet: renderWallet, profile: renderProfile, support: renderSupport, settings: renderSettings, premium: renderPremium, admin: renderAdmin };
   const normalized = renderers[route] ? route : 'overview';
   await renderers[normalized]();
   document.querySelectorAll('a[data-route]').forEach((link) => {
@@ -273,6 +302,10 @@ async function onSubmit(event) {
       if (logo) logoUrl = (await uploadFiles([logo]))[0]?.url;
       await api('/api/store/me', { method: 'PUT', body: JSON.stringify({ businessName: value('store-name'), description: value('store-description'), logoUrl }) });
       notify('Store submitted for review.');
+    } else if (form.id === 'admin-ad-form') {
+      const mediaUrl = value('admin-ad-media');
+      await api('/api/ads', { method: 'POST', body: JSON.stringify({ title: value('admin-ad-title'), description: value('admin-ad-description'), category: value('admin-ad-category'), location: value('admin-ad-location'), priceCents: 1, placement: value('admin-ad-location'), durationDays: Number(value('admin-ad-duration')), skipAllowed: true, media: mediaUrl ? [mediaUrl] : [], destinationUrl: value('admin-ad-destination') || undefined }) });
+      notify('Third-party ad published.');
     }
     form.reset();
     await renderRoute(location.pathname.slice(1));
@@ -302,6 +335,27 @@ document.addEventListener('click', async (event) => {
     try {
       await api('/api/content-offers', { method: 'POST', body: JSON.stringify({ contentType: contactButton.dataset.contact, contentId: contactButton.dataset.id, amountCents: Math.round(amount * 100), message: '' }) });
       notify('Your offer was sent.');
+    } catch (error) { notify(error.message); }
+    return;
+  }
+  const deleteButton = event.target.closest('[data-admin-delete]');
+  if (deleteButton) {
+    if (!window.confirm('Remove this record from the platform?')) return;
+    try {
+      await api(`/api/admin/${encodeURIComponent(deleteButton.dataset.adminDelete)}/${encodeURIComponent(deleteButton.dataset.id)}`, { method: 'DELETE' });
+      notify('Record removed by administrator.');
+      await renderAdmin();
+    } catch (error) { notify(error.message); }
+    return;
+  }
+  const storeReview = event.target.closest('[data-store-review]');
+  if (storeReview) {
+    const note = storeReview.dataset.decision === 'rejected' ? window.prompt('What should the vendor change?', 'Please update your store details and resubmit.') : '';
+    if (storeReview.dataset.decision === 'rejected' && note === null) return;
+    try {
+      await api(`/api/admin/store-requests/${encodeURIComponent(storeReview.dataset.storeReview)}/review`, { method: 'POST', body: JSON.stringify({ decision: storeReview.dataset.decision, note: note || undefined }) });
+      notify('Store review updated.');
+      await renderAdmin();
     } catch (error) { notify(error.message); }
     return;
   }
