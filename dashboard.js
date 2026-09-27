@@ -93,23 +93,12 @@ function showAd(ad) {
   const safeUrl = escapeHtml(mediaUrl);
   const isVideo = /^video\//i.test(typeof media === 'object' ? media.mimeType || '' : '');
   const mediaMarkup = isVideo
-    ? `<video id="ad-video" src="${safeUrl}" autoplay muted playsinline preload="auto"></video>`
+    ? `<video id="ad-video" src="${safeUrl}" autoplay playsinline preload="auto"></video>`
     : `<img src="${safeUrl}" alt="${escapeHtml(ad.title || 'Sponsored content')}" loading="eager">`;
-  slot.innerHTML = `${mediaMarkup}<div class="ad-slot-copy"><div><strong>${escapeHtml(ad.title || 'Sponsored')}</strong><small>Sponsored · ${escapeHtml(ad.category || 'Featured')}</small></div><div class="form-actions">${isVideo ? '<button class="button ad-sound" type="button">Enable sound</button>' : ''}${ad.skip_allowed === false ? '' : '<button class="button ad-skip" type="button" disabled>Skip ad (3)</button>'}</div></div>`;
+  slot.innerHTML = `${mediaMarkup}<div class="ad-slot-copy"><div><strong>${escapeHtml(ad.title || 'Sponsored')}</strong><small>Sponsored · ${escapeHtml(ad.category || 'Featured')}</small></div>${isVideo ? '<button class="button ad-skip" type="button" disabled>Skip ad (3)</button>' : ''}</div>`;
   slot.classList.add('is-visible');
   const skip = $('.ad-skip', slot);
   const video = $('#ad-video', slot);
-  const sound = $('.ad-sound', slot);
-  if (sound && video) {
-    sound.addEventListener('click', () => {
-      video.muted = false;
-      video.volume = 1;
-      video.play().then(() => {
-        sound.textContent = 'Sound on';
-        sound.disabled = true;
-      }).catch(() => { sound.textContent = 'Click to retry'; });
-    });
-  }
   if (!skip) return;
   let seconds = 3;
   let timer;
@@ -123,17 +112,30 @@ function showAd(ad) {
         clearInterval(timer);
         skip.disabled = false;
         skip.textContent = 'Skip ad';
-        skip.addEventListener('click', () => slot.classList.remove('is-visible'), { once: true });
+        skip.addEventListener('click', () => {
+          video.pause();
+          video.currentTime = 0;
+          skip.disabled = false;
+          skip.textContent = 'Play ad again';
+        }, { once: true });
       } else skip.textContent = `Skip ad (${seconds})`;
     }, 1000);
   };
   if (video) {
+    video.addEventListener('ended', () => {
+      if (timer) clearInterval(timer);
+      skip.disabled = false;
+      skip.textContent = 'Play ad again';
+    });
     video.addEventListener('playing', startCountdown, { once: true });
     video.play().catch(() => {
-      video.controls = true;
       skip.disabled = false;
       skip.textContent = 'Play ad';
-      skip.addEventListener('click', () => video.play().catch(() => {}), { once: true });
+    });
+    skip.addEventListener('click', () => {
+      if (skip.textContent !== 'Play ad' && skip.textContent !== 'Play ad again') return;
+      video.currentTime = 0;
+      video.play().catch(() => {});
     });
   } else startCountdown();
 }
