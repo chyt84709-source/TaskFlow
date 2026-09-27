@@ -47,11 +47,10 @@ function setShellUser(user) {
   document.querySelectorAll('[data-user-name]').forEach((element) => { element.textContent = user?.name || 'Husnain'; });
   document.querySelectorAll('[data-user-email]').forEach((element) => { element.textContent = user?.email || '@taskflow'; });
   document.querySelectorAll('[data-user-initials]').forEach((element) => { element.textContent = initials(user?.name || 'Husnain'); });
-  $('[data-verified]').classList.toggle('hidden', !user?.greenTick && !user?.green_tick);
   const isPremium = (user?.subscriptionTier || user?.subscription_tier) === 'premium';
   $('[data-tier]').textContent = isPremium ? 'PREMIUM' : 'STANDARD';
   $('[data-tier]').classList.toggle('premium', true);
-  $('[data-verified]').classList.toggle('hidden', !user?.greenTick && !user?.green_tick);
+  $('[data-verified]').classList.toggle('hidden', !isPremium || (!user?.greenTick && !user?.green_tick));
   $('[data-route="admin"]').classList.toggle('hidden', !user?.isAdmin && user?.role !== 'admin');
 }
 

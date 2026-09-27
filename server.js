@@ -273,7 +273,7 @@ function hydrateSessionUser(user) {
     role: String(user.role || 'worker'),
     country: normalizeCountry(user.country || 'US'),
     subscriptionTier: user.subscription_tier || user.subscriptionTier || 'standard',
-    greenTick: Boolean(user.green_tick ?? user.greenTick ?? (user.subscription_tier || user.subscriptionTier) === 'premium'),
+    greenTick: (user.subscription_tier || user.subscriptionTier) === 'premium' && Boolean(user.green_tick ?? user.greenTick ?? true),
     trustScore: user.trust_score ?? user.trustScore ?? null,
     twoFactor: Boolean(user.two_factor ?? user.twoFactor),
     isAdmin: Boolean(user.role === 'admin' || user.isAdmin || false)

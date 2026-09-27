@@ -10,6 +10,34 @@ import { decryptImage, processAndEncryptImage, readEncryptedImage, saveEncrypted
 const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 }, fileFilter: (_req, file, callback) => callback(null, /^image\/(jpeg|png|webp|gif|avif|heic)$/.test(file.mimetype)) });
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 
+async function verifyTurnstile(token, remoteIp) {
+  if (!process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY) return false;
+  const response = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ secret: process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY, response: token, remoteip: remoteIp || '' }),
+  });
+  const result = await response.json();
+  return result.success === true;
+}
+
+async function sendCardOtp(email, code) {
+  if (!process.env.RESEND_API_KEY || !email) throw new Error('Email verification is not configured.');
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      from: `${process.env.RESEND_FROM_NAME || 'TaskFlow'} <${process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev'}>`,
+      to: [email],
+      subject: 'Confirm your TaskFlow payment method',
+      html: `<p>Your TaskFlow card verification code is <strong>${code}</strong>.</p><p>This code expires in ten minutes.</p>`,
+    }),
+  });
+  if (!response.ok) throw new Error('Unable to send card verification email.');
+}
+
+const router = express.Router();
+
 router.post('/api/premium/requests', requireUser, async (req, res, next) => {
   try {
     const parsed = z.object({ reason: z.string().trim().max(500).default('I would like to be considered for Premium access.') }).safeParse(req.body || {});
@@ -42,34 +70,6 @@ router.post('/api/admin/premium-requests/:id/review', requireAdmin, async (req, 
     res.json({ reviewed: true, approved });
   } catch (error) { next(error); }
 });
-
-async function verifyTurnstile(token, remoteIp) {
-  if (!process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY) return false;
-  const response = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ secret: process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY, response: token, remoteip: remoteIp || '' }),
-  });
-  const result = await response.json();
-  return result.success === true;
-}
-
-async function sendCardOtp(email, code) {
-  if (!process.env.RESEND_API_KEY || !email) throw new Error('Email verification is not configured.');
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      from: `${process.env.RESEND_FROM_NAME || 'TaskFlow'} <${process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev'}>`,
-      to: [email],
-      subject: 'Confirm your TaskFlow payment method',
-      html: `<p>Your TaskFlow card verification code is <strong>${code}</strong>.</p><p>This code expires in ten minutes.</p>`,
-    }),
-  });
-  if (!response.ok) throw new Error('Unable to send card verification email.');
-}
-
-const router = express.Router();
 
 router.get('/api/health', (_req, res) => res.json({ ok: true, service: 'taskflow', time: new Date().toISOString() }));
 
