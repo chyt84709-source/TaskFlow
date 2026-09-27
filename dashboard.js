@@ -95,11 +95,22 @@ function showAd(ad) {
   const mediaMarkup = isVideo
     ? `<video id="ad-video" src="${safeUrl}" autoplay muted playsinline preload="auto"></video>`
     : `<img src="${safeUrl}" alt="${escapeHtml(ad.title || 'Sponsored content')}" loading="eager">`;
-  slot.innerHTML = `${mediaMarkup}<div class="ad-slot-copy"><div><strong>${escapeHtml(ad.title || 'Sponsored')}</strong><small>Sponsored · ${escapeHtml(ad.category || 'Featured')}</small></div>${ad.skip_allowed === false ? '' : '<button class="button ad-skip" type="button" disabled>Skip ad (3)</button>'}</div>`;
+  slot.innerHTML = `${mediaMarkup}<div class="ad-slot-copy"><div><strong>${escapeHtml(ad.title || 'Sponsored')}</strong><small>Sponsored · ${escapeHtml(ad.category || 'Featured')}</small></div><div class="form-actions">${isVideo ? '<button class="button ad-sound" type="button">Enable sound</button>' : ''}${ad.skip_allowed === false ? '' : '<button class="button ad-skip" type="button" disabled>Skip ad (3)</button>'}</div></div>`;
   slot.classList.add('is-visible');
   const skip = $('.ad-skip', slot);
-  if (!skip) return;
   const video = $('#ad-video', slot);
+  const sound = $('.ad-sound', slot);
+  if (sound && video) {
+    sound.addEventListener('click', () => {
+      video.muted = false;
+      video.volume = 1;
+      video.play().then(() => {
+        sound.textContent = 'Sound on';
+        sound.disabled = true;
+      }).catch(() => { sound.textContent = 'Click to retry'; });
+    });
+  }
+  if (!skip) return;
   let seconds = 3;
   let timer;
   const startCountdown = () => {
