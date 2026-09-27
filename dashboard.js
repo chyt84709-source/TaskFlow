@@ -82,8 +82,35 @@ function notificationMarkup(items) {
   return items.length ? items.slice(0, 5).map((item) => `<div class="feed-item"><span class="feed-dot"></span><p>${escapeHtml(item.body || item.kind || 'Platform update')}<small>${escapeHtml(item.kind || 'Update')} · ${new Date(item.createdAt || item.created_at || Date.now()).toLocaleString()}</small></p></div>`).join('') : emptyState('No recent notifications.');
 }
 
+function showAd(ad) {
+  const slot = $('#ad-slot');
+  if (!slot || !ad) return;
+  const media = Array.isArray(ad.media) ? ad.media[0] : null;
+  const mediaUrl = typeof media === 'string' ? media : media?.url;
+  if (!mediaUrl) return;
+  const safeUrl = escapeHtml(mediaUrl);
+  const mediaMarkup = /^video\//i.test(typeof media === 'object' ? media.mimeType || '' : '')
+    ? `<video src="${safeUrl}" autoplay muted playsinline loop></video>`
+    : `<img src="${safeUrl}" alt="${escapeHtml(ad.title || 'Sponsored content')}" loading="eager">`;
+  slot.innerHTML = `${mediaMarkup}<div class="ad-slot-copy"><div><strong>${escapeHtml(ad.title || 'Sponsored')}</strong><small>Sponsored · ${escapeHtml(ad.category || 'Featured')}</small></div>${ad.skip_allowed === false ? '' : '<button class="button ad-skip" type="button" disabled>Skip ad (3)</button>'}</div>`;
+  slot.classList.add('is-visible');
+  const skip = $('.ad-skip', slot);
+  if (!skip) return;
+  let seconds = 3;
+  const timer = setInterval(() => {
+    seconds -= 1;
+    if (seconds <= 0) {
+      clearInterval(timer);
+      skip.disabled = false;
+      skip.textContent = 'Skip ad';
+      skip.addEventListener('click', () => slot.classList.remove('is-visible'), { once: true });
+    } else skip.textContent = `Skip ad (${seconds})`;
+  }, 1000);
+}
+
 async function renderOverview() {
   pageFrame('overview', `
+    <div class="ad-slot" id="ad-slot"></div>
     <div class="dashboard-columns">
       <div class="column">
         <div class="metric-grid">
@@ -99,11 +126,11 @@ async function renderOverview() {
         <section class="panel"><div class="panel-head"><h2>Recent notifications</h2><a href="/vendor" class="button-quiet" data-route="vendor">View all</a></div><div class="feed" id="overview-notifications">${emptyState('No recent notifications.')}</div></section>
       </div>
     </div>`);
-  const [summary, wallet, tasks, gigs, notifications, offers] = await Promise.all([
+  const [summary, wallet, tasks, gigs, notifications, offers, ads] = await Promise.all([
     api('/api/summary').catch(() => ({})), api('/api/wallet').catch(() => ({ balanceCents: 0 })),
     api('/api/tasks').catch(() => ({ tasks: [] })),
     api('/api/gigs').catch(() => ({ gigs: [] })), api('/api/notifications').catch(() => ({ notifications: [] })),
-    api('/api/content-offers').catch(() => ({ offers: [] }))
+    api('/api/content-offers').catch(() => ({ offers: [] })), api('/api/ads').catch(() => ({ ads: [] }))
   ]);
   const balance = Number(wallet.balanceCents || 0);
   $('#metric-wallet').textContent = money(balance);
@@ -112,6 +139,8 @@ async function renderOverview() {
   $('#overview-notifications').innerHTML = notificationMarkup(notifications.notifications || []);
   $('#overview-tier').textContent = (currentUser?.subscriptionTier || 'standard').replace(/^./, (letter) => letter.toUpperCase());
   $('#overview-messages').innerHTML = offers.offers?.length ? offers.offers.slice(0, 5).map((offer) => `<div class="data-row"><div><strong>${escapeHtml(offer.content_type)} offer</strong><small>${escapeHtml(offer.status)}</small></div><span>${money(offer.amount_cents)}</span></div>`).join('') : emptyState('No conversations or offers yet.');
+  const topAd = (ads.ads || []).find((ad) => ['homepage-top', 'featured'].includes(ad.placement)) || (ads.ads || [])[0];
+  showAd(topAd);
   const categories = await loadCategories();
   $('#quick-category').innerHTML = categoryOptions(categories);
 }
@@ -238,7 +267,7 @@ async function renderAdmin() {
   const gigRows = (content.gigs || []).map((gig) => ({ ...gig, action: action('gigs', gig.id) }));
   const storeRows = (stores.requests || []).map((store) => ({ ...store, action: store.status === 'pending' ? `<button class="button" type="button" data-store-review="${escapeHtml(store.id)}" data-decision="verified">Verify</button> <button class="button" type="button" data-store-review="${escapeHtml(store.id)}" data-decision="rejected">Changes</button>` : '<span class="badge">Reviewed</span>' }));
   const adRows = (ads.ads || []).map((ad) => ({ ...ad, action: action('ads', ad.id) }));
-  $('#admin-content').innerHTML = `<section class="panel"><div class="panel-head"><div><h2>Create third-party ad</h2><p class="panel-subtitle">Only the owner account can publish platform promotions.</p></div><span class="badge">Admin only</span></div><form id="admin-ad-form" class="form-grid"><div class="field"><label for="admin-ad-title">Campaign title</label><input id="admin-ad-title" required minlength="3" maxlength="120"></div><div class="field"><label for="admin-ad-category">Category</label><input id="admin-ad-category" required maxlength="60" placeholder="Technology"></div><div class="field"><label for="admin-ad-location">Placement</label><input id="admin-ad-location" value="homepage-top" required maxlength="120"></div><div class="field"><label for="admin-ad-duration">Duration (days)</label><input id="admin-ad-duration" type="number" min="1" max="365" value="7" required></div><div class="field field-full"><label for="admin-ad-description">Description</label><textarea id="admin-ad-description" required minlength="5"></textarea></div><div class="field"><label for="admin-ad-destination">Destination URL</label><input id="admin-ad-destination" type="url" placeholder="https://example.com"></div><div class="field"><label for="admin-ad-media">Media URL (optional)</label><input id="admin-ad-media" type="url" placeholder="https://example.com/banner.jpg"></div><div class="field-full"><button class="button button-primary" type="submit">Publish ad</button></div></form></section>${adminTable('Users', userRows, 'No registered users.')}${adminTable('Tasks', taskRows)}${adminTable('Products', productRows)}${adminTable('Marketplace listings', listingRows)}${adminTable('Gigs', gigRows)}${adminTable('Third-party ads', adRows)}${adminTable('Store requests', storeRows)}${adminTable('Support inbox', support.threads || [])}${adminTable('Reports', reports.reports || [])}${adminTable('Categories', categories.categories || [])}<section class="panel"><div class="panel-head"><div><h2>Platform totals</h2><p class="panel-subtitle">Owner-only operational visibility.</p></div><span class="badge">Protected API</span></div><div class="rows"><div class="data-row"><strong>Open disputes</strong><span>${Number(stats.openDisputes || 0)}</span></div><div class="data-row"><strong>Open reports</strong><span>${Number(stats.openReports || 0)}</span></div><div class="data-row"><strong>Active ads</strong><span>${Number(stats.activeAds || 0)}</span></div><div class="data-row"><strong>Categories</strong><span>${Number(stats.categories || 0)}</span></div></div></section>`;
+  $('#admin-content').innerHTML = `<section class="panel"><div class="panel-head"><div><h2>Create third-party ad</h2><p class="panel-subtitle">Upload a banner or video and choose where it appears.</p></div><span class="badge">Admin only</span></div><form id="admin-ad-form" class="form-grid"><div class="field"><label for="admin-ad-title">Campaign title</label><input id="admin-ad-title" required minlength="3" maxlength="120"></div><div class="field"><label for="admin-ad-category">Category</label><input id="admin-ad-category" required maxlength="60" placeholder="Technology"></div><div class="field"><label for="admin-ad-placement">Placement</label><select id="admin-ad-placement" required><option value="homepage-top">Homepage top</option><option value="sidebar">Sidebar</option><option value="featured">Featured</option></select></div><div class="field"><label for="admin-ad-duration">Campaign duration (days)</label><input id="admin-ad-duration" type="number" min="1" max="365" value="7" required></div><div class="field field-full"><label for="admin-ad-description">Description</label><textarea id="admin-ad-description" required minlength="5"></textarea></div><div class="field"><label for="admin-ad-media">Picture or video</label><input id="admin-ad-media" type="file" accept="image/*,video/*" required></div><div class="field"><label for="admin-ad-skip">Skip ad</label><select id="admin-ad-skip"><option value="true">Allow skip after 3 seconds</option><option value="false">Do not allow skip</option></select></div><div class="field-full"><button class="button button-primary" type="submit">Publish ad</button></div></form></section>${adminTable('Users', userRows, 'No registered users.')}${adminTable('Tasks', taskRows)}${adminTable('Products', productRows)}${adminTable('Marketplace listings', listingRows)}${adminTable('Gigs', gigRows)}${adminTable('Third-party ads', adRows)}${adminTable('Store requests', storeRows)}${adminTable('Support inbox', support.threads || [])}${adminTable('Reports', reports.reports || [])}${adminTable('Categories', categories.categories || [])}<section class="panel"><div class="panel-head"><div><h2>Platform totals</h2><p class="panel-subtitle">Owner-only operational visibility.</p></div><span class="badge">Protected API</span></div><div class="rows"><div class="data-row"><strong>Open disputes</strong><span>${Number(stats.openDisputes || 0)}</span></div><div class="data-row"><strong>Open reports</strong><span>${Number(stats.openReports || 0)}</span></div><div class="data-row"><strong>Active ads</strong><span>${Number(stats.activeAds || 0)}</span></div><div class="data-row"><strong>Categories</strong><span>${Number(stats.categories || 0)}</span></div></div></section>`;
 }
 
 async function renderRoute(route) {
@@ -303,8 +332,10 @@ async function onSubmit(event) {
       await api('/api/store/me', { method: 'PUT', body: JSON.stringify({ businessName: value('store-name'), description: value('store-description'), logoUrl }) });
       notify('Store submitted for review.');
     } else if (form.id === 'admin-ad-form') {
-      const mediaUrl = value('admin-ad-media');
-      await api('/api/ads', { method: 'POST', body: JSON.stringify({ title: value('admin-ad-title'), description: value('admin-ad-description'), category: value('admin-ad-category'), location: value('admin-ad-location'), priceCents: 1, placement: value('admin-ad-location'), durationDays: Number(value('admin-ad-duration')), skipAllowed: true, media: mediaUrl ? [mediaUrl] : [], destinationUrl: value('admin-ad-destination') || undefined }) });
+      const [mediaFile] = $('#admin-ad-media', form).files || [];
+      const uploaded = await uploadFiles(mediaFile ? [mediaFile] : []);
+      if (!uploaded[0]?.url) throw new Error('Choose an image or video for the advertisement.');
+      await api('/api/ads', { method: 'POST', body: JSON.stringify({ title: value('admin-ad-title'), description: value('admin-ad-description'), category: value('admin-ad-category'), location: value('admin-ad-placement'), priceCents: 1, placement: value('admin-ad-placement'), durationDays: Number(value('admin-ad-duration')), skipAllowed: value('admin-ad-skip') === 'true', media: [uploaded[0].url] }) });
       notify('Third-party ad published.');
     }
     form.reset();
