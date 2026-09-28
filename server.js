@@ -522,6 +522,54 @@ app.patch('/api/admin/users/:id/premium', requireAdmin, async (req, res, next) =
     next(error);
   }
 });
+app.get('/api/admin/premium-requests', requireAdmin, async (_req, res, next) => {
+  try {
+    const result = await db.query(`SELECT p.id,p.reason,p.status,p.created_at AS "createdAt",u.name AS "userName",u.email AS "userEmail"
+      FROM premium_requests p LEFT JOIN users u ON u.id = p.user_id ORDER BY CASE p.status WHEN 'pending' THEN 0 ELSE 1 END, p.created_at DESC`);
+    res.json({ requests: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+app.post('/api/admin/premium-requests/:id/review', requireAdmin, async (req, res, next) => {
+  try {
+    const parsed = z.object({ decision: z.enum(['approved', 'rejected']) }).safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Choose approve or reject.' });
+    const requestResult = await db.query('SELECT user_id, status FROM premium_requests WHERE id = $1 FOR UPDATE', [req.params.id]);
+    const request = requestResult.rows[0];
+    if (!request) return res.status(404).json({ error: 'Premium request not found.' });
+    if (request.status !== 'pending') return res.status(409).json({ error: 'This premium request was already reviewed.' });
+    const reviewStatus = parsed.data.decision === 'approved' ? 'approved' : 'rejected';
+    const updated = await db.query('UPDATE premium_requests SET status = $1, reviewed_by = $2, reviewed_at = NOW() WHERE id = $3 RETURNING id, status', [reviewStatus, req.session.user.id, req.params.id]);
+    if (parsed.data.decision === 'approved') {
+      await db.query('UPDATE users SET subscription_tier = $1, premium_source = $2, premium_activated_at = $3, green_tick = TRUE WHERE id = $4', ['premium', 'admin', now(), request.user_id]);
+      await db.query('INSERT INTO notifications (id,user_id,kind,body,created_at) VALUES ($1,$2,$3,$4,NOW())', [nanoid(), request.user_id, 'premium', 'Your Premium request was approved by the admin team.']);
+    } else {
+      await db.query('INSERT INTO notifications (id,user_id,kind,body,created_at) VALUES ($1,$2,$3,$4,NOW())', [nanoid(), request.user_id, 'premium', 'Your Premium request was rejected. You can reapply after meeting the eligibility rules.']);
+    }
+    res.json({ reviewed: true, request: updated.rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+app.post('/api/premium/requests', requireUser, async (req, res, next) => {
+  try {
+    const parsed = z.object({ reason: z.string().trim().min(3).max(1000).default('Please review my account for Premium access.') }).safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'A short reason is required.' });
+    const userResult = await db.query('SELECT referral_count, subscription_tier FROM users WHERE id = $1', [req.session.user.id]);
+    const user = userResult.rows[0];
+    if (!user) return res.status(404).json({ error: 'User not found.' });
+    if (user.subscription_tier === 'premium') return res.json({ ok: true, status: 'already-active', message: 'This account already has Premium.' });
+    if (Number(user.referral_count || 0) < 10) return res.status(400).json({ error: 'Only accounts with 10 verified referrals can request Premium.' });
+    const existing = await db.query("SELECT id FROM premium_requests WHERE user_id = $1 AND status = 'pending' LIMIT 1", [req.session.user.id]);
+    if (existing.rows[0]) return res.status(409).json({ error: 'You already have a pending Premium request.' });
+    const request = { id: nanoid(), userId: req.session.user.id, reason: parsed.data.reason, status: 'pending', createdAt: now() };
+    await db.query('INSERT INTO premium_requests (id,user_id,reason,status,created_at) VALUES ($1,$2,$3,$4,$5)', [request.id, request.userId, request.reason, request.status, request.createdAt]);
+    res.status(201).json({ request });
+  } catch (error) {
+    next(error);
+  }
+});
 app.delete('/api/admin/users/:id', requireAdmin, async (req, res, next) => {
   let client;
   try {
