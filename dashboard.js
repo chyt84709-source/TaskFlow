@@ -171,7 +171,7 @@ async function renderOverview() {
   $('#overview-notifications').innerHTML = notificationMarkup(notifications.notifications || []);
   $('#overview-tier').textContent = (currentUser?.subscriptionTier || 'standard').replace(/^./, (letter) => letter.toUpperCase());
   $('#overview-messages').innerHTML = offers.offers?.length ? offers.offers.slice(0, 5).map((offer) => `<div class="data-row"><div><strong>${escapeHtml(offer.content_type)} offer</strong><small>${escapeHtml(offer.status)}</small></div><span>${money(offer.amount_cents)}</span></div>`).join('') : emptyState('No conversations or offers yet.');
-  const topAd = (ads.ads || []).find((ad) => ['premium-store', 'homepage-top', 'featured'].includes(ad.placement)) || (ads.ads || [])[0];
+  const topAd = (ads.ads || []).find((ad) => ['premium-product', 'premium-store', 'homepage-top', 'featured'].includes(ad.placement)) || (ads.ads || [])[0];
   showAd(topAd);
   const categories = await loadCategories();
   $('#quick-category').innerHTML = categoryOptions(categories);
@@ -216,9 +216,25 @@ async function renderMarketplace() {
 async function renderProducts() {
   const categories = await loadCategories();
   pageFrame('products', `<div class="dashboard-columns"><section class="panel"><div class="panel-head"><div><h2>Sell a product</h2><p class="panel-subtitle">Add product details, price, inventory, and media.</p></div></div><form id="product-form"><div class="field"><label for="product-title">Product title</label><input id="product-title" required minlength="3" maxlength="120"></div><div class="field"><label for="product-category">Category</label><select id="product-category" required>${categoryOptions(categories)}</select></div><div class="form-grid"><div class="field"><label for="product-price">Price (USD)</label><input id="product-price" type="number" min="0.01" step="0.01" value="25" required></div><div class="field"><label for="product-stock">Stock</label><input id="product-stock" type="number" min="0" value="10" required></div></div><div class="field"><label for="product-description">Description</label><textarea id="product-description" required></textarea></div><div class="field"><label for="product-media">Product images</label><input id="product-media" type="file" accept="image/*" multiple></div><button class="button button-primary" type="submit">List product</button></form></section><section class="panel"><div class="panel-head"><h2>Products</h2><span class="badge" id="product-count">0 products</span></div><div class="cards-grid" id="product-cards">${emptyState('Loading products...')}</div></section></div>`);
-  const products = (await api('/api/products').catch(() => ({ products: [] }))).products || [];
+  const [productResponse, promotionResponse] = await Promise.all([
+    api('/api/products').catch(() => ({ products: [] })),
+    api('/api/promotions/requests/mine').catch(() => ({ requests: [] }))
+  ]);
+  const products = productResponse.products || [];
+  const promotionByProduct = new Map((promotionResponse.requests || []).map((request) => [request.productId, request]));
   $('#product-count').textContent = `${products.length} products`;
-  $('#product-cards').innerHTML = products.length ? products.map((product) => `<article class="listing-card product-card">${mediaMarkup({ ...product, media: product.media || [] })}<div class="listing-body"><span class="badge">${escapeHtml(product.category || 'Product')}</span><h3>${escapeHtml(product.title)}</h3>${product.store_name ? `<div class="product-brand">${product.store_logo_url ? `<img src="${escapeHtml(product.store_logo_url)}" alt="">` : ''}<span>${escapeHtml(product.store_name)}</span></div>` : ''}<p class="listing-description">${escapeHtml(product.description || 'A quality product from the TaskFlow marketplace.')}</p><div class="listing-meta"><span class="product-rating">${Number(product.review_count || 0) ? `${Number(product.avg_rating || 0).toFixed(1)} ★ · ${Number(product.review_count)} reviews` : 'New arrival'}</span><strong>${money(product.price_cents || product.priceCents)}</strong></div><div class="listing-meta"><span class="badge">${Number(product.stock || 0)} in stock</span><button class="button" type="button" data-contact="product" data-id="${escapeHtml(product.id)}" data-title="${escapeHtml(product.title)}">Contact seller</button></div></div></article>`).join('') : emptyState('No products are listed yet.');
+  $('#product-cards').innerHTML = products.length ? products.map((product) => {
+    const isOwner = String(product.vendor_id || product.vendorId) === String(currentUser?.id);
+    const request = promotionByProduct.get(product.id);
+    let promotionMarkup = '';
+    if (isOwner && request) {
+      const offer = request.offeredDays ? `${Number(request.offeredDays)} days · ${money(request.priceCents)}` : `${Number(request.requestedDays)} days requested`;
+      promotionMarkup = `<p class="promotion-status"><strong>${escapeHtml(request.status)}</strong> · ${escapeHtml(offer)}${request.adminReply ? `<br>${escapeHtml(request.adminReply)}` : ''}</p>`;
+    } else if (isOwner) {
+      promotionMarkup = `<button class="button product-feature-action" type="button" data-product-promotion="${escapeHtml(product.id)}">Request 7-day homepage feature</button>`;
+    }
+    return `<article class="listing-card product-card">${mediaMarkup({ ...product, media: product.media || [] })}<div class="listing-body"><span class="badge">${escapeHtml(product.category || 'Product')}</span><h3>${escapeHtml(product.title)}</h3>${product.store_name ? `<div class="product-brand">${product.store_logo_url ? `<img src="${escapeHtml(product.store_logo_url)}" alt="">` : ''}<span>${escapeHtml(product.store_name)}</span></div>` : ''}<p class="listing-description">${escapeHtml(product.description || 'A quality product from the TaskFlow marketplace.')}</p><div class="listing-meta"><span class="product-rating">${Number(product.review_count || 0) ? `${Number(product.avg_rating || 0).toFixed(1)} ★ · ${Number(product.review_count)} reviews` : 'New arrival'}</span><strong>${money(product.price_cents || product.priceCents)}</strong></div><div class="listing-meta"><span class="badge">${Number(product.stock || 0)} in stock</span><button class="button" type="button" data-contact="product" data-id="${escapeHtml(product.id)}" data-title="${escapeHtml(product.title)}">Contact seller</button></div>${promotionMarkup}</div></article>`;
+  }).join('') : emptyState('No products are listed yet.');
 }
 
 async function renderGigs() {
@@ -294,9 +310,8 @@ async function renderSettings() {
 }
 
 async function renderPremium() {
-  pageFrame('premium', `<div class="dashboard-columns"><section class="panel"><div class="panel-head"><h2>Premium membership</h2><span class="badge">Account boost</span></div><p class="panel-subtitle">Priority visibility, a verified profile badge, and member benefits.</p><div class="trust-grid"><div class="trust-stat"><span>Visibility</span><strong>Priority placement</strong></div><div class="trust-stat"><span>Profile</span><strong>Premium badge</strong></div><div class="trust-stat"><span>Marketplace</span><strong>Member discounts</strong></div><div class="trust-stat"><span>Store promotion</span><strong>One free 7-day homepage feature</strong></div></div></section><section class="panel"><div class="panel-head"><h2>Premium status</h2><span class="badge" id="premium-state">Standard</span></div><p class="panel-subtitle">You can pay through checkout, qualify by referrals, or request owner review.</p><div class="form-actions"><button class="button button-primary" id="premium-pay" type="button">Upgrade to Premium</button><button class="button" id="premium-referrals" type="button">View referrals</button><button class="button" id="premium-request" type="button">Request Premium</button><button class="button hidden" id="premium-feature" type="button">Request 7-day store feature</button></div><p class="panel-subtitle" id="premium-note"></p></section></div>`);
+  pageFrame('premium', `<div class="dashboard-columns"><section class="panel"><div class="panel-head"><h2>Premium membership</h2><span class="badge">Account boost</span></div><p class="panel-subtitle">Priority visibility, a verified profile badge, and member benefits.</p><div class="trust-grid"><div class="trust-stat"><span>Visibility</span><strong>Priority placement</strong></div><div class="trust-stat"><span>Profile</span><strong>Premium badge</strong></div><div class="trust-stat"><span>Marketplace</span><strong>Member discounts</strong></div><div class="trust-stat"><span>Product promotion</span><strong>Request a 7-day homepage feature for your product</strong></div></div></section><section class="panel"><div class="panel-head"><h2>Premium status</h2><span class="badge" id="premium-state">Standard</span></div><p class="panel-subtitle">You can pay through checkout, qualify by referrals, or request owner review.</p><div class="form-actions"><button class="button button-primary" id="premium-pay" type="button">Upgrade to Premium</button><button class="button" id="premium-referrals" type="button">View referrals</button><button class="button" id="premium-request" type="button">Request Premium</button></div><p class="panel-subtitle" id="premium-note"></p></section></div>`);
   $('#premium-state').textContent = currentUser?.subscriptionTier || 'Standard';
-  $('#premium-feature').classList.toggle('hidden', currentUser?.subscriptionTier !== 'premium');
 }
 
 function adminTable(title, rows, emptyMessage = 'Nothing to review.') {
@@ -310,8 +325,8 @@ async function renderAdmin() {
     return;
   }
   pageFrame('admin', `<div class="metric-grid" id="admin-metrics">${['Users', 'Products', 'Listings', 'Gigs'].map((label) => `<article class="metric"><div class="metric-top"><span>${label}</span><i data-lucide="bar-chart-3"></i></div><strong>...</strong><small>Loading owner data</small></article>`).join('')}</div><div class="stack" id="admin-content"><section class="panel"><p class="empty">Loading complete platform control center...</p></section></div>`,'Owner control center');
-  const [overview, content, users, stores, support, reports, categories, ads, adMessages, premiumRequests] = await Promise.all([
-    api('/api/admin/overview'), api('/api/admin/content'), api('/api/admin/users'), api('/api/admin/store-requests'), api('/api/admin/support/threads'), api('/api/admin/reports'), api('/api/admin/categories'), api('/api/admin/ads'), api('/api/admin/ad-messages'), api('/api/admin/premium-requests')
+  const [overview, content, users, stores, support, reports, categories, ads, adMessages, premiumRequests, promotionRequests] = await Promise.all([
+    api('/api/admin/overview'), api('/api/admin/content'), api('/api/admin/users'), api('/api/admin/store-requests'), api('/api/admin/support/threads'), api('/api/admin/reports'), api('/api/admin/categories'), api('/api/admin/ads'), api('/api/admin/ad-messages'), api('/api/admin/premium-requests'), api('/api/admin/promotion-requests')
   ]);
   const stats = overview.stats || {};
   const metrics = [stats.activeUsers || 0, stats.activeProducts || 0, content.listings?.length || 0, stats.activeGigs || 0];
@@ -325,8 +340,17 @@ async function renderAdmin() {
   const storeRows = (stores.requests || []).map((store) => ({ ...store, owner_name: store.ownerName || store.ownerEmail, details: `${store.category || 'Store'}\n${store.description || ''}`, action: store.status === 'pending' ? `<button class="button" type="button" data-store-review="${escapeHtml(store.id)}" data-decision="verified">Verify</button> <button class="button" type="button" data-store-review="${escapeHtml(store.id)}" data-decision="rejected">Changes</button>` : '<span class="badge">Reviewed</span>' }));
   const adRows = (ads.ads || []).map((ad) => ({ ...ad, details: `${ad.category || ''} · ${ad.placement || ''} · ${Number(ad.duration_days || 7)} days\n${ad.description || ''}`, action: `<button class="button" type="button" data-ad-review="${escapeHtml(ad.id)}" data-decision="approved">Approve</button> <button class="button" type="button" data-ad-review="${escapeHtml(ad.id)}" data-decision="rejected">Reject</button>` }));
   const adMessageRows = (adMessages.messages || []).map((message) => ({ ...message, title: message.adTitle || 'Advertisement message', owner_name: `${message.senderName || 'User'} · ${message.senderEmail || 'No email'}`, details: message.body, action: `<button class="button" type="button" data-ad-message-review="${escapeHtml(message.id)}" data-decision="approved">Approve</button> <button class="button" type="button" data-ad-message-review="${escapeHtml(message.id)}" data-decision="rejected">Reject</button>` }));
+  const promotionRows = (promotionRequests.requests || []).map((request) => ({
+    ...request,
+    title: request.productTitle,
+    owner_name: `${request.userName || 'User'} · ${request.userEmail || ''}`,
+    description: request.productDescription,
+    media: request.media,
+    details: `${request.category || 'Product'} · ${money(request.productPriceCents)}\nRequested: ${Number(request.requestedDays)} days${request.adminReply ? `\nAdmin reply: ${request.adminReply}` : ''}`,
+    action: request.status === 'pending' ? `<form class="promotion-review-form" data-promotion-review-form><input type="hidden" name="requestId" value="${escapeHtml(request.id)}"><label>Feature days<input name="offeredDays" type="number" min="1" max="30" value="${Number(request.requestedDays) || 7}" required></label><label>Price (USD)<input name="priceDollars" type="number" min="0" step="0.01" value="0" required></label><label>Reply to customer<textarea name="reply" maxlength="1000" required placeholder="Explain the schedule and any terms."></textarea></label><div class="promotion-review-actions"><button class="button button-primary" type="submit" name="decision" value="approved">Approve / send quote</button><button class="button" type="submit" name="decision" value="rejected">Reject</button></div></form>` : '<span class="badge">Reviewed</span>'
+  }));
   const premiumRows = (premiumRequests.requests || []).map((request) => ({ ...request, title: request.userName, ownerEmail: request.userEmail, action: request.status === 'pending' ? `<button class="button" type="button" data-premium-review="${escapeHtml(request.id)}" data-decision="approved">Approve</button> <button class="button" type="button" data-premium-review="${escapeHtml(request.id)}" data-decision="rejected">Reject</button>` : '<span class="badge">Reviewed</span>' }));
-  $('#admin-content').innerHTML = `<section class="panel"><div class="panel-head"><div><h2>Create third-party ad</h2><p class="panel-subtitle">Upload a banner or video and choose where it appears.</p></div><span class="badge">Admin only</span></div><form id="admin-ad-form" class="form-grid"><div class="field"><label for="admin-ad-title">Campaign title</label><input id="admin-ad-title" required minlength="3" maxlength="120"></div><div class="field"><label for="admin-ad-category">Category</label><select id="admin-ad-category" required>${categoryOptions(categories.categories || [])}</select></div><div class="field"><label for="admin-ad-placement">Placement</label><select id="admin-ad-placement" required><option value="homepage-top">Homepage top</option><option value="sidebar">Sidebar</option><option value="featured">Featured</option></select></div><div class="field"><label for="admin-ad-duration">Campaign duration (days)</label><input id="admin-ad-duration" type="number" min="1" max="365" value="7" required></div><div class="field field-full"><label for="admin-ad-description">Description</label><textarea id="admin-ad-description" required minlength="5"></textarea></div><div class="field"><label for="admin-ad-media">Picture or video</label><input id="admin-ad-media" type="file" accept="image/*,video/*" required></div><div class="field"><label for="admin-ad-skip">Skip ad</label><select id="admin-ad-skip"><option value="true">Allow skip after 3 seconds</option><option value="false">Do not allow skip</option></select></div><div class="field-full"><button class="button button-primary" type="submit">Publish ad</button></div></form></section>${adminTable('Premium requests', premiumRows, 'No Premium requests.')}${adminTable('Users', userRows, 'No registered users.')}${adminTable('Tasks', taskRows)}${adminTable('Products', productRows)}${adminTable('Marketplace listings', listingRows)}${adminTable('Gigs', gigRows)}${adminTable('Advertisement review', adRows, 'No ads awaiting or needing review.')}${adminTable('Advertisement messages', adMessageRows, 'No ad messages.')}${adminTable('Store requests', storeRows)}${adminTable('Support inbox', support.threads || [])}${adminTable('Reports', reports.reports || [])}${adminTable('Categories', categories.categories || [])}<section class="panel"><div class="panel-head"><div><h2>Platform totals</h2><p class="panel-subtitle">Owner-only operational visibility.</p></div><span class="badge">Protected API</span></div><div class="rows"><div class="data-row"><strong>Open disputes</strong><span>${Number(stats.openDisputes || 0)}</span></div><div class="data-row"><strong>Open reports</strong><span>${Number(stats.openReports || 0)}</span></div><div class="data-row"><strong>Active ads</strong><span>${Number(stats.activeAds || 0)}</span></div><div class="data-row"><strong>Categories</strong><span>${Number(stats.categories || 0)}</span></div></div></section>`;
+  $('#admin-content').innerHTML = `<section class="panel"><div class="panel-head"><div><h2>Create third-party ad</h2><p class="panel-subtitle">Upload a banner or video and choose where it appears.</p></div><span class="badge">Admin only</span></div><form id="admin-ad-form" class="form-grid"><div class="field"><label for="admin-ad-title">Campaign title</label><input id="admin-ad-title" required minlength="3" maxlength="120"></div><div class="field"><label for="admin-ad-category">Category</label><select id="admin-ad-category" required>${categoryOptions(categories.categories || [])}</select></div><div class="field"><label for="admin-ad-placement">Placement</label><select id="admin-ad-placement" required><option value="homepage-top">Homepage top</option><option value="sidebar">Sidebar</option><option value="featured">Featured</option></select></div><div class="field"><label for="admin-ad-duration">Campaign duration (days)</label><input id="admin-ad-duration" type="number" min="1" max="365" value="7" required></div><div class="field field-full"><label for="admin-ad-description">Description</label><textarea id="admin-ad-description" required minlength="5"></textarea></div><div class="field"><label for="admin-ad-media">Picture or video</label><input id="admin-ad-media" type="file" accept="image/*,video/*" required></div><div class="field"><label for="admin-ad-skip">Skip ad</label><select id="admin-ad-skip"><option value="true">Allow skip after 3 seconds</option><option value="false">Do not allow skip</option></select></div><div class="field-full"><button class="button button-primary" type="submit">Publish ad</button></div></form></section>${adminTable('Product homepage feature requests', promotionRows, 'No product promotion requests.')}${adminTable('Premium requests', premiumRows, 'No Premium requests.')}${adminTable('Users', userRows, 'No registered users.')}${adminTable('Tasks', taskRows)}${adminTable('Products', productRows)}${adminTable('Marketplace listings', listingRows)}${adminTable('Gigs', gigRows)}${adminTable('Advertisement review', adRows, 'No ads awaiting or needing review.')}${adminTable('Advertisement messages', adMessageRows, 'No ad messages.')}${adminTable('Store requests', storeRows)}${adminTable('Support inbox', support.threads || [])}${adminTable('Reports', reports.reports || [])}${adminTable('Categories', categories.categories || [])}<section class="panel"><div class="panel-head"><div><h2>Platform totals</h2><p class="panel-subtitle">Owner-only operational visibility.</p></div><span class="badge">Protected API</span></div><div class="rows"><div class="data-row"><strong>Open disputes</strong><span>${Number(stats.openDisputes || 0)}</span></div><div class="data-row"><strong>Open reports</strong><span>${Number(stats.openReports || 0)}</span></div><div class="data-row"><strong>Active ads</strong><span>${Number(stats.activeAds || 0)}</span></div><div class="data-row"><strong>Categories</strong><span>${Number(stats.categories || 0)}</span></div></div></section>`;
 }
 
 async function renderRoute(route) {
@@ -395,6 +419,14 @@ async function onSubmit(event) {
       if (!logoUrl || !coverUrl) throw new Error('Add both a store profile picture and a cover photo.');
       await api('/api/store/me', { method: 'PUT', body: JSON.stringify({ businessName: value('store-name'), category: value('store-category'), description: value('store-description'), logoUrl, coverUrl }) });
       notify('Store submitted for review.');
+    } else if (form.matches('[data-promotion-review-form]')) {
+      const field = (name) => form.elements.namedItem(name)?.value || '';
+      const decision = event.submitter?.value;
+      const result = await api(`/api/admin/promotion-requests/${encodeURIComponent(field('requestId'))}/review`, {
+        method: 'PATCH',
+        body: JSON.stringify({ decision, offeredDays: Number(field('offeredDays')), priceCents: Math.round(Number(field('priceDollars')) * 100), reply: field('reply') })
+      });
+      notify(result.status === 'approved' ? 'Product feature approved and scheduled.' : result.status === 'quoted' ? 'Promotion quote sent to the customer.' : 'Promotion request declined.');
     } else if (form.id === 'admin-ad-form') {
       const [mediaFile] = $('#admin-ad-media', form).files || [];
       const uploaded = await uploadFiles(mediaFile ? [mediaFile] : []);
@@ -423,6 +455,20 @@ document.addEventListener('click', async (event) => {
     return;
   }
   if (event.target.closest('[data-refresh-overview]')) { await renderOverview(); return; }
+  const promotionButton = event.target.closest('[data-product-promotion]');
+  if (promotionButton) {
+    if (currentUser?.subscriptionTier !== 'premium') {
+      notify('Premium is required before you can request a homepage product feature.');
+      navigate('premium');
+      return;
+    }
+    try {
+      await api('/api/promotions/requests', { method: 'POST', body: JSON.stringify({ productId: promotionButton.dataset.productPromotion, requestedDays: 7 }) });
+      notify('Your 7-day product feature request was sent to the admin team.');
+      await renderProducts();
+    } catch (error) { notify(error.message); }
+    return;
+  }
   const contactButton = event.target.closest('[data-contact]');
   if (contactButton) {
     const amount = Number(window.prompt('Offer amount in USD', '10'));
@@ -488,13 +534,6 @@ document.addEventListener('click', async (event) => {
       await api(`/api/admin/ad-messages/${encodeURIComponent(adMessageReview.dataset.adMessageReview)}/review`, { method: 'PATCH', body: JSON.stringify({ decision: adMessageReview.dataset.decision }) });
       notify(adMessageReview.dataset.decision === 'approved' ? 'Message approved.' : 'Message rejected.');
       await renderAdmin();
-    } catch (error) { notify(error.message); }
-    return;
-  }
-  if (event.target.closest('#premium-feature')) {
-    try {
-      const result = await api('/api/store/promotion', { method: 'POST' });
-      $('#premium-note').textContent = result.status === 'pending' ? 'Your free 7-day homepage feature is waiting for admin review.' : 'Your store feature request is already in progress.';
     } catch (error) { notify(error.message); }
     return;
   }
