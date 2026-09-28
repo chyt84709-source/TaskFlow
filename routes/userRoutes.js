@@ -286,12 +286,19 @@ router.post('/api/profile/avatar', requireUser, imageUpload.single('file'), asyn
 
 router.get('/api/media/:id', requireUser, async (req, res, next) => {
   try {
-    const result = await db.query('SELECT m.filename,m.mime_type AS "mimeType",m.purpose,m.user_id AS "userId",u.account_status AS "accountStatus" FROM media_files m LEFT JOIN users u ON u.id=m.user_id WHERE m.id=$1', [req.params.id]);
+    const result = await db.query(`SELECT m.filename,m.mime_type AS "mimeType",m.purpose,m.user_id AS "userId",u.account_status AS "accountStatus",
+      EXISTS (SELECT 1 FROM ads a
+        WHERE a.status='active'
+          AND a.created_at + (COALESCE(a.duration_days, 7) * INTERVAL '1 day') >= NOW()
+          AND (a.media @> jsonb_build_array('/api/media/' || m.id)
+            OR a.media @> jsonb_build_array(jsonb_build_object('url', '/api/media/' || m.id)))) AS "activeAdMedia"
+      FROM media_files m LEFT JOIN users u ON u.id=m.user_id WHERE m.id=$1`, [req.params.id]);
     const media = result.rows[0];
     const sharedMedia = media?.purpose === 'marketplace-media' || media?.purpose === 'ad-media';
     const adminAccess = req.session.user?.isAdmin || req.session.user?.role === 'admin';
     const ownerCanShare = sharedMedia && media.accountStatus === 'active';
-    if (!media || (!adminAccess && !ownerCanShare && media.userId !== req.session.user.id)) return res.status(404).end();
+    const activeAdCanShare = Boolean(media?.activeAdMedia);
+    if (!media || (!adminAccess && !ownerCanShare && !activeAdCanShare && media.userId !== req.session.user.id)) return res.status(404).end();
     try {
       const encrypted = await readEncryptedImage(media.filename);
       const payload = decryptImage(encrypted);
