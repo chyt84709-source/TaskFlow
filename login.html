@@ -1823,7 +1823,7 @@
     function applyProfileToUi(user, profileData = null) {
       const userName = user?.name || user?.email || 'TaskFlow member';
       const userEmail = user?.email || 'member@taskflow.com';
-      const avatarUrl = profileData?.avatar_url || profileData?.avatarUrl || user?.avatar_url || user?.avatarUrl || '';
+      const avatarUrl = user?.avatar_url || user?.avatarUrl || profileData?.avatar_url || profileData?.avatarUrl || '';
       const bio = profileData?.bio || user?.bio || '';
       const countryCode = String(user?.country || 'US').toUpperCase();
       const subscriptionTier = user?.subscriptionTier || profileData?.subscription_tier || 'standard';
@@ -1835,7 +1835,12 @@
 
       $('topbar-name').textContent = userName;
       $('topbar-email').textContent = userEmail;
-      $('topbar-avatar').textContent = initialsFromName(userName);
+      const topbarAvatar = $('topbar-avatar');
+      topbarAvatar.textContent = avatarUrl ? '' : initialsFromName(userName);
+      topbarAvatar.style.backgroundImage = avatarUrl ? `url("${avatarUrl}")` : '';
+      topbarAvatar.style.backgroundSize = 'cover';
+      topbarAvatar.style.backgroundPosition = 'center';
+      topbarAvatar.style.color = avatarUrl ? 'transparent' : '';
       $('topbar-verified').classList.toggle('hidden', !greenTick);
       $('topbar-premium').classList.toggle('hidden', subscriptionTier !== 'premium');
       $('settings-email').textContent = userEmail;
@@ -3233,10 +3238,6 @@
         if (!uploadResponse.ok) throw new Error(uploadData.error || 'Profile image upload failed');
         const uploadedUrl = uploadData.url || '';
         if (uploadedUrl) {
-          await api('/api/profile', {
-            method: 'PUT',
-            body: JSON.stringify({ avatarUrl: uploadedUrl })
-          });
           notify('Profile picture updated successfully.');
           await hydrateProfile();
         }
