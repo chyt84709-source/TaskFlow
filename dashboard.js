@@ -213,7 +213,7 @@ async function renderMarketplace() {
   renderMarketplaceCards(marketplaceItems);
 }
 
-async function renderProducts() {
+async function renderProductsLegacy() {
   const categories = await loadCategories();
   pageFrame('products', `<div class="dashboard-columns"><section class="panel"><div class="panel-head"><div><h2>Sell a product</h2><p class="panel-subtitle">Add product details, price, inventory, and media.</p></div></div><form id="product-form"><div class="field"><label for="product-title">Product title</label><input id="product-title" required minlength="3" maxlength="120"></div><div class="field"><label for="product-category">Category</label><select id="product-category" required>${categoryOptions(categories)}</select></div><div class="form-grid"><div class="field"><label for="product-price">Price (USD)</label><input id="product-price" type="number" min="0.01" step="0.01" value="25" required></div><div class="field"><label for="product-stock">Stock</label><input id="product-stock" type="number" min="0" value="10" required></div></div><div class="field"><label for="product-description">Description</label><textarea id="product-description" required></textarea></div><div class="field"><label for="product-media">Product images</label><input id="product-media" type="file" accept="image/*" multiple></div><button class="button button-primary" type="submit">List product</button></form></section><section class="panel"><div class="panel-head"><h2>Products</h2><span class="badge" id="product-count">0 products</span></div><div class="cards-grid" id="product-cards">${emptyState('Loading products...')}</div></section></div>`);
   const [productResponse, promotionResponse] = await Promise.all([
@@ -237,6 +237,60 @@ async function renderProducts() {
   }).join('') : emptyState('No products are listed yet.');
 }
 
+async function renderProducts() {
+  const categories = await loadCategories();
+  const storeResponse = await api('/api/store/me').catch(() => ({ stores: [] }));
+  const approvedStores = (storeResponse.stores || []).filter((store) => store.status === 'verified');
+  pageFrame('products', `
+    <section class="panel product-catalog">
+      <div class="panel-head product-catalog-head">
+        <div><h2>Browse products</h2><p class="panel-subtitle">Find products from verified stores and independent sellers.</p></div>
+        <div class="form-actions"><a class="button" href="/vendor" data-route="vendor"><i data-lucide="store"></i>My stores</a><button class="button button-primary" type="button" data-open-dialog="sell-product-dialog"><i data-lucide="plus"></i>Sell a product</button></div>
+      </div>
+      <div class="product-filters"><div class="field"><label for="product-search">Search products</label><input id="product-search" type="search" placeholder="Search products"></div><div class="field"><label for="product-category-filter">Category</label><select id="product-category-filter">${categoryOptions(categories, true)}</select></div><span class="badge" id="product-count">0 products</span></div>
+      <div class="cards-grid product-catalog-grid" id="product-cards">${emptyState('Loading products...')}</div>
+      <div class="product-catalog-footer"><span class="panel-subtitle">${approvedStores.length} approved ${approvedStores.length === 1 ? 'store' : 'stores'} available</span><div class="form-actions"><a class="button" href="#product-cards" data-scroll-products><i data-lucide="arrow-up"></i>Browse products</a><button class="button button-primary" type="button" data-open-dialog="sell-product-dialog"><i data-lucide="plus"></i>Sell a product</button></div></div>
+    </section>
+    <dialog class="modal-dialog" id="sell-product-dialog"><form id="product-form" class="panel modal-panel">
+      <div class="panel-head"><div><h2>Sell a product</h2><p class="panel-subtitle">Add the details buyers need to make a decision.</p></div><button class="button icon-button" type="button" data-close-dialog aria-label="Close"><i data-lucide="x"></i></button></div>
+      <div class="field"><label for="product-title">Product title</label><input id="product-title" required minlength="3" maxlength="120"></div>
+      <div class="field"><label for="product-store">Store</label><select id="product-store"><option value="">Independent listing</option>${approvedStores.map((store) => `<option value="${escapeHtml(store.id)}">${escapeHtml(store.businessName)}</option>`).join('')}</select></div>
+      <div class="field"><label for="product-category">Category</label><select id="product-category" required>${categoryOptions(categories)}</select></div>
+      <div class="form-grid"><div class="field"><label for="product-price">Price (USD)</label><input id="product-price" type="number" min="0.01" step="0.01" value="25" required></div><div class="field"><label for="product-stock">Stock</label><input id="product-stock" type="number" min="0" value="10" required></div></div>
+      <div class="field"><label for="product-description">Description</label><textarea id="product-description" required></textarea></div>
+      <div class="field"><label for="product-media">Product images</label><input id="product-media" type="file" accept="image/*" multiple></div>
+      <div class="form-actions"><button class="button" type="button" data-close-dialog>Cancel</button><button class="button button-primary" type="submit">List product</button></div>
+    </form></dialog>`);
+  const [productResponse, promotionResponse] = await Promise.all([
+    api('/api/products').catch(() => ({ products: [] })),
+    api('/api/promotions/requests/mine').catch(() => ({ requests: [] }))
+  ]);
+  const products = productResponse.products || [];
+  const promotionByProduct = new Map((promotionResponse.requests || []).map((request) => [request.productId, request]));
+  const renderCards = () => {
+    const search = $('#product-search').value.trim().toLowerCase();
+    const category = $('#product-category-filter').value;
+    const filtered = products.filter((product) => `${product.title || ''} ${product.description || ''} ${product.category || ''} ${product.store_name || ''}`.toLowerCase().includes(search) && (!category || product.category === category));
+    $('#product-count').textContent = `${filtered.length} products`;
+    $('#product-cards').innerHTML = filtered.length ? filtered.map((product) => {
+      const isOwner = String(product.vendor_id || product.vendorId) === String(currentUser?.id);
+      const request = promotionByProduct.get(product.id);
+      let promotionMarkup = '';
+      if (isOwner && request) {
+        const offer = request.offeredDays ? `${Number(request.offeredDays)} days · ${money(request.priceCents)}` : `${Number(request.requestedDays)} days requested`;
+        promotionMarkup = `<p class="promotion-status"><strong>${escapeHtml(request.status)}</strong> · ${escapeHtml(offer)}${request.adminReply ? `<br>${escapeHtml(request.adminReply)}` : ''}</p>`;
+      } else if (isOwner) {
+        promotionMarkup = `<button class="button product-feature-action" type="button" data-product-promotion="${escapeHtml(product.id)}">Request 7-day homepage feature</button>`;
+      }
+      return `<article class="listing-card product-card">${mediaMarkup({ ...product, media: product.media || [] })}<div class="listing-body"><span class="badge">${escapeHtml(product.category || 'Product')}</span><h3>${escapeHtml(product.title)}</h3>${product.store_name ? `<div class="product-brand">${product.store_logo_url ? `<img src="${escapeHtml(product.store_logo_url)}" alt="">` : ''}<span>${escapeHtml(product.store_name)}</span></div>` : ''}<p class="listing-description">${escapeHtml(product.description || '')}</p><div class="listing-meta"><span class="product-rating">${Number(product.review_count || 0) ? `${Number(product.avg_rating || 0).toFixed(1)} ★ · ${Number(product.review_count)} reviews` : 'New arrival'}</span><strong>${money(product.price_cents || product.priceCents)}</strong></div><div class="product-stock-row"><span class="badge">${Number(product.stock || 0)} in stock</span><button class="button button-primary" type="button" data-buy-product="${escapeHtml(product.id)}" ${Number(product.stock || 0) < 1 || isOwner ? 'disabled' : ''}><i data-lucide="shopping-bag"></i>Buy product</button></div><button class="button product-contact" type="button" data-contact="product" data-id="${escapeHtml(product.id)}" data-title="${escapeHtml(product.title)}">Contact seller</button>${promotionMarkup}</div></article>`;
+    }).join('') : emptyState('No products match these filters.');
+    window.lucide?.createIcons();
+  };
+  $('#product-search').addEventListener('input', renderCards);
+  $('#product-category-filter').addEventListener('change', renderCards);
+  renderCards();
+}
+
 async function renderGigs() {
   const categories = await loadCategories();
   pageFrame('gigs', `<div class="dashboard-columns"><section class="panel"><div class="panel-head"><div><h2>Create a gig</h2><p class="panel-subtitle">Offer a service with clear delivery expectations.</p></div></div><form id="gig-form"><div class="field"><label for="gig-title">Gig title</label><input id="gig-title" required minlength="3" maxlength="120" placeholder="Short-form video editing"></div><div class="field"><label for="gig-category">Category</label><select id="gig-category" required>${categoryOptions(categories)}</select></div><div class="form-grid"><div class="field"><label for="gig-price">Price (USD)</label><input id="gig-price" type="number" min="0.01" step="0.01" value="120" required></div><div class="field"><label for="gig-days">Delivery (days)</label><input id="gig-days" type="number" min="1" max="30" value="3" required></div></div><div class="field"><label for="gig-description">Description</label><textarea id="gig-description" required minlength="10"></textarea></div><button class="button button-primary" type="submit">Publish gig</button></form></section><section class="panel"><div class="panel-head"><h2>Available gigs</h2><span class="badge" id="gig-count">0 gigs</span></div><div class="cards-grid" id="gig-cards">${emptyState('Loading gigs...')}</div></section></div>`);
@@ -245,7 +299,7 @@ async function renderGigs() {
   $('#gig-cards').innerHTML = gigs.length ? gigs.map((gig) => `<article class="listing-card"><div class="listing-body"><h3>${escapeHtml(gig.title)}</h3><p>${escapeHtml(gig.description || '')}</p><div class="listing-meta"><span class="badge">${escapeHtml(gig.category || 'Service')}</span><strong>${money(gig.price_cents || gig.priceCents)}</strong></div><span class="badge">${Number(gig.delivery_days || gig.deliveryDays || 3)} day delivery</span></div></article>`).join('') : emptyState('No gigs are available yet.');
 }
 
-async function renderVendor() {
+async function renderVendorLegacy() {
   pageFrame('vendor', `<div class="dashboard-columns"><section class="panel"><div class="panel-head"><div><h2>Build your storefront</h2><p class="panel-subtitle">Create a complete brand profile for buyers.</p></div><span class="badge" id="store-status">No request</span></div><form id="store-form"><div class="field"><label for="store-name">Business name</label><input id="store-name" required maxlength="120" placeholder="Your store name"></div><div class="field"><label for="store-category">Business type</label><select id="store-category" required><option value="">Choose a store type</option><option>Fashion & retail</option><option>Food & restaurants</option><option>Automotive</option><option>Electronics</option><option>Home & lifestyle</option><option>Digital products</option><option>Professional services</option><option>Other</option></select></div><div class="field"><label for="store-description">About your store</label><textarea id="store-description" required minlength="10" maxlength="1500" placeholder="Tell buyers what makes your store worth visiting."></textarea></div><div class="field"><label for="store-cover-file">Cover photo</label><input id="store-cover-file" type="file" accept="image/*"><input id="store-current-cover" type="hidden"><img id="store-cover-preview" class="store-cover-preview hidden" alt="Store cover preview"></div><div class="field"><label for="store-logo-file">Store profile picture</label><input id="store-logo-file" type="file" accept="image/*"><input id="store-current-logo" type="hidden"><img id="store-logo-preview" class="store-logo-preview hidden" alt="Store profile picture preview"></div><button class="button button-primary" type="submit">Submit storefront for review</button></form></section><div class="column"><section class="panel"><div class="panel-head"><h2>Inventory</h2><a class="button-quiet" href="/products" data-route="products">Add product</a></div><div id="vendor-inventory">${emptyState('Loading inventory...')}</div></section><section class="panel"><div class="panel-head"><h2>Incoming orders</h2></div><div id="vendor-orders">${emptyState('Loading orders...')}</div></section><section class="panel"><div class="panel-head"><h2>Alerts and messages</h2></div><div class="feed" id="vendor-notifications">${emptyState('Loading notifications...')}</div></section></div></div>`);
   const results = await Promise.all([api('/api/store/me').catch(() => ({ store: null })), api('/api/vendor/inventory').catch(() => ({ products: [] })), api('/api/vendor/orders').catch(() => ({ orders: [] })), api('/api/notifications').catch(() => ({ notifications: [] }))]);
   const [store, inventory, orders, notifications] = results;
@@ -277,6 +331,73 @@ async function renderVendor() {
   $('#vendor-inventory').innerHTML = inventory.products?.length ? inventory.products.map((product) => `<div class="data-row"><div><strong>${escapeHtml(product.title)}</strong><small>${escapeHtml(product.category || 'Product')} · ${Number(product.stock)} in stock</small></div><span>${money(product.priceCents)}</span></div>`).join('') : emptyState('No products in your inventory.');
   $('#vendor-orders').innerHTML = orders.orders?.length ? orders.orders.map((order) => `<div class="data-row"><div><strong>${escapeHtml(order.productTitle)}</strong><small>${escapeHtml(order.status)}</small></div><span>${money(order.amountCents)}</span></div>`).join('') : emptyState('No incoming orders.');
   $('#vendor-notifications').innerHTML = notificationMarkup(notifications.notifications || []);
+}
+
+function openStoreForm(store = null) {
+  const form = $('#store-form');
+  form.reset();
+  $('#store-id').value = store?.id || '';
+  $('#store-name').value = store?.businessName || '';
+  $('#store-category').value = store?.category || '';
+  $('#store-description').value = store?.description || '';
+  $('#store-current-logo').value = store?.logoUrl || '';
+  $('#store-current-cover').value = store?.coverUrl || '';
+  $('#store-logo-preview').src = store?.logoUrl || '';
+  $('#store-cover-preview').src = store?.coverUrl || '';
+  $('#store-logo-preview').classList.toggle('hidden', !store?.logoUrl);
+  $('#store-cover-preview').classList.toggle('hidden', !store?.coverUrl);
+  $('#store-logo-file').required = !store?.logoUrl;
+  $('#store-cover-file').required = !store?.coverUrl;
+  $('#store-dialog-title').textContent = store ? 'Update store request' : 'Create a new store';
+  $('#store-form-submit').textContent = store ? 'Resubmit for review' : 'Submit storefront for review';
+  $('#store-dialog').showModal();
+}
+
+async function renderVendorStore(storeId) {
+  const detail = await api(`/api/store/me/${encodeURIComponent(storeId)}`);
+  const target = $('#vendor-store-detail');
+  $('#vendor-stores-panel').classList.add('hidden');
+  target.classList.remove('hidden');
+  const store = detail.store;
+  const sales = detail.sales || {};
+  target.innerHTML = `<section class="panel store-detail-panel"><img class="store-detail-cover" src="${escapeHtml(store.coverUrl || '')}" alt="${escapeHtml(store.businessName)} cover"><div class="store-profile"><img class="store-profile-image" src="${escapeHtml(store.logoUrl || '')}" alt=""><div><span class="badge">${escapeHtml(store.status)}</span><h2>${escapeHtml(store.businessName)}</h2><p>${escapeHtml(store.category || 'Store')}</p></div><button class="button" type="button" data-back-stores><i data-lucide="arrow-left"></i>All stores</button></div><p class="store-description">${escapeHtml(store.description)}</p><div class="metric-grid store-metrics"><article class="metric"><div class="metric-top"><span>Products</span><i data-lucide="package"></i></div><strong>${detail.products.length}</strong></article><article class="metric"><div class="metric-top"><span>Sales</span><i data-lucide="receipt-text"></i></div><strong>${Number(sales.salesCount || 0)}</strong></article><article class="metric"><div class="metric-top"><span>Units sold</span><i data-lucide="chart-no-axes-column-increasing"></i></div><strong>${Number(sales.unitsSold || 0)}</strong></article><article class="metric"><div class="metric-top"><span>Sales value</span><i data-lucide="circle-dollar-sign"></i></div><strong>${money(sales.salesCents)}</strong></article></div><div class="panel-head store-section-head"><h2>Store products</h2><a class="button button-primary" href="/products" data-route="products"><i data-lucide="plus"></i>Add product</a></div><div class="cards-grid">${detail.products.length ? detail.products.map((product) => `<article class="listing-card product-card">${mediaMarkup(product)}<div class="listing-body"><span class="badge">${escapeHtml(product.category || 'Product')}</span><h3>${escapeHtml(product.title)}</h3><p class="listing-description">${escapeHtml(product.description || '')}</p><div class="listing-meta"><span class="badge">${Number(product.stock)} in stock</span><strong>${money(product.priceCents)}</strong></div></div></article>`).join('') : emptyState('No products are assigned to this store yet.')}</div><div class="panel-head store-section-head"><h2>Recent sales</h2><span class="badge">${detail.orders.length} orders</span></div><div class="rows">${detail.orders.length ? detail.orders.map((order) => `<div class="data-row"><div><strong>${escapeHtml(order.productTitle)}</strong><small>${escapeHtml(order.status)} · ${Number(order.quantity)} units · ${new Date(order.createdAt).toLocaleDateString()}</small></div><span>${money(order.amountCents)}</span></div>`).join('') : emptyState('No sales for this store yet.')}</div></section>`;
+  window.lucide?.createIcons();
+}
+
+async function renderVendor() {
+  pageFrame('vendor', `
+    <div class="stack">
+      <section class="panel" id="vendor-stores-panel"><div class="panel-head"><div><h2>Your stores</h2><p class="panel-subtitle">Open an approved storefront or track requests under review.</p></div><button class="button button-primary" type="button" data-new-store><i data-lucide="plus"></i>Create new store</button></div><div class="cards-grid store-cards" id="vendor-stores">${emptyState('Loading stores...')}</div></section>
+      <div class="hidden" id="vendor-store-detail"></div>
+      <section class="panel"><div class="panel-head"><h2>Alerts and messages</h2></div><div class="feed" id="vendor-notifications">${emptyState('Loading notifications...')}</div></section>
+    </div>
+    <dialog class="modal-dialog" id="store-dialog"><form id="store-form" class="panel modal-panel">
+      <div class="panel-head"><div><h2 id="store-dialog-title">Create a new store</h2><p class="panel-subtitle">Store requests are sent to the admin for approval.</p></div><button class="button icon-button" type="button" data-close-dialog aria-label="Close"><i data-lucide="x"></i></button></div>
+      <input id="store-id" type="hidden"><div class="field"><label for="store-name">Business name</label><input id="store-name" required maxlength="120" placeholder="Your store name"></div>
+      <div class="field"><label for="store-category">Business type</label><select id="store-category" required><option value="">Choose a store type</option><option>Fashion & retail</option><option>Food & restaurants</option><option>Automotive</option><option>Electronics</option><option>Home & lifestyle</option><option>Digital products</option><option>Professional services</option><option>Other</option></select></div>
+      <div class="field"><label for="store-description">About your store</label><textarea id="store-description" required minlength="10" maxlength="1500" placeholder="Tell buyers what makes your store worth visiting."></textarea></div>
+      <div class="field"><label for="store-cover-file">Cover photo</label><input id="store-cover-file" type="file" accept="image/*"><input id="store-current-cover" type="hidden"><img id="store-cover-preview" class="store-cover-preview hidden" alt="Store cover preview"></div>
+      <div class="field"><label for="store-logo-file">Store profile picture</label><input id="store-logo-file" type="file" accept="image/*"><input id="store-current-logo" type="hidden"><img id="store-logo-preview" class="store-logo-preview hidden" alt="Store profile picture preview"></div>
+      <div class="form-actions"><button class="button" type="button" data-close-dialog>Cancel</button><button class="button button-primary" id="store-form-submit" type="submit">Submit storefront for review</button></div>
+    </form></dialog>`);
+  const [storeResponse, notifications] = await Promise.all([
+    api('/api/store/me').catch(() => ({ stores: [] })),
+    api('/api/notifications').catch(() => ({ notifications: [] }))
+  ]);
+  const stores = storeResponse.stores || (storeResponse.store ? [storeResponse.store] : []);
+  $('#vendor-stores').innerHTML = stores.length ? stores.map((store) => `<article class="listing-card store-card"><img class="store-card-cover" src="${escapeHtml(store.coverUrl || '')}" alt="${escapeHtml(store.businessName)} cover"><div class="store-card-body">${store.logoUrl ? `<img class="store-card-logo" src="${escapeHtml(store.logoUrl)}" alt="">` : ''}<div class="panel-head"><h3>${escapeHtml(store.businessName)}</h3><span class="badge">${escapeHtml(store.status)}</span></div><p>${escapeHtml(store.category || 'Store')}</p>${store.status === 'verified' ? `<button class="button button-primary" type="button" data-open-store="${escapeHtml(store.id)}"><i data-lucide="external-link"></i>Open store</button>` : `<div><small>${escapeHtml(store.reviewNote || (store.status === 'pending' ? 'Waiting for admin review.' : 'Update details and resubmit.'))}</small><button class="button" type="button" data-edit-store="${escapeHtml(store.id)}"><i data-lucide="pencil"></i>Update request</button></div>`}</div></article>`).join('') : emptyState('You have not created a store yet.');
+  $('#vendor-notifications').innerHTML = notificationMarkup(notifications.notifications || []);
+  [['store-logo-file', 'store-logo-preview'], ['store-cover-file', 'store-cover-preview']].forEach(([inputId, previewId]) => {
+    $(`#${inputId}`).addEventListener('change', (event) => {
+      const [file] = event.target.files || [];
+      if (!file) return;
+      const preview = $(`#${previewId}`);
+      if (preview.dataset.previewUrl) URL.revokeObjectURL(preview.dataset.previewUrl);
+      preview.dataset.previewUrl = URL.createObjectURL(file);
+      preview.src = preview.dataset.previewUrl;
+      preview.classList.remove('hidden');
+    });
+  });
 }
 
 async function renderWallet() {
@@ -395,7 +516,7 @@ async function onSubmit(event) {
       notify('Marketplace listing published.');
     } else if (form.id === 'product-form') {
       const files = await uploadFiles($('#product-media', form).files);
-      await api('/api/products', { method: 'POST', body: JSON.stringify({ title: value('product-title'), category: value('product-category'), description: value('product-description'), priceDollars: Number(value('product-price')), stock: Number(value('product-stock')), media: files.map((file) => file.url) }) });
+      await api('/api/products', { method: 'POST', body: JSON.stringify({ title: value('product-title'), storeId: value('product-store') || undefined, category: value('product-category'), description: value('product-description'), priceDollars: Number(value('product-price')), stock: Number(value('product-stock')), media: files.map((file) => file.url) }) });
       notify('Product listed successfully.');
     } else if (form.id === 'gig-form') {
       await api('/api/gigs', { method: 'POST', body: JSON.stringify({ title: value('gig-title'), category: value('gig-category'), description: value('gig-description'), priceDollars: Number(value('gig-price')), deliveryDays: Number(value('gig-days')) }) });
@@ -417,7 +538,8 @@ async function onSubmit(event) {
       if (logo) logoUrl = uploads[uploadIndex++]?.url || '';
       if (cover) coverUrl = uploads[uploadIndex]?.url || '';
       if (!logoUrl || !coverUrl) throw new Error('Add both a store profile picture and a cover photo.');
-      await api('/api/store/me', { method: 'PUT', body: JSON.stringify({ businessName: value('store-name'), category: value('store-category'), description: value('store-description'), logoUrl, coverUrl }) });
+      const storeId = value('store-id');
+      await api(storeId ? `/api/store/me/${encodeURIComponent(storeId)}` : '/api/store/me', { method: storeId ? 'PUT' : 'POST', body: JSON.stringify({ businessName: value('store-name'), category: value('store-category'), description: value('store-description'), logoUrl, coverUrl }) });
       notify('Store submitted for review.');
     } else if (form.matches('[data-promotion-review-form]')) {
       const field = (name) => form.elements.namedItem(name)?.value || '';
@@ -455,6 +577,41 @@ document.addEventListener('click', async (event) => {
     return;
   }
   if (event.target.closest('[data-refresh-overview]')) { await renderOverview(); return; }
+  const dialogTrigger = event.target.closest('[data-open-dialog]');
+  if (dialogTrigger) { $(`#${dialogTrigger.dataset.openDialog}`).showModal(); return; }
+  if (event.target.closest('[data-close-dialog]')) { event.target.closest('dialog')?.close(); return; }
+  if (event.target.closest('[data-new-store]')) { openStoreForm(); return; }
+  const editStoreButton = event.target.closest('[data-edit-store]');
+  if (editStoreButton) {
+    try {
+      const response = await api('/api/store/me');
+      const store = (response.stores || []).find((item) => item.id === editStoreButton.dataset.editStore);
+      if (store) openStoreForm(store);
+    } catch (error) { notify(error.message); }
+    return;
+  }
+  const openStoreButton = event.target.closest('[data-open-store]');
+  if (openStoreButton) {
+    try { await renderVendorStore(openStoreButton.dataset.openStore); }
+    catch (error) { notify(error.message); }
+    return;
+  }
+  if (event.target.closest('[data-back-stores]')) {
+    $('#vendor-store-detail').classList.add('hidden');
+    $('#vendor-stores-panel').classList.remove('hidden');
+    return;
+  }
+  const buyProductButton = event.target.closest('[data-buy-product]');
+  if (buyProductButton) {
+    const quantity = Number(window.prompt('Quantity to buy', '1'));
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 50) return;
+    try {
+      await api(`/api/products/${encodeURIComponent(buyProductButton.dataset.buyProduct)}/purchase`, { method: 'POST', body: JSON.stringify({ quantity }) });
+      notify('Product purchased successfully.');
+      await renderProducts();
+    } catch (error) { notify(error.message); }
+    return;
+  }
   const promotionButton = event.target.closest('[data-product-promotion]');
   if (promotionButton) {
     if (currentUser?.subscriptionTier !== 'premium') {

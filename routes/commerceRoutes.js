@@ -17,31 +17,68 @@ router.get('/api/categories', async (_req, res, next) => {
   }
 });
 
+const storeFields = 'id,business_name AS "businessName",category,description,logo_url AS "logoUrl",cover_url AS "coverUrl",status,review_note AS "reviewNote",submitted_at AS "submittedAt",reviewed_at AS "reviewedAt"';
+const storePayload = z.object({
+  businessName: z.string().trim().min(2).max(120),
+  category: z.string().trim().min(2).max(80),
+  description: z.string().trim().min(10).max(1500),
+  logoUrl: z.string().max(500).refine((value) => value.startsWith('/api/media/') || /^https?:\/\//i.test(value), 'Invalid logo URL'),
+  coverUrl: z.string().max(500).refine((value) => value.startsWith('/api/media/') || /^https?:\/\//i.test(value), 'Invalid cover URL'),
+});
+
 router.get('/api/store/me', requireUser, async (req, res, next) => {
   try {
-    const result = await db.query('SELECT id,business_name AS "businessName",category,description,logo_url AS "logoUrl",cover_url AS "coverUrl",status,review_note AS "reviewNote",submitted_at AS "submittedAt",reviewed_at AS "reviewedAt" FROM stores WHERE owner_id=$1', [req.session.user.id]);
-    res.json({ store: result.rows[0] || null });
+    const result = await db.query(`SELECT ${storeFields} FROM stores WHERE owner_id=$1 ORDER BY submitted_at DESC`, [req.session.user.id]);
+    res.json({ stores: result.rows, store: result.rows[0] || null });
   } catch (error) {
     next(error);
   }
 });
 
-router.put('/api/store/me', requireUser, async (req, res, next) => {
+router.get('/api/store/me/:id', requireUser, async (req, res, next) => {
   try {
-    const parsed = z.object({
-      businessName: z.string().trim().min(2).max(120),
-      category: z.string().trim().min(2).max(80),
-      description: z.string().trim().min(10).max(1500),
-      logoUrl: z.string().max(500).refine((value) => value.startsWith('/api/media/') || /^https?:\/\//i.test(value), 'Invalid logo URL'),
-      coverUrl: z.string().max(500).refine((value) => value.startsWith('/api/media/') || /^https?:\/\//i.test(value), 'Invalid cover URL'),
-    }).safeParse(req.body);
+    const storeResult = await db.query(`SELECT ${storeFields} FROM stores WHERE id=$1 AND owner_id=$2`, [req.params.id, req.session.user.id]);
+    if (!storeResult.rows[0]) return res.status(404).json({ error: 'Store not found.' });
+    const [products, sales, orders] = await Promise.all([
+      db.query('SELECT id,title,description,category,price_cents AS "priceCents",stock,status,media,created_at AS "createdAt" FROM products WHERE store_id=$1 AND vendor_id=$2 ORDER BY created_at DESC', [req.params.id, req.session.user.id]),
+      db.query(`SELECT COUNT(*)::int AS "salesCount",COALESCE(SUM(o.quantity),0)::int AS "unitsSold",COALESCE(SUM(o.amount_cents),0)::int AS "salesCents"
+        FROM product_orders o JOIN products p ON p.id=o.product_id
+        WHERE p.store_id=$1 AND p.vendor_id=$2 AND o.seller_id=$2 AND o.status IN ('paid','processing','shipped','completed')`, [req.params.id, req.session.user.id]),
+      db.query(`SELECT o.id,o.quantity,o.amount_cents AS "amountCents",o.status,o.created_at AS "createdAt",p.title AS "productTitle"
+        FROM product_orders o JOIN products p ON p.id=o.product_id
+        WHERE p.store_id=$1 AND p.vendor_id=$2 AND o.seller_id=$2 ORDER BY o.created_at DESC LIMIT 20`, [req.params.id, req.session.user.id])
+    ]);
+    res.json({ store: storeResult.rows[0], products: products.rows, sales: sales.rows[0], orders: orders.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+const submitStore = async (req, res, next) => {
+  try {
+    const parsed = storePayload.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Enter a business name, store type, description, profile picture, and cover photo.' });
     const result = await db.query(`INSERT INTO stores (id,owner_id,business_name,category,description,logo_url,cover_url,status,submitted_at)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,'pending',NOW())
-      ON CONFLICT (owner_id) DO UPDATE SET business_name=EXCLUDED.business_name,category=EXCLUDED.category,description=EXCLUDED.description,logo_url=EXCLUDED.logo_url,cover_url=EXCLUDED.cover_url,status='pending',review_note=NULL,submitted_at=NOW(),reviewed_at=NULL,reviewed_by=NULL
-      RETURNING id,business_name AS "businessName",category,description,logo_url AS "logoUrl",cover_url AS "coverUrl",status,review_note AS "reviewNote",submitted_at AS "submittedAt"`,
+      VALUES ($1,$2,$3,$4,$5,$6,$7,'pending',NOW()) RETURNING ${storeFields}`,
     [nanoid(), req.session.user.id, parsed.data.businessName, parsed.data.category, parsed.data.description, parsed.data.logoUrl, parsed.data.coverUrl]);
-    res.status(200).json({ store: result.rows[0], submitted: true });
+    res.status(201).json({ store: result.rows[0], submitted: true });
+  } catch (error) {
+    next(error);
+  }
+};
+
+router.post('/api/store/me', requireUser, submitStore);
+router.put('/api/store/me', requireUser, submitStore);
+
+router.put('/api/store/me/:id', requireUser, async (req, res, next) => {
+  try {
+    const parsed = storePayload.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Enter a business name, store type, description, profile picture, and cover photo.' });
+    const result = await db.query(`UPDATE stores SET business_name=$1,category=$2,description=$3,logo_url=$4,cover_url=$5,status='pending',review_note=NULL,submitted_at=NOW(),reviewed_at=NULL,reviewed_by=NULL
+      WHERE id=$6 AND owner_id=$7 AND status<>'verified' RETURNING ${storeFields}`,
+    [parsed.data.businessName, parsed.data.category, parsed.data.description, parsed.data.logoUrl, parsed.data.coverUrl, req.params.id, req.session.user.id]);
+    if (!result.rows[0]) return res.status(409).json({ error: 'This store cannot be edited or is no longer available.' });
+    res.json({ store: result.rows[0], submitted: true });
   } catch (error) {
     next(error);
   }
@@ -88,7 +125,7 @@ router.get('/api/products', async (req, res, next) => {
   try {
     const search = String(req.query.search || '').trim();
     const category = String(req.query.category || '').trim();
-    let query = `SELECT p.*, COALESCE(AVG(r.rating), 0)::float AS avg_rating, COUNT(r.id)::int AS review_count,s.business_name AS store_name,s.logo_url AS store_logo_url,s.cover_url AS store_cover_url FROM products p LEFT JOIN reviews r ON r.product_id = p.id LEFT JOIN stores s ON s.owner_id=p.vendor_id WHERE p.status = 'active'`;
+    let query = `SELECT p.*, COALESCE(AVG(r.rating), 0)::float AS avg_rating, COUNT(r.id)::int AS review_count,s.business_name AS store_name,s.logo_url AS store_logo_url,s.cover_url AS store_cover_url FROM products p LEFT JOIN reviews r ON r.product_id = p.id LEFT JOIN stores s ON s.id=p.store_id WHERE p.status = 'active'`;
     const params = [];
 
     if (search) {
@@ -111,12 +148,16 @@ router.get('/api/products', async (req, res, next) => {
 
 router.post('/api/products', requireUser, async (req, res, next) => {
   try {
-    const parsed = z.object({ title: z.string().min(3).max(120), description: z.string().min(5).max(2000), category: z.string().min(2).max(60), priceCents: z.number().int().positive().optional(), priceDollars: z.number().min(0.01).max(1000000).optional(), stock: z.number().int().min(0).default(1), media: z.array(z.string().min(1)).default([]) }).safeParse(req.body);
+    const parsed = z.object({ title: z.string().min(3).max(120), description: z.string().min(5).max(2000), category: z.string().min(2).max(60), priceCents: z.number().int().positive().optional(), priceDollars: z.number().min(0.01).max(1000000).optional(), stock: z.number().int().min(0).default(1), media: z.array(z.string().min(1)).default([]), storeId: z.string().min(1).optional() }).safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid product payload' });
 
+    if (parsed.data.storeId) {
+      const store = await db.query("SELECT id FROM stores WHERE id=$1 AND owner_id=$2 AND status='verified'", [parsed.data.storeId, req.session.user.id]);
+      if (!store.rows[0]) return res.status(400).json({ error: 'Choose one of your approved stores.' });
+    }
     const priceCents = Number(parsed.data.priceCents ?? Math.round((parsed.data.priceDollars || 0) * 100));
-    const product = { id: nanoid(), vendorId: req.session.user.id, title: parsed.data.title, description: parsed.data.description, category: parsed.data.category, priceCents, stock: parsed.data.stock, media: parsed.data.media, createdAt: new Date().toISOString() };
-    await db.query('INSERT INTO products (id,vendor_id,title,description,category,price_cents,stock,media,status,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [product.id, product.vendorId, product.title, product.description, product.category, product.priceCents, product.stock, JSON.stringify(product.media), 'active', product.createdAt]);
+    const product = { id: nanoid(), vendorId: req.session.user.id, storeId: parsed.data.storeId || null, title: parsed.data.title, description: parsed.data.description, category: parsed.data.category, priceCents, stock: parsed.data.stock, media: parsed.data.media, createdAt: new Date().toISOString() };
+    await db.query('INSERT INTO products (id,vendor_id,store_id,title,description,category,price_cents,stock,media,status,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)', [product.id, product.vendorId, product.storeId, product.title, product.description, product.category, product.priceCents, product.stock, JSON.stringify(product.media), 'active', product.createdAt]);
     res.status(201).json({ product });
   } catch (error) {
     next(error);
