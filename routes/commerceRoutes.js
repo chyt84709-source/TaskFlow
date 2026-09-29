@@ -558,16 +558,6 @@ router.post('/api/ads', requireAdmin, async (req, res, next) => {
   }
 });
 
-router.delete('/api/admin/ads/:id', requireAdmin, async (req, res, next) => {
-  try {
-    const result = await db.query('DELETE FROM ads WHERE id = $1', [req.params.id]);
-    if (!result.rowCount) return res.status(404).json({ error: 'Ad not found' });
-    res.status(204).end();
-  } catch (error) {
-    next(error);
-  }
-});
-
 router.get('/api/ads/:id/messages', requireUser, async (req, res, next) => {
   try {
     const isAdmin = Boolean(req.session.user?.isAdmin || req.session.user?.role === 'admin');
@@ -751,7 +741,7 @@ router.post('/api/gigs/:id/proposals', requireUser, async (req, res, next) => {
 
 router.get('/api/listings', async (_req, res, next) => {
   try {
-    const result = await db.query("SELECT id,seller_id AS \"sellerId\",title,type,category,price_cents AS \"priceCents\",media,status,created_at AS \"createdAt\" FROM listings WHERE status='active' ORDER BY created_at DESC");
+    const result = await db.query("SELECT id,seller_id AS \"sellerId\",title,type,price_cents AS \"priceCents\",media,status,created_at AS \"createdAt\" FROM listings WHERE status='active' ORDER BY created_at DESC");
     res.json({ listings: result.rows });
   } catch (error) {
     next(error);
@@ -761,11 +751,11 @@ router.get('/api/listings', async (_req, res, next) => {
 router.post('/api/listings', requireUser, async (req, res, next) => {
   try {
     const mediaItem = z.object({ url: z.string().min(1), mimeType: z.string().min(1).max(100) });
-    const parsed = z.object({ title: z.string().min(3).max(160), type: z.enum(['physical', 'digital', 'service', 'software']), category: z.string().max(120).optional(), priceCents: z.number().int().min(1).max(100000000), media: z.array(mediaItem).min(1).max(10) }).safeParse(req.body);
+    const parsed = z.object({ title: z.string().min(3).max(160), type: z.enum(['physical', 'digital', 'service', 'software']), priceCents: z.number().int().min(1).max(100000000), media: z.array(mediaItem).min(1).max(10) }).safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid listing payload' });
 
     const listing = { id: nanoid(), sellerId: req.session.user.id, ...parsed.data, createdAt: new Date().toISOString() };
-    await db.query('INSERT INTO listings (id,seller_id,title,type,category,price_cents,media,status,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)', [listing.id, listing.sellerId, listing.title, listing.type, listing.category || null, listing.priceCents, JSON.stringify(listing.media), 'active', listing.createdAt]);
+    await db.query('INSERT INTO listings (id,seller_id,title,type,price_cents,media,status,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', [listing.id, listing.sellerId, listing.title, listing.type, listing.priceCents, JSON.stringify(listing.media), 'active', listing.createdAt]);
     res.status(201).json({ listing });
   } catch (error) {
     next(error);

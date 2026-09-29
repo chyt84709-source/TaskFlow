@@ -6,7 +6,6 @@
   <title>TaskFlow | Unified Platform</title>
   <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
   <script src="https://js.stripe.com/v3/" defer></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
   <style>
     :root {
       --bg: #f3f7f4;
@@ -32,111 +31,6 @@
     .trust-empty {
       color: #c7d0ce;
       text-shadow: 0 0 0 rgba(255,255,255,0.35);
-    }
-    :root {
-      --bg: #f7f8fa;
-      --panel: #ffffff;
-      --line: #e5e7eb;
-      --primary: #0f766e;
-      --primary-dark: #111827;
-      --primary-soft: #ecfdf5;
-      --muted: #64748b;
-      --accent: #0f766e;
-      --shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-      --radius: 12px;
-    }
-    html, body { background: #f7f8fa; color: #111827; font-family: Inter, Geist, "Segoe UI", sans-serif; }
-    input, select, textarea { border-color: #e2e8f0; border-radius: 8px; color: #0f172a; }
-    .app-shell { grid-template-columns: 248px minmax(0, 1fr); background: #f7f8fa; }
-    .sidebar { position: sticky; top: 0; height: 100vh; gap: 18px; padding: 24px 16px; background: #fff; color: #475569; border-right: 1px solid #e5e7eb; }
-    .sidebar .brand { color: #0f172a; font-size: 1.25rem; }
-    .brand-mark { border-radius: 9px; background: #0f766e; }
-    .nav { gap: 4px; margin-top: 8px; }
-    .nav-btn { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border: 0; border-radius: 8px; background: transparent; color: #475569; font-size: 14px; font-weight: 600; text-decoration: none; transition: background .15s ease, color .15s ease; }
-    .nav-btn:hover { background: #f1f5f9; color: #0f172a; }
-    .nav-btn.active { background: #f1f5f9; color: #0f172a; }
-    .nav-btn svg { width: 18px; height: 18px; color: #64748b; stroke-width: 1.8; }
-    .nav-btn.active svg { color: #0f766e; }
-    .sidebar-box { margin-top: auto; padding: 14px 12px 0; border: 0; border-top: 1px solid #e5e7eb; border-radius: 0; background: transparent; color: #64748b; }
-    .main { min-width: 0; padding: 28px clamp(20px, 3vw, 44px); }
-    .page-heading { margin-bottom: 20px; }
-    .page-heading p { margin: 0 0 6px; color: #64748b; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-    .page-heading h1 { margin: 0; color: #0f172a; font-size: 26px; line-height: 1.25; font-weight: 700; }
-    .topbar { align-items: center; margin-bottom: 22px; }
-    .search-box { height: 44px; max-width: 520px; border-radius: 999px; border-color: #e2e8f0; }
-    .user-actions { gap: 8px; }
-    .user-actions .ghost-btn { padding: 10px 13px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; color: #334155; font-size: 13px; }
-    #premium-upgrade-btn { border-color: #0f172a; background: #0f172a; color: #fff; }
-    #premium-upgrade-btn:hover { background: #1e293b; }
-    #logout { display: none; }
-    .user-profile-pill { display: flex; align-items: center; gap: 10px; padding: 5px 10px 5px 5px; border: 1px solid #e2e8f0; border-radius: 999px; background: #fff; }
-    .topbar-avatar { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: #ccfbf1; color: #0f766e; font-size: 12px; font-weight: 700; }
-    .topbar-user-copy { display: grid; gap: 1px; min-width: 0; }
-    .topbar-user-copy strong { display: flex; align-items: center; gap: 4px; color: #0f172a; font-size: 12px; }
-    .topbar-user-copy small { color: #64748b; font-size: 10px; }
-    .topbar-premium { padding: 3px 6px; border-radius: 999px; background: #f1f5f9; color: #475569; font-size: 8px; font-weight: 800; letter-spacing: .06em; }
-    .stats-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
-    .metric-card, .section-panel { border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; box-shadow: 0 1px 2px rgba(15,23,42,.04); }
-    .metric-card { padding: 18px; }
-    .metric-card small { color: #64748b; font-size: 11px; font-weight: 700; letter-spacing: .07em; }
-    .metric-card strong { margin-top: 9px; color: #0f172a; font-size: 28px; letter-spacing: 0; }
-    .section-panel { padding: 20px; }
-    .section-header h3 { color: #0f172a; font-size: 15px; letter-spacing: 0; }
-    .muted { color: #64748b; }
-    .tag { padding: 5px 9px; background: #f1f5f9; color: #475569; font-size: 11px; }
-    .primary-btn, .secondary-btn, .ghost-btn { border-radius: 8px; }
-    .primary-btn { background: #0f172a; }
-    .primary-btn:hover { background: #1e293b; }
-    .page-section { display: none; }
-    .page-section.active { display: grid; }
-    .promo-card { display: grid; align-content: start; gap: 8px; min-width: 0; min-height: 142px; border-radius: 12px; padding: 15px; }
-    .promo-card span { color: var(--primary); font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
-    .stats-strip .promo-card strong { display: block; font-size: 16px; line-height: 1.3; }
-    .promo-card p { margin: 0; color: var(--muted); font-size: 0.82rem; line-height: 1.45; }
-    .promo-card { display: grid; align-content: start; gap: 8px; min-height: 142px; border-radius: 12px; padding: 15px; }
-    .promo-card span { color: var(--primary); font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
-    .promo-card strong { display: block; font-size: 1rem; line-height: 1.25; }
-    .promo-card p { margin: 0; color: var(--muted); font-size: 0.82rem; line-height: 1.45; }
-    .landing-featured-ad { display: grid; grid-template-columns: minmax(0, 1fr) minmax(120px, .7fr); gap: 12px; align-items: center; margin-top: 14px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.72); }
-    .landing-featured-ad[hidden] { display: none; }
-    .landing-featured-ad img, .landing-featured-ad video { display: block; width: 100%; max-height: 130px; border-radius: 8px; object-fit: cover; background: #e9efeb; }
-    .landing-featured-ad strong { display: block; margin-bottom: 4px; }
-    .landing-featured-ad p { margin: 0; color: var(--muted); font-size: .84rem; line-height: 1.4; }
-    .overview-columns { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 18px; align-items: start; }
-    .overview-primary, .overview-aside { display: grid; gap: 18px; min-width: 0; }
-    .quick-task-form .field { margin-bottom: 10px; }
-    .quick-task-form input, .quick-task-form select, .quick-task-form textarea { padding: 10px 12px; border-radius: 8px; font-size: 13px; }
-    .overview-notifications { display: grid; gap: 12px; }
-    .notification-row { display: grid; grid-template-columns: 8px 1fr; gap: 10px; align-items: start; }
-    .notification-dot { width: 7px; height: 7px; margin-top: 6px; border-radius: 50%; background: #0f766e; }
-    .notification-row p { margin: 0; color: #334155; font-size: 12px; line-height: 1.5; }
-    .notification-row small { display: block; margin-top: 3px; color: #94a3b8; font-size: 10px; }
-    .feature-strip, .grid-layout, .simple-grid { gap: 14px; }
-    .metric-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-    .metric-head svg { width: 18px; height: 18px; color: #0f766e; stroke-width: 1.8; }
-    #listing-page-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
-    .ghost-btn:hover { background: #f1f5f9; }
-    .item-card { border-color: #e5e7eb; border-radius: 10px; background: #fff; }
-    .ops-item { border: 0; border-bottom: 1px solid #f1f5f9; border-radius: 0; background: transparent; padding: 12px 0; }
-    .ops-item:last-child { border-bottom: 0; }
-    @media (max-width: 1200px) {
-      .topbar { flex-wrap: wrap; }
-      .search-box { min-width: 220px; }
-      .user-actions { flex-wrap: wrap; justify-content: flex-end; }
-    }
-    @media (max-width: 980px) {
-      .app-shell { grid-template-columns: 1fr; }
-      .sidebar { position: static; height: auto; padding: 16px; border-right: 0; border-bottom: 1px solid #e5e7eb; }
-      .nav { display: flex; overflow-x: auto; }
-      .nav-btn { flex: 0 0 auto; width: auto; white-space: nowrap; }
-      .sidebar-box { display: none; }
-      .overview-columns { grid-template-columns: 1fr; }
-    }
-    @media (max-width: 640px) {
-      .main { padding: 18px 14px; }
-      .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .topbar-user-copy { display: none; }
-      .user-actions > * { flex: 0 1 auto; }
     }
     .hidden { display: none !important; }
     .page {
@@ -195,6 +89,10 @@
     }
     .mini-stat span { display: block; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
     .mini-stat strong { display: block; font-size: 2rem; margin-top: 8px; }
+    .promo-card { display: grid; align-content: start; gap: 8px; min-width: 0; min-height: 142px; border-radius: 12px; padding: 15px; }
+    .promo-card span { color: var(--primary); font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+    .stats-strip .promo-card strong { display: block; font-size: 16px; line-height: 1.3; }
+    .promo-card p { margin: 0; color: var(--muted); font-size: 0.82rem; line-height: 1.45; }
     .panel-shell {
       display: flex;
       align-items: center;
@@ -521,6 +419,48 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 18px;
     }
+    .support-hero {
+      padding: clamp(26px, 5vw, 54px) 18px 30px;
+      text-align: center;
+      background: #fff;
+      border-bottom: 1px solid var(--line);
+    }
+    .support-title {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 14px;
+      margin: 0;
+      color: #17211d;
+      font-size: clamp(2rem, 4vw, 3rem);
+      line-height: 1.1;
+    }
+    .support-title-mark { color: #2479a8; font-size: 0.82em; }
+    .support-hero p { margin: 14px 0 20px; color: #424d48; }
+    .support-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; }
+    .support-action { display: inline-flex; align-items: center; gap: 9px; min-height: 48px; border-radius: 9px; }
+    .support-action-mark { color: #2479a8; font-size: 1.15rem; }
+    .support-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; padding-top: 18px; }
+    .support-workspace .section-panel { box-shadow: none; border-radius: 12px; }
+    .support-side { display: grid; align-content: start; gap: 18px; min-width: 0; }
+    .support-assistant { display: grid; grid-template-rows: auto minmax(220px, 1fr) auto; gap: 14px; }
+    .support-assistant-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .support-assistant-head h3 { margin: 0; }
+    .support-ai-tag { color: #176f96; background: #e9f5fa; }
+    .support-chat-log { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; min-height: 220px; max-height: 360px; overflow-y: auto; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: #f8fbfa; }
+    .support-bubble { max-width: min(88%, 460px); margin: 0; padding: 10px 13px; border-radius: 12px 12px 12px 3px; background: #eaf2ed; color: #24352d; line-height: 1.5; overflow-wrap: anywhere; }
+    .support-bubble.user { align-self: flex-end; border-radius: 12px 12px 3px 12px; background: #e9f5fa; }
+    .support-chat-form { display: flex; align-items: center; gap: 8px; }
+    .support-chat-form input { min-width: 0; }
+    .support-chat-form button { flex: 0 0 auto; min-width: 48px; min-height: 46px; padding: 8px; font-size: 1.2rem; }
+    .support-note { margin: 0; color: var(--muted); font-size: 0.82rem; line-height: 1.5; }
+    .support-contact-form textarea { min-height: 118px; }
+    .support-thread-messages { max-height: 260px; overflow-y: auto; }
+    @media (max-width: 760px) {
+      .support-workspace { grid-template-columns: minmax(0, 1fr); }
+      .support-title { gap: 9px; }
+      .support-actions > button { flex: 1 1 190px; }
+    }
     .profile-card {
       display: flex;
       align-items: center;
@@ -704,9 +644,6 @@
 
     @media (max-width: 640px) {
       .main { padding: 16px; }
-      .app-shell { grid-template-columns: 248px minmax(0, 1fr); background: #f7f8fa; }
-      .sidebar { position: sticky; top: 0; height: 100vh; padding: 24px 16px; background: #fff; color: #475569; border-right: 1px solid #e5e7eb; }
-      .sidebar .brand { color: #0f172a; font-size: 1.25rem; }
       .topbar {
         flex-direction: column;
         align-items: stretch;
@@ -761,72 +698,6 @@
       .mini-btn {
         width: 100%;
       }
-    }
-    .app-shell { grid-template-columns: 248px minmax(0, 1fr); background: #f7f8fa; }
-    .sidebar { position: sticky; top: 0; height: 100vh; padding: 24px 16px; background: #fff; color: #475569; border-right: 1px solid #e5e7eb; }
-    .sidebar .brand { color: #0f172a; font-size: 1.25rem; }
-    .nav { display: grid; gap: 4px; margin-top: 8px; }
-    .nav-btn { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border: 0; border-radius: 8px; background: transparent; color: #475569; font-size: 14px; font-weight: 600; text-decoration: none; }
-    .nav-btn:hover, .nav-btn.active { background: #f1f5f9; color: #0f172a; }
-    .nav-btn svg { width: 18px; height: 18px; color: #64748b; stroke-width: 1.8; }
-    .nav-btn.active svg { color: #0f766e; }
-    .sidebar-box { margin-top: auto; padding: 14px 12px 0; border: 0; border-top: 1px solid #e5e7eb; border-radius: 0; background: transparent; color: #64748b; }
-    .main { min-width: 0; padding: 28px clamp(20px, 3vw, 44px); }
-    .page-heading { margin-bottom: 20px; }
-    .page-heading p { margin: 0 0 6px; color: #64748b; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-    .page-heading h1 { margin: 0; color: #0f172a; font-size: 26px; line-height: 1.25; font-weight: 700; }
-    .topbar { align-items: center; margin-bottom: 22px; }
-    .search-box { height: 44px; max-width: 520px; border-radius: 999px; border-color: #e2e8f0; }
-    .user-actions { gap: 8px; }
-    .user-actions .ghost-btn { padding: 10px 13px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; color: #334155; font-size: 13px; }
-    #premium-upgrade-btn { border-color: #0f172a; background: #0f172a; color: #fff; }
-    #premium-upgrade-btn:hover { background: #1e293b; }
-    #logout { display: none; }
-    .user-profile-pill { display: flex; align-items: center; gap: 10px; padding: 5px 10px 5px 5px; border: 1px solid #e2e8f0; border-radius: 999px; background: #fff; }
-    .topbar-avatar { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: #ccfbf1; color: #0f766e; font-size: 12px; font-weight: 700; }
-    .topbar-user-copy { display: grid; gap: 1px; min-width: 0; }
-    .topbar-user-copy strong { display: flex; align-items: center; gap: 4px; color: #0f172a; font-size: 12px; }
-    .topbar-user-copy small { color: #64748b; font-size: 10px; }
-    .topbar-premium { padding: 3px 6px; border-radius: 999px; background: #f1f5f9; color: #475569; font-size: 8px; font-weight: 800; letter-spacing: .06em; }
-    .stats-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
-    .metric-card, .section-panel { border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; box-shadow: 0 1px 2px rgba(15,23,42,.04); }
-    .metric-card { padding: 18px; }
-    .metric-card small { color: #64748b; font-size: 11px; font-weight: 700; letter-spacing: .07em; }
-    .metric-card strong { margin-top: 9px; color: #0f172a; font-size: 28px; letter-spacing: 0; }
-    .section-panel { padding: 20px; }
-    .section-header h3 { color: #0f172a; font-size: 15px; letter-spacing: 0; }
-    .muted { color: #64748b; }
-    .tag { padding: 5px 9px; background: #f1f5f9; color: #475569; font-size: 11px; }
-    .primary-btn { border-radius: 8px; background: #0f172a; }
-    .primary-btn:hover { background: #1e293b; }
-    .overview-columns { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 18px; align-items: start; }
-    .overview-primary, .overview-aside { display: grid; gap: 18px; min-width: 0; }
-    .quick-task-form .field { margin-bottom: 10px; }
-    .quick-task-form input, .quick-task-form select, .quick-task-form textarea { padding: 10px 12px; border-radius: 8px; font-size: 13px; }
-    .overview-notifications { display: grid; gap: 12px; }
-    .notification-row { display: grid; grid-template-columns: 8px 1fr; gap: 10px; align-items: start; }
-    .notification-dot { width: 7px; height: 7px; margin-top: 6px; border-radius: 50%; background: #0f766e; }
-    .notification-row p { margin: 0; color: #334155; font-size: 12px; line-height: 1.5; }
-    .notification-row small { display: block; margin-top: 3px; color: #94a3b8; font-size: 10px; }
-    .feature-strip, .grid-layout, .simple-grid { gap: 14px; }
-    .item-card { border-color: #e5e7eb; border-radius: 10px; background: #fff; }
-    .ops-item { border: 0; border-bottom: 1px solid #f1f5f9; border-radius: 0; background: transparent; padding: 12px 0; }
-    .ops-item:last-child { border-bottom: 0; }
-    @media (max-width: 980px) {
-      .app-shell { grid-template-columns: 1fr; }
-      .sidebar { position: static; height: auto; padding: 16px; border-right: 0; border-bottom: 1px solid #e5e7eb; }
-      .nav { display: flex; overflow-x: auto; }
-      .nav-btn { flex: 0 0 auto; width: auto; white-space: nowrap; }
-      .sidebar-box { display: none; }
-      .overview-columns { grid-template-columns: 1fr; }
-      .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    }
-    @media (max-width: 640px) {
-      .main { padding: 18px 14px; }
-      .topbar { flex-direction: column; align-items: stretch; }
-      .user-actions { flex-wrap: wrap; justify-content: flex-start; }
-      .user-actions > * { flex: 0 1 auto; }
-      .topbar-user-copy { display: none; }
     }
   </style>
 </head>
@@ -919,19 +790,17 @@
     <aside class="sidebar">
       <div class="brand"><span class="brand-mark">↗</span>taskflow</div>
       <nav class="nav">
-        <a class="nav-btn active" href="/overview" data-view="overview"><i data-lucide="layout-dashboard"></i>Overview</a>
-        <a class="nav-btn" href="/tasks" data-view="tasks"><i data-lucide="list-checks"></i>Tasks</a>
-        <a class="nav-btn" href="/marketplace" data-view="marketplace"><i data-lucide="store"></i>Marketplace</a>
-        <a class="nav-btn" href="/products" data-view="products"><i data-lucide="package"></i>Products</a>
-        <a class="nav-btn" href="/vendor" data-view="vendor"><i data-lucide="building-2"></i>Vendor dashboard</a>
-        <a class="nav-btn" href="/gigs" data-view="gigs"><i data-lucide="briefcase-business"></i>Gigs</a>
-        <a class="nav-btn" href="/wallet" data-view="wallet"><i data-lucide="wallet"></i>Wallet</a>
-        <a class="nav-btn" href="/profile" data-view="profile"><i data-lucide="user-round"></i>Profile</a>
-        <a class="nav-btn" href="/support" data-view="support"><i data-lucide="life-buoy"></i>Contact support</a>
-        <a class="nav-btn" href="/premium" data-view="premium"><i data-lucide="sparkles"></i>Premium</a>
-        <a class="nav-btn" href="/settings" data-view="settings"><i data-lucide="settings-2"></i>Settings</a>
-        <a class="nav-btn" href="/admin" data-view="admin" style="display:none;"><i data-lucide="shield-check"></i>Admin</a>
-        <button type="button" class="nav-btn" id="sidebar-logout"><i data-lucide="log-out"></i>Sign out</button>
+        <button type="button" class="nav-btn active" data-view="overview">Overview</button>
+        <button type="button" class="nav-btn" data-view="tasks">Tasks</button>
+        <button type="button" class="nav-btn" data-view="marketplace">Marketplace</button>
+        <button type="button" class="nav-btn" data-view="products">Products</button>
+        <button type="button" class="nav-btn" data-view="vendor">Vendor dashboard</button>
+        <button type="button" class="nav-btn" data-view="gigs">Gigs</button>
+        <button type="button" class="nav-btn" data-view="wallet">Wallet</button>
+        <button type="button" class="nav-btn" data-view="profile">Profile</button>
+        <button type="button" class="nav-btn" data-view="support">Contact support</button>
+        <button type="button" class="nav-btn" data-view="premium">Premium</button>
+        <button type="button" class="nav-btn" data-view="admin" style="display:none;">Admin</button>
       </nav>
       <div class="sidebar-box">
         <div style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; opacity: 0.8; margin-bottom: 8px;">Account</div>
@@ -941,7 +810,6 @@
     </aside>
 
     <main class="main">
-      <div class="page-heading"><p id="page-eyebrow">WORKSPACE</p><h1 id="page-title">Overview</h1></div>
       <header class="topbar">
         <div class="search-box">
           <span style="font-size: 1.1rem; margin-right: 8px;">⌕</span>
@@ -951,49 +819,17 @@
           <div class="pill" id="wallet-pill">$0.00</div>
           <button type="button" class="ghost-btn" id="premium-upgrade-btn">Upgrade to Premium</button>
           <button type="button" class="ghost-btn" id="edit-profile-btn">Edit profile</button>
-          <div class="user-profile-pill"><span class="topbar-avatar" id="topbar-avatar">H</span><span class="topbar-user-copy"><strong><span id="topbar-name">Husnain</span><span id="topbar-verified" class="green-tick" style="width:14px;height:14px;font-size:9px;margin:0;">✓</span><span id="topbar-premium" class="topbar-premium">PREMIUM</span></strong><small id="topbar-email">@taskflow</small></span></div>
           <button type="button" class="ghost-btn" id="logout">Sign out</button>
         </div>
       </header>
 
       <section class="page-section active" data-section="overview">
         <section class="stats-grid" id="metrics-grid">
-          <div class="metric-card"><div class="metric-head"><small>WALLET</small><i data-lucide="wallet"></i></div><strong id="balance-display">$0.00</strong></div>
-          <div class="metric-card"><div class="metric-head"><small>ACTIVE TASKS</small><i data-lucide="list-checks"></i></div><strong id="metric-tasks">0</strong></div>
-          <div class="metric-card"><div class="metric-head"><small>LIVE LISTINGS</small><i data-lucide="store"></i></div><strong id="metric-listings">0</strong></div>
-          <div class="metric-card"><div class="metric-head"><small>PRODUCTS</small><i data-lucide="package"></i></div><strong id="metric-products">0</strong></div>
+          <div class="metric-card"><small>Wallet</small><strong id="balance-display">$0.00</strong></div>
+          <div class="metric-card"><small>Active Tasks</small><strong id="metric-tasks">0</strong></div>
+          <div class="metric-card"><small>Live Listings</small><strong id="metric-listings">0</strong></div>
+          <div class="metric-card"><small>Products</small><strong id="metric-products">0</strong></div>
         </section>
-
-        <div class="overview-columns">
-          <div class="overview-primary">
-            <section class="section-panel">
-              <div class="section-header"><div><h3>Messages & offers</h3><p class="muted" style="margin:4px 0 0;">Your conversations and incoming offers.</p></div><button type="button" class="ghost-btn" id="refresh-conversations">Refresh</button></div>
-              <div class="meta-list" id="conversations-list"><p class="muted">No conversations or offers yet.</p></div>
-            </section>
-            <div class="feature-strip">
-              <div class="section-panel">
-                <div class="section-header"><h3>Profile & trust</h3><span class="tag">Account</span></div>
-                <div class="profile-card"><div class="avatar-shell"><div class="avatar-badge" id="profile-avatar-pip">TF</div><label class="avatar-edit" for="profile-avatar-upload" title="Edit profile photo">✎</label><input id="profile-avatar-upload" type="file" accept="image/*" class="hidden"></div><div><strong><span id="profile-name">TaskFlow member</span><span id="profile-green-tick" class="green-tick hidden" title="Verified Premium member">✓</span></strong><p id="profile-email" class="muted" style="margin:6px 0 0;">member@taskflow.com</p><div id="profile-tier-pill" class="premium-badge" style="margin-top:10px;">Standard</div></div></div>
-                <div class="compact-grid"><div class="mini-metric"><span>Trust</span><strong id="profile-trust-score">—</strong></div><div class="mini-metric"><span>Wallet</span><strong id="wallet-mini">$0.00</strong></div><div class="mini-metric"><span>Country</span><strong id="profile-country-label">US</strong></div><div class="mini-metric"><span>Escrow</span><strong>Protected</strong></div></div>
-              </div>
-              <div class="section-panel"><div class="section-header"><h3>Operational controls</h3><span class="tag">Live</span></div><div class="ops-list"><div class="ops-item"><span>Wallet security</span><strong>Enabled</strong></div><div class="ops-item"><span>Marketplace fees</span><strong>1% + 5% commission</strong></div><div class="ops-item"><span>Escrow verification</span><strong>Manual review</strong></div></div></div>
-            </div>
-          </div>
-          <aside class="overview-aside">
-            <section class="section-panel">
-              <div class="section-header"><div><h3>Publish task</h3><p class="muted" style="margin:4px 0 0;">Share a new opportunity.</p></div><a class="promotion-link" href="/tasks" data-view="tasks">Full form</a></div>
-              <form id="quick-task-form" class="quick-task-form">
-                <div class="field"><label for="quick-task-title">Task title</label><input id="quick-task-title" required minlength="3" maxlength="160" placeholder="e.g. Review a product demo"></div>
-                <div class="field"><label for="quick-task-video-url">Video URL</label><input id="quick-task-video-url" type="url" required placeholder="https://example.com/video"></div>
-                <div class="field"><label for="quick-task-description">Description</label><textarea id="quick-task-description" rows="3" required placeholder="What should the worker do?"></textarea></div>
-                <div class="field"><label for="quick-task-category">Category</label><select id="quick-task-category" data-category-selector required><option value="">Select category</option></select></div>
-                <div class="field"><label for="quick-task-amount">Budget (USD)</label><input id="quick-task-amount" type="number" min="1" step="0.01" value="10" required></div>
-                <button type="submit" class="primary-btn full">Publish task</button>
-              </form>
-            </section>
-            <section class="section-panel"><div class="section-header"><h3>Recent notifications</h3><a class="promotion-link" href="/vendor" data-view="vendor">View all</a></div><div id="overview-notifications" class="overview-notifications"><p class="muted">No recent notifications.</p></div></section>
-          </aside>
-        </div>
 
         <section class="section-panel" id="promotion-banner" style="margin-top: 16px;">
           <div class="section-header">
@@ -1002,6 +838,54 @@
           </div>
           <div class="promotion-list" id="promotion-list"><p class="muted">No ads right now.</p></div>
         </section>
+
+        <section class="section-panel" style="margin-top: 16px;">
+          <div class="section-header">
+            <div><h3>Messages & offers</h3><p class="muted" style="margin: 4px 0 0;">Review offers from other users and continue accepted conversations inside TaskFlow.</p></div>
+            <button type="button" class="ghost-btn" id="refresh-conversations">Refresh</button>
+          </div>
+          <div class="meta-list" id="conversations-list"><p class="muted">No conversations yet.</p></div>
+        </section>
+
+        <div class="feature-strip">
+          <div class="section-panel">
+            <div class="section-header">
+              <h3>Profile & trust</h3>
+              <span class="tag">Premium</span>
+            </div>
+            <div class="profile-card">
+              <div class="avatar-shell">
+                <div class="avatar-badge" id="profile-avatar-pip">TF</div>
+                <label class="avatar-edit" for="profile-avatar-upload" title="Edit profile photo">✎</label>
+                <input id="profile-avatar-upload" type="file" accept="image/*" class="hidden">
+              </div>
+              <div>
+                <strong><span id="profile-name">TaskFlow member</span><span id="profile-green-tick" class="green-tick hidden" title="Verified Premium member">✓</span></strong>
+                <p id="profile-email" class="muted" style="margin: 6px 0 0;">member@taskflow.com</p>
+                <div id="profile-tier-pill" class="premium-badge" style="margin-top: 10px;">Standard</div>
+              </div>
+            </div>
+            <div class="compact-grid">
+              <div class="mini-metric"><span>Trust</span><strong id="profile-trust-score">—</strong></div>
+              <div class="mini-metric"><span>Wallet</span><strong id="wallet-mini">$0.00</strong></div>
+              <div class="mini-metric"><span>Country</span><strong id="profile-country-label">US</strong></div>
+              <div class="mini-metric"><span>Escrow</span><strong>Protected</strong></div>
+            </div>
+          </div>
+
+          <div class="section-panel">
+            <div class="section-header">
+              <h3>Operational controls</h3>
+              <span class="tag">Live</span>
+            </div>
+            <div class="ops-list">
+              <div class="ops-item"><span>Wallet security</span><strong>Enabled</strong></div>
+              <div class="ops-item"><span>Marketplace fees</span><strong>1% + 5% commission</strong></div>
+              <div class="ops-item"><span>Escrow verification</span><strong>Manual review</strong></div>
+              <div class="ops-item"><span>Profile media</span><strong>Optional</strong></div>
+            </div>
+          </div>
+        </div>
 
         <div class="grid-layout">
           <div class="section-panel">
@@ -1082,23 +966,48 @@
         </div>
       </section>
   <section class="page-section" data-section="support">
-                <div class="simple-grid">
-                  <div class="section-panel">
-                    <div class="section-header"><h3>Contact support</h3><span class="tag">Private</span></div>
-                    <form id="support-new-form">
-                      <div class="field"><label for="support-subject">Subject</label><input id="support-subject" maxlength="120" required placeholder="What can we help with?"></div>
-                      <div class="field"><label for="support-first-message">Message</label><textarea id="support-first-message" rows="5" maxlength="2000" required placeholder="Describe the issue or question."></textarea></div>
-                      <button class="primary-btn full" type="submit">Send to support</button>
-                    </form>
-                  </div>
-                  <div class="section-panel">
-                    <div class="section-header"><h3>Your support conversations</h3><button type="button" class="ghost-btn" id="refresh-user-support">Refresh</button></div>
-                    <div class="meta-list" id="user-support-threads"><p class="muted">No support conversations yet.</p></div>
-                    <div class="meta-list" id="user-support-messages" style="margin-top:14px;"><p class="muted">Select a conversation to view replies.</p></div>
-                    <form id="user-support-reply-form" class="row-actions hidden" style="margin-top:14px;"><input id="user-support-reply" maxlength="2000" required placeholder="Write a reply..."><button class="primary-btn" type="submit">Send</button></form>
-                  </div>
-                </div>
-              </section>
+    <header class="support-hero">
+      <h2 class="support-title"><span class="support-title-mark" aria-hidden="true">◉</span>Contact Support<span class="support-title-mark" aria-hidden="true">▤</span></h2>
+      <p>We are here to help. Choose a way to get in touch with our team.</p>
+      <div class="support-actions">
+        <button type="button" class="secondary-btn support-action" data-support-action="agent"><span class="support-action-mark" aria-hidden="true">✉</span>Message an Agent</button>
+        <button type="button" class="primary-btn support-action" data-support-action="assistant"><span aria-hidden="true">✦</span>Chat with AI Support</button>
+      </div>
+    </header>
+    <div class="support-workspace">
+      <section class="section-panel support-assistant" id="support-assistant" aria-labelledby="support-assistant-title">
+        <div class="support-assistant-head">
+          <h3 id="support-assistant-title">AI Support Booth</h3>
+          <span class="tag support-ai-tag">AI assistant</span>
+        </div>
+        <div class="support-chat-log" id="support-chat-log" role="log" aria-live="polite" aria-relevant="additions">
+          <p class="support-bubble">Hi! I can help with common TaskFlow questions about accounts, payments, tasks, and marketplace messages. What can I help you with?</p>
+        </div>
+        <form class="support-chat-form" id="support-chat-form">
+          <label class="hidden" for="support-chat-input">Ask the support assistant</label>
+          <input id="support-chat-input" maxlength="500" autocomplete="off" placeholder="Ask a question..." required>
+          <button type="submit" class="primary-btn" aria-label="Send question" title="Send question">↑</button>
+        </form>
+        <p class="support-note">For account-specific help, send a private message to the support team.</p>
+      </section>
+      <div class="support-side">
+        <section class="section-panel" id="support-contact" aria-labelledby="support-contact-title">
+          <div class="section-header"><h3 id="support-contact-title">Message an Agent</h3><span class="tag">Private</span></div>
+          <form id="support-new-form" class="support-contact-form">
+            <div class="field"><label for="support-subject">Subject</label><input id="support-subject" maxlength="120" required placeholder="What can we help with?"></div>
+            <div class="field"><label for="support-first-message">Message</label><textarea id="support-first-message" rows="4" maxlength="2000" required placeholder="Describe the issue or question."></textarea></div>
+            <button class="primary-btn full" type="submit">Send to support</button>
+          </form>
+        </section>
+        <section class="section-panel">
+          <div class="section-header"><h3>Your support conversations</h3><button type="button" class="ghost-btn" id="refresh-user-support">Refresh</button></div>
+          <div class="meta-list" id="user-support-threads"><p class="muted">No support conversations yet.</p></div>
+          <div class="meta-list support-thread-messages" id="user-support-messages" style="margin-top:14px;"><p class="muted">Select a conversation to view replies.</p></div>
+          <form id="user-support-reply-form" class="row-actions hidden" style="margin-top:14px;"><input id="user-support-reply" maxlength="2000" required placeholder="Write a reply..."><button class="primary-btn" type="submit">Send</button></form>
+        </section>
+      </div>
+    </div>
+  </section>
 
               <section class="page-section" data-section="tasks">
         <div class="simple-grid">
@@ -1123,10 +1032,6 @@
               <div class="field">
                 <label>Description</label>
                 <textarea id="task-description" rows="4" required placeholder="Describe the task, target audience, success criteria, and required proof."></textarea>
-              </div>
-              <div class="field">
-                <label>Proof requirements</label>
-                <textarea id="task-proof-requirements" rows="3" placeholder="What evidence should workers submit?"></textarea>
               </div>
               <div class="field">
                 <label>Category</label>
@@ -1168,12 +1073,8 @@
                 </select>
               </div>
               <div class="field">
-                <label>Category</label>
-                <select id="listing-category" data-category-selector required><option value="">Select category</option></select>
-              </div>
-              <div class="field">
-                <label>Price (USD)</label>
-                <input id="listing-price" type="number" min="0.01" step="0.01" value="50" required>
+                <label>Price (cents)</label>
+                <input id="listing-price" type="number" min="1" value="5000" required>
               </div>
               <div class="field">
                 <label>Photos or video</label>
@@ -1188,7 +1089,6 @@
               <h3>Live market</h3>
               <span class="tag" id="listing-view-tag">0 live</span>
             </div>
-            <div class="simple-grid" style="margin-bottom:14px;"><input id="marketplace-search" type="search" placeholder="Search listings"><select id="marketplace-filter-category" data-category-selector><option value="">All categories</option></select></div>
             <div class="meta-list" id="listing-page-list"></div>
           </div>
         </div>
@@ -1469,13 +1369,6 @@
         </div>
       </section>
 
-      <section class="page-section" data-section="settings">
-        <div class="simple-grid">
-          <section class="section-panel"><div class="section-header"><h3>Account preferences</h3><span class="tag">Personal</span></div><div class="ops-list"><div class="ops-item"><span>Email address</span><strong id="settings-email">Not set</strong></div><div class="ops-item"><span>Account role</span><strong id="settings-role">Member</strong></div><div class="ops-item"><span>Account tier</span><strong id="settings-tier">Standard</strong></div></div><a href="/profile" class="mini-btn" data-view="profile">Edit profile</a></section>
-          <section class="section-panel"><div class="section-header"><h3>Security</h3><span class="tag">Protected</span></div><div class="ops-list"><div class="ops-item"><span>Wallet security</span><strong>Enabled</strong></div><div class="ops-item"><span>Payment verification</span><strong>Cloudflare + email OTP</strong></div><div class="ops-item"><span>Session</span><strong>Active</strong></div></div><a href="/wallet" class="mini-btn" data-view="wallet">Manage payment methods</a></section>
-        </div>
-      </section>
-
       <section class="page-section" data-section="admin">
         <div class="simple-grid">
           <div class="section-panel">
@@ -1679,14 +1572,6 @@
       const trustLabel = trustValue == null ? '—' : `${Math.max(0, Number(trustValue))}%`;
       const trustIsEmpty = trustValue == null;
 
-      $('topbar-name').textContent = userName;
-      $('topbar-email').textContent = userEmail;
-      $('topbar-avatar').textContent = initialsFromName(userName);
-      $('topbar-verified').classList.toggle('hidden', !greenTick);
-      $('topbar-premium').classList.toggle('hidden', subscriptionTier !== 'premium');
-      $('settings-email').textContent = userEmail;
-      $('settings-role').textContent = String(user?.role || 'member').toUpperCase();
-      $('settings-tier').textContent = tierLabel;
       $('welcome').textContent = userName;
       $('role-badge').textContent = (user?.role || 'worker').toUpperCase();
       $('profile-name').textContent = userName;
@@ -1720,6 +1605,9 @@
       });
       $('profile-bio').value = bio;
       ['profile-avatar-pip', 'profile-avatar-pip-preview'].forEach((id) => {
+        const element = $(id);
+        if (!element) return;
+        element.textContent = initialsFromName(userName);
         element.style.backgroundImage = avatarUrl ? `url("${avatarUrl}")` : 'linear-gradient(135deg, #123b30 0%, #2a5a48 100%)';
         element.style.backgroundSize = 'cover';
         element.style.backgroundPosition = 'center';
@@ -1754,10 +1642,6 @@
       try {
         const { user } = await api('/api/me').catch(() => ({ user: null }));
         if (!user) return;
-        if (window.location.pathname === '/') {
-          window.location.replace('/overview');
-          return;
-        }
         currentUser = user;
         $('landing').classList.add('hidden');
         $('app').classList.remove('hidden');
@@ -1765,7 +1649,7 @@
         await loadCategories();
         await hydrateProfile();
         await loadDashboard();
-        setActiveView(viewFromLocation());
+        setActiveView(window.location.hash.slice(1) || 'overview');
       } catch (error) {
         console.error('Session restore failed:', error);
       }
@@ -2034,7 +1918,6 @@
         $('vendor-notifications-list').innerHTML = notifications.length ? notifications.map((item) => `
           <div class="item-card"><h4>${escapeHtml(item.kind || 'Update')}</h4><p>${escapeHtml(item.body)}</p><div class="item-row"><span>${new Date(item.createdAt).toLocaleString()}</span>${item.readAt ? '<span class="tag">Read</span>' : `<button type="button" class="mini-btn" data-read-notification="${escapeHtml(item.id)}">Mark read</button>`}</div></div>
         `).join('') : '<p class="muted">No alerts or messages yet.</p>';
-        $('overview-notifications').innerHTML = notifications.length ? notifications.slice(0, 4).map((item) => `<div class="notification-row"><span class="notification-dot"></span><p>${escapeHtml(item.body)}<small>${escapeHtml(item.kind || 'Update')} · ${new Date(item.createdAt).toLocaleString()}</small></p></div>`).join('') : '<p class="muted">No recent notifications.</p>';
         document.querySelectorAll('[data-read-notification]').forEach((button) => {
           button.onclick = async () => {
             try {
@@ -2157,6 +2040,50 @@
         notify(error.message);
       }
     });
+    document.querySelectorAll('[data-support-action]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const target = button.dataset.supportAction === 'agent' ? $('support-contact') : $('support-assistant');
+        const input = button.dataset.supportAction === 'agent' ? $('support-subject') : $('support-chat-input');
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        input.focus({ preventScroll: true });
+      });
+    });
+    function appendSupportChatMessage(message, isUser = false) {
+      const bubble = document.createElement('p');
+      bubble.className = `support-bubble${isUser ? ' user' : ''}`;
+      bubble.textContent = message;
+      $('support-chat-log').append(bubble);
+      $('support-chat-log').scrollTop = $('support-chat-log').scrollHeight;
+    }
+    function getSupportAssistantReply(question) {
+      const text = question.toLowerCase();
+      if (/sign.?in|log.?in|password|account|register|verification/.test(text)) {
+        return 'For account access, use Sign in or Create account. Never share your password or verification code in chat. If you still cannot access your account, send a private message to an agent.';
+      }
+      if (/payment|wallet|card|payout|withdraw|refund|billing/.test(text)) {
+        return 'Open Wallet to review your balance, activity, and payment methods. For a specific transaction or payout, message an agent and include the date and amount, but never send full card details.';
+      }
+      if (/task|gig|product|listing|marketplace|seller|buyer/.test(text)) {
+        return 'Tasks, gigs, products, and listings each have their own section in TaskFlow. Open the relevant item to review its details; for a problem with a particular item, message an agent with its title.';
+      }
+      if (/message|conversation|offer|order|chat/.test(text)) {
+        return 'Your member conversations and offers are available from the Overview page. Support requests and agent replies stay in Contact support under Your support conversations.';
+      }
+      if (/human|agent|person|support|help/.test(text)) {
+        return 'Use the Message an Agent form on this page. Your message is saved as a private support conversation and appears in the support inbox for the team to review.';
+      }
+      return 'I can help with account access, payments, tasks, marketplace items, and conversations. For anything account-specific, use Message an Agent and the team can reply in your support conversations.';
+    }
+    $('support-chat-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const input = $('support-chat-input');
+      const question = input.value.trim();
+      if (!question) return;
+      appendSupportChatMessage(question, true);
+      input.value = '';
+      appendSupportChatMessage(getSupportAssistantReply(question));
+      input.focus();
+    });
     $('refresh-user-support').addEventListener('click', loadUserSupportThreads);
     $('user-support-reply-form').addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -2188,25 +2115,14 @@
     }
 
     function setActiveView(viewName) {
-      const routePaths = { overview: '/overview', tasks: '/tasks', marketplace: '/marketplace', products: '/products', vendor: '/vendor', gigs: '/gigs', wallet: '/wallet', profile: '/profile', support: '/support', premium: '/premium', settings: '/settings', admin: '/admin' };
-      const pageTitles = { overview: 'Overview', tasks: 'Tasks', marketplace: 'Marketplace', products: 'Products', vendor: 'Vendor dashboard', gigs: 'Gigs', wallet: 'Wallet', profile: 'Profile', support: 'Contact support', premium: 'Premium', settings: 'Settings', admin: 'Admin' };
-      const normalizedView = routePaths[viewName] && document.querySelector(`[data-section="${viewName}"]`) ? viewName : 'overview';
+      const normalizedView = document.querySelector(`[data-section="${viewName}"]`) ? viewName : 'overview';
       document.querySelectorAll('.nav-btn').forEach((button) => {
         button.classList.toggle('active', button.dataset.view === normalizedView);
       });
       document.querySelectorAll('.page-section').forEach((section) => {
         section.classList.toggle('active', section.dataset.section === normalizedView);
       });
-      $('page-title').textContent = pageTitles[normalizedView];
-      if (window.location.pathname !== routePaths[normalizedView] || window.location.hash) {
-        history.pushState(null, '', routePaths[normalizedView]);
-        window.scrollTo(0, 0);
-      }
-    }
-
-    function viewFromLocation() {
-      const requestedView = window.location.pathname.slice(1) || window.location.hash.slice(1) || 'overview';
-      return document.querySelector(`[data-section="${requestedView}"]`) ? requestedView : 'overview';
+      if (window.location.hash !== `#${normalizedView}`) history.replaceState(null, '', `#${normalizedView}`);
     }
 
     function syncAdminNavVisibility(user) {
@@ -2220,11 +2136,8 @@
       button.addEventListener('click', () => toggleTab(button.dataset.tab));
     });
 
-    document.querySelectorAll('a[data-view]').forEach((button) => {
-      button.addEventListener('click', (event) => {
-        event.preventDefault();
-        setActiveView(button.dataset.view);
-      });
+    document.querySelectorAll('.nav-btn').forEach((button) => {
+      button.addEventListener('click', () => setActiveView(button.dataset.view));
     });
 
     document.querySelectorAll('[data-wallet-tab]').forEach((button) => {
@@ -2236,7 +2149,7 @@
       });
     });
 
-    window.addEventListener('popstate', () => setActiveView(viewFromLocation()));
+    window.addEventListener('hashchange', () => setActiveView(window.location.hash.slice(1) || 'overview'));
 
     async function renderCardTurnstile() {
       const container = $('card-turnstile');
@@ -2413,28 +2326,12 @@
             videoUrl: $('task-url').value,
             category: $('task-category').value,
             description: $('task-description').value,
-            instructions: $('task-proof-requirements').value.trim(),
             amountDollars: Number($('task-amount').value),
             seconds: 60
           })
         });
         notify('Task published successfully.');
         $('task-form').reset();
-        await loadDashboard();
-      } catch (error) {
-        notify(error.message);
-      }
-    });
-
-    $('quick-task-form').addEventListener('submit', async (event) => {
-      event.preventDefault();
-      try {
-        await api('/api/tasks', {
-          method: 'POST',
-          body: JSON.stringify({ title: $('quick-task-title').value.trim(), videoUrl: $('quick-task-video-url').value.trim(), category: $('quick-task-category').value, description: $('quick-task-description').value.trim(), amountDollars: Number($('quick-task-amount').value), seconds: 60 })
-        });
-        $('quick-task-form').reset();
-        notify('Task published successfully.');
         await loadDashboard();
       } catch (error) {
         notify(error.message);
@@ -2494,8 +2391,7 @@
           body: JSON.stringify({
             title: $('listing-title').value,
             type: $('listing-type').value,
-            category: $('listing-category').value,
-            priceCents: Math.round(Number($('listing-price').value) * 100),
+            priceCents: Number($('listing-price').value),
             media: uploadedMedia
           })
         });
@@ -2639,20 +2535,13 @@
           </div>
         `).join('') : '<p class="muted">No active tasks yet.</p>';
 
-        $('task-page-list').innerHTML = taskItems.length ? taskItems.slice(0, 20).map((task) => `
-          <div class="item-card"><h4>${escapeHtml(task.title)}</h4><p>${escapeHtml(task.description || 'Task details pending.')}</p>${task.instructions ? `<p><strong>Proof:</strong> ${escapeHtml(task.instructions)}</p>` : ''}<div class="item-row"><span>${Number(task.seconds || 0)} sec · ${escapeHtml(task.category || 'General')}</span><span class="tag">Budget ${formatMoney(task.payoutCents || 0)}</span></div><div class="row-actions"><span class="tag">${escapeHtml(task.status || 'Active')}</span><button type="button" class="mini-btn primary" data-offer-type="task" data-offer-id="${task.id}" data-offer-title="${escapeHtml(task.title)}">Contact</button></div></div>
+        $('task-page-list').innerHTML = taskItems.length ? taskItems.slice(0, 6).map((task) => `
+          <div class="item-card"><h4>${escapeHtml(task.title)}</h4><p>${escapeHtml(task.description || 'Task details pending.')}</p><div class="item-row"><span>${Number(task.seconds || 0)} sec</span><span class="tag">${formatMoney(task.payoutCents || 0)}</span></div></div>
         `).join('') : '<p class="muted">No tasks created yet.</p>';
 
-        const marketplaceSearch = String($('marketplace-search').value || '').trim().toLowerCase();
-        const marketplaceCategory = $('marketplace-filter-category').value;
-        const marketplaceItems = listingItems.filter((item) => {
-          const searchable = `${item.title || ''} ${item.type || ''} ${item.category || ''}`.toLowerCase();
-          return (!marketplaceSearch || searchable.includes(marketplaceSearch)) && (!marketplaceCategory || item.category === marketplaceCategory);
-        });
-        $('listing-view-tag').textContent = `${marketplaceItems.length} listings`;
-        $('listing-page-list').innerHTML = marketplaceItems.length ? marketplaceItems.slice(0, 20).map((item) => `
-          <div class="item-card"><h4>${escapeHtml(item.title)}</h4>${renderListingMedia(item)}<p>${escapeHtml(item.category || item.type || 'Listing')}</p><div class="item-row"><span class="tag">${escapeHtml(item.type || 'Listing')}</span><strong>${formatMoney(item.priceCents || 0)}</strong></div><div class="row-actions"><button type="button" class="mini-btn primary" data-offer-type="listing" data-offer-id="${item.id}" data-offer-title="${escapeHtml(item.title)}">Contact seller</button></div></div>
-        `).join('') : '<p class="muted">No listings match these filters.</p>';
+        $('listing-page-list').innerHTML = listingItems.length ? listingItems.slice(0, 6).map((item) => `
+          <div class="item-card"><h4>${escapeHtml(item.title)}</h4><p>${escapeHtml(item.type || 'Listing')}</p>${renderListingMedia(item)}<div class="item-row"><span>${escapeHtml(item.type)}</span><span class="tag">${formatMoney(item.priceCents || 0)}</span></div></div>
+        `).join('') : '<p class="muted">No listings available.</p>';
 
         $('listings-list').innerHTML = listingItems.length ? listingItems.slice(0, 6).map((item) => `
           <div class="item-card">
@@ -2851,8 +2740,14 @@
     }
 
     async function openApp(user) {
+      $('landing').classList.add('hidden');
+      $('app').classList.remove('hidden');
       currentUser = user || currentUser;
-      window.location.assign('/overview');
+      syncAdminNavVisibility(currentUser);
+      await loadCategories();
+      await hydrateProfile();
+      await loadDashboard();
+      setActiveView(window.location.hash.slice(1) || 'overview');
     }
 
     $('profile-form').addEventListener('submit', async (event) => {
@@ -2982,6 +2877,10 @@
       }
     });
 
+    document.querySelectorAll('.nav-btn').forEach((button) => {
+      button.addEventListener('click', () => setActiveView(button.dataset.view));
+    });
+
     document.getElementById('global-search')?.addEventListener('input', async (event) => {
       const q = String(event.target.value || '').trim();
       if (!q) return;
@@ -2996,19 +2895,10 @@
       }
     });
 
-    let marketplaceFilterTimer = null;
-    $('marketplace-search').addEventListener('input', () => {
-      clearTimeout(marketplaceFilterTimer);
-      marketplaceFilterTimer = setTimeout(loadDashboard, 250);
-    });
-    $('marketplace-filter-category').addEventListener('change', loadDashboard);
-
     async function initializeAppShell() {
       await restoreSessionIfLoggedIn();
     }
 
-    $('sidebar-logout').addEventListener('click', () => $('logout').click());
-    if (window.lucide) window.lucide.createIcons();
     initializeAppShell();
   </script>
 </body>

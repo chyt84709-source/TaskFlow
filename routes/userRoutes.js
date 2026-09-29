@@ -4,7 +4,7 @@ import Stripe from 'stripe';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import { calculateInternationalTax, db, getCurrencyMeta, getRegionalPaymentMethods, hash, issueOtp, normalizeCountry, reqOtp } from '../config/database.js';
-import { requireAdmin, requireUser } from '../utils/helpers.js';
+import { requireUser } from '../utils/helpers.js';
 import { decryptImage, processAndEncryptImage, readEncryptedImage, saveEncryptedImage } from '../services/media.js';
 
 const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 }, fileFilter: (_req, file, callback) => callback(null, /^image\/(jpeg|png|webp|gif|avif|heic)$/.test(file.mimetype)) });
@@ -38,51 +38,6 @@ async function sendCardOtp(email, code) {
 
 const router = express.Router();
 
-router.post('/api/premium/requests', requireUser, async (req, res, next) => {
-  try {
-    const parsed = z.object({ reason: z.string().trim().max(500).default('I would like to be considered for Premium access.') }).safeParse(req.body || {});
-    if (!parsed.success) return res.status(400).json({ error: 'Enter a valid Premium request.' });
-    const userResult = await db.query('SELECT referral_count,subscription_tier FROM users WHERE id=$1', [req.session.user.id]);
-    const user = userResult.rows[0];
-    if (!user) return res.status(404).json({ error: 'User not found.' });
-    if (user.subscription_tier === 'premium') return res.json({ requested: true, status: 'approved', tier: 'premium' });
-    const existing = await db.query("SELECT id FROM premium_requests WHERE user_id=$1 AND status='pending'", [req.session.user.id]);
-    if (existing.rows[0]) return res.json({ requested: true, status: 'pending' });
-    const qualifiesByReferral = Number(user.referral_count || 0) >= 10;
-    const status = qualifiesByReferral ? 'approved' : 'pending';
-    await db.query('INSERT INTO premium_requests (id,user_id,reason,status,reviewed_by,reviewed_at) VALUES ($1,$2,$3,$4,$5,CASE WHEN $4=$6 THEN NOW() ELSE NULL END)', [nanoid(), req.session.user.id, parsed.data.reason, status, qualifiesByReferral ? 'system-referrals' : null, 'approved']);
-    if (qualifiesByReferral) {
-      await db.query("UPDATE users SET subscription_tier='premium',green_tick=TRUE,premium_source='referrals',premium_activated_at=COALESCE(premium_activated_at,NOW()) WHERE id=$1", [req.session.user.id]);
-      req.session.user.subscriptionTier = 'premium';
-      req.session.user.greenTick = true;
-      await db.query('INSERT INTO notifications (id,user_id,kind,body,created_at) VALUES ($1,$2,$3,$4,NOW())', [nanoid(), req.session.user.id, 'premium', 'Your 10 verified referrals qualified you for Premium. Your verified blue tick is now active.']);
-    }
-    res.status(201).json({ requested: true, status, tier: qualifiesByReferral ? 'premium' : 'standard' });
-  } catch (error) { next(error); }
-});
-
-router.get('/api/admin/premium-requests', requireAdmin, async (_req, res, next) => {
-  try {
-    const result = await db.query(`SELECT r.id,r.user_id AS "userId",r.reason,r.status,r.created_at AS "createdAt",u.name AS "userName",u.email AS "userEmail"
-      FROM premium_requests r JOIN users u ON u.id=r.user_id ORDER BY r.created_at DESC`);
-    res.json({ requests: result.rows });
-  } catch (error) { next(error); }
-});
-
-router.post('/api/admin/premium-requests/:id/review', requireAdmin, async (req, res, next) => {
-  try {
-    const parsed = z.object({ decision: z.enum(['approved', 'rejected']) }).safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: 'Choose approve or reject.' });
-    const request = await db.query('SELECT user_id AS "userId" FROM premium_requests WHERE id=$1 AND status=$2', [req.params.id, 'pending']);
-    if (!request.rows[0]) return res.status(404).json({ error: 'Pending Premium request not found.' });
-    const approved = parsed.data.decision === 'approved';
-    await db.query('UPDATE premium_requests SET status=$1,reviewed_by=$2,reviewed_at=NOW() WHERE id=$3', [parsed.data.decision, req.session.user.id, req.params.id]);
-    await db.query('UPDATE users SET subscription_tier=$1,green_tick=$2,premium_source=$3,premium_activated_at=CASE WHEN $2 THEN NOW() ELSE NULL END WHERE id=$4', [approved ? 'premium' : 'standard', approved, approved ? 'admin' : null, request.rows[0].userId]);
-    await db.query('INSERT INTO notifications (id,user_id,kind,body,created_at) VALUES ($1,$2,$3,$4,NOW())', [nanoid(), request.rows[0].userId, 'premium', approved ? 'Your Premium request was approved. Your verified blue tick is now active.' : 'Your Premium request was not approved at this time.']);
-    res.json({ reviewed: true, approved });
-  } catch (error) { next(error); }
-});
-
 router.get('/api/health', (_req, res) => res.json({ ok: true, service: 'taskflow', time: new Date().toISOString() }));
 
 router.get('/api/client-config', (_req, res) => res.json({ turnstileSiteKey: process.env.CLOUDFLARE_TURNSTILE_SITE_KEY || '', stripePublishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '' }));
@@ -105,20 +60,11 @@ router.get('/api/summary', async (_req, res, next) => {
 router.get('/api/me', async (req, res, next) => {
   if (!req.session.user || req.session.user.isAdmin || req.session.user.role === 'admin') return res.json({ user: req.session.user || null });
   try {
-    const result = await db.query('SELECT account_status,subscription_tier,green_tick,name,email,role,country FROM users WHERE id=$1', [req.session.user.id]);
+    const result = await db.query('SELECT account_status FROM users WHERE id=$1', [req.session.user.id]);
     if (result.rows[0]?.account_status !== 'active') {
       req.session = null;
       return res.json({ user: null });
     }
-    req.session.user = {
-      ...req.session.user,
-      name: result.rows[0].name || req.session.user.name,
-      email: result.rows[0].email || req.session.user.email || null,
-      role: result.rows[0].role || req.session.user.role,
-      country: normalizeCountry(result.rows[0].country || req.session.user.country || 'US'),
-      subscriptionTier: result.rows[0].subscription_tier || 'standard',
-      greenTick: result.rows[0].subscription_tier === 'premium' && Boolean(result.rows[0].green_tick)
-    };
     res.json({ user: req.session.user });
   } catch (error) {
     next(error);
@@ -301,20 +247,7 @@ router.get('/api/media/:id', requireUser, async (req, res, next) => {
     if (!media || (!adminAccess && !ownerCanShare && !activeAdCanShare && media.userId !== req.session.user.id)) return res.status(404).end();
     try {
       const encrypted = await readEncryptedImage(media.filename);
-      const payload = decryptImage(encrypted);
-      const totalBytes = payload.length;
-      const range = req.headers.range;
-      res.set('Accept-Ranges', 'bytes');
-      if (range) {
-        const match = /^bytes=(\d*)-(\d*)$/.exec(range);
-        if (!match) return res.status(416).set('Content-Range', `bytes */${totalBytes}`).end();
-        const start = match[1] ? Number(match[1]) : Math.max(0, totalBytes - Number(match[2] || 0));
-        const end = match[2] ? Number(match[2]) : totalBytes - 1;
-        if (start >= totalBytes || end < start || end >= totalBytes) return res.status(416).set('Content-Range', `bytes */${totalBytes}`).end();
-        const chunk = payload.subarray(start, end + 1);
-        return res.status(206).set({ 'Content-Range': `bytes ${start}-${end}/${totalBytes}`, 'Content-Length': String(chunk.length) }).type(media.mimeType).send(chunk);
-      }
-      res.set('Content-Length', String(totalBytes)).type(media.mimeType).send(payload);
+      res.type(media.mimeType).send(decryptImage(encrypted));
     } catch (error) {
       if (error.code === 'ENOENT') return res.status(404).end();
       throw error;
