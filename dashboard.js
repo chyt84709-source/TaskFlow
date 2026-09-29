@@ -48,7 +48,17 @@ function setShellUser(user) {
   currentUser = user;
   document.querySelectorAll('[data-user-name]').forEach((element) => { element.textContent = user?.name || 'Husnain'; });
   document.querySelectorAll('[data-user-email]').forEach((element) => { element.textContent = user?.email || '@taskflow'; });
-  document.querySelectorAll('[data-user-initials]').forEach((element) => { element.textContent = initials(user?.name || 'Husnain'); });
+  document.querySelectorAll('[data-user-initials]').forEach((element) => {
+    const avatarUrl = user?.avatarUrl || user?.avatar_url || '';
+    element.replaceChildren();
+    if (avatarUrl) {
+      const image = document.createElement('img');
+      image.className = 'avatar-photo';
+      image.src = avatarUrl;
+      image.alt = '';
+      element.append(image);
+    } else element.textContent = initials(user?.name || 'Husnain');
+  });
   const isPremium = (user?.subscriptionTier || user?.subscription_tier) === 'premium';
   $('[data-tier]').textContent = isPremium ? 'PREMIUM' : 'STANDARD';
   $('[data-tier]').classList.toggle('premium', true);
@@ -373,6 +383,43 @@ function openStoreForm(store = null) {
   $('#store-dialog').showModal();
 }
 
+async function openStoreMediaDialog(storeId) {
+  const response = await api('/api/store/me');
+  const store = (response.stores || []).find((item) => item.id === storeId);
+  if (!store) throw new Error('Store not found for this account.');
+  $('#store-media-id').value = store.id;
+  $('#store-media-logo-preview').src = store.logoUrl || '';
+  $('#store-media-cover-preview').src = store.coverUrl || '';
+  $('#store-media-logo-preview').classList.toggle('hidden', !store.logoUrl);
+  $('#store-media-cover-preview').classList.toggle('hidden', !store.coverUrl);
+  $('#store-media-form').reset();
+  $('#store-media-id').value = store.id;
+  $('#store-media-dialog').showModal();
+}
+
+function openVendorAdForm(ad = null) {
+  const form = $('#vendor-ad-form');
+  form.reset();
+  $('#vendor-ad-id').value = ad?.id || '';
+  $('#vendor-ad-title').value = ad?.title || '';
+  $('#vendor-ad-description').value = ad?.description || '';
+  $('#vendor-ad-category').value = ad?.category || '';
+  $('#vendor-ad-location').value = ad?.location || 'Global';
+  $('#vendor-ad-price').value = Number(ad?.priceCents || 50000) / 100;
+  $('#vendor-ad-placement').value = ad?.placement || 'homepage-top';
+  $('#vendor-ad-duration').value = ad?.durationDays || 7;
+  $('#vendor-ad-skip').value = String(ad?.skipAllowed ?? true);
+  $('#vendor-ad-destination').value = ad?.destinationUrl || '';
+  const media = Array.isArray(ad?.media) ? ad.media : [];
+  $('#vendor-ad-existing-media').value = JSON.stringify(media);
+  $('#vendor-ad-preview').innerHTML = media.length ? mediaMarkup({ title: ad.title, media }) : emptyState('No ad media selected.');
+  $('#vendor-ad-title-text').textContent = ad ? 'Edit your advertisement' : 'Create an advertisement';
+  $('#vendor-ad-submit').textContent = ad ? 'Save changes' : 'Submit for review';
+  $('#vendor-ad-media').required = !ad;
+  $('#vendor-ad-dialog').showModal();
+  window.lucide?.createIcons();
+}
+
 async function renderVendorStore(storeId) {
   const detail = await api(`/api/store/me/${encodeURIComponent(storeId)}`);
   const target = $('#vendor-store-detail');
@@ -383,6 +430,12 @@ async function renderVendorStore(storeId) {
   target.innerHTML = `<section class="panel store-detail-panel"><img class="store-detail-cover" src="${escapeHtml(store.coverUrl || '')}" alt="${escapeHtml(store.businessName)} cover"><div class="store-profile"><img class="store-profile-image" src="${escapeHtml(store.logoUrl || '')}" alt=""><div><span class="badge">${escapeHtml(store.status)}</span><h2>${escapeHtml(store.businessName)}</h2><p>${escapeHtml(store.category || 'Store')}</p></div><button class="button" type="button" data-back-stores><i data-lucide="arrow-left"></i>All stores</button></div><p class="store-description">${escapeHtml(store.description)}</p><div class="metric-grid store-metrics"><article class="metric"><div class="metric-top"><span>Products</span><i data-lucide="package"></i></div><strong>${detail.products.length}</strong></article><article class="metric"><div class="metric-top"><span>Sales</span><i data-lucide="receipt-text"></i></div><strong>${Number(sales.salesCount || 0)}</strong></article><article class="metric"><div class="metric-top"><span>Units sold</span><i data-lucide="chart-no-axes-column-increasing"></i></div><strong>${Number(sales.unitsSold || 0)}</strong></article><article class="metric"><div class="metric-top"><span>Sales value</span><i data-lucide="circle-dollar-sign"></i></div><strong>${money(sales.salesCents)}</strong></article></div><div class="panel-head store-section-head"><h2>Store products</h2><a class="button button-primary" href="/products" data-route="products"><i data-lucide="plus"></i>Add product</a></div><div class="cards-grid">${detail.products.length ? detail.products.map((product) => `<article class="listing-card product-card">${mediaMarkup(product)}<div class="listing-body"><span class="badge">${escapeHtml(product.category || 'Product')}</span><h3>${escapeHtml(product.title)}</h3><p class="listing-description">${escapeHtml(product.description || '')}</p><div class="listing-meta"><span class="badge">${Number(product.stock)} in stock</span><strong>${money(product.priceCents)}</strong></div></div></article>`).join('') : emptyState('No products are assigned to this store yet.')}</div><div class="panel-head store-section-head"><h2>Recent sales</h2><span class="badge">${detail.orders.length} orders</span></div><div class="rows">${detail.orders.length ? detail.orders.map((order) => `<div class="data-row"><div><strong>${escapeHtml(order.productTitle)}</strong><small>${escapeHtml(order.status)} · ${Number(order.quantity)} units · ${new Date(order.createdAt).toLocaleDateString()}</small></div><span>${money(order.amountCents)}</span></div>`).join('') : emptyState('No sales for this store yet.')}</div></section>`;
   const profileDetails = target.querySelector('.store-profile > div');
   profileDetails.append(storePlanBadge(currentUser?.subscriptionTier || currentUser?.subscription_tier, currentUser?.greenTick || currentUser?.green_tick));
+  const mediaButton = document.createElement('button');
+  mediaButton.className = 'button';
+  mediaButton.type = 'button';
+  mediaButton.dataset.changeStoreMedia = store.id;
+  mediaButton.innerHTML = '<i data-lucide="image"></i>Change pictures';
+  target.querySelector('[data-back-stores]').before(mediaButton);
   window.lucide?.createIcons();
 }
 
@@ -402,13 +455,28 @@ async function renderVendor() {
       <div class="field"><label for="store-logo-file">Store profile picture</label><input id="store-logo-file" type="file" accept="image/*"><input id="store-current-logo" type="hidden"><img id="store-logo-preview" class="store-logo-preview hidden" alt="Store profile picture preview"></div>
       <div class="form-actions"><button class="button" type="button" data-close-dialog>Cancel</button><button class="button button-primary" id="store-form-submit" type="submit">Submit storefront for review</button></div>
     </form></dialog>`);
-  const [storeResponse, notifications] = await Promise.all([
+  $('#vendor-stores-panel').insertAdjacentHTML('afterend', `<section class="panel vendor-ads-panel"><div class="panel-head"><div><h2>Your advertisements</h2><p class="panel-subtitle">Edit only ads submitted from your account. Vendor edits return to admin review.</p></div><button class="button button-primary" type="button" data-new-ad><i data-lucide="plus"></i>Create ad</button></div><div class="cards-grid ad-manager-grid" id="vendor-ad-list">${emptyState('Loading ads...')}</div></section>`);
+  pageContent.insertAdjacentHTML('beforeend', `
+    <dialog class="modal-dialog" id="store-media-dialog"><form id="store-media-form" class="panel modal-panel"><div class="panel-head"><div><h2>Change store pictures</h2><p class="panel-subtitle">Only this store's images will be updated.</p></div><button class="button icon-button" type="button" data-close-dialog aria-label="Close"><i data-lucide="x"></i></button></div><input id="store-media-id" type="hidden"><div class="field"><label for="store-media-cover">Cover photo</label><img id="store-media-cover-preview" class="store-cover-preview hidden" alt="Current cover"><input id="store-media-cover" type="file" accept="image/*"></div><div class="field"><label for="store-media-logo">Store profile picture</label><img id="store-media-logo-preview" class="store-logo-preview hidden" alt="Current store profile picture"><input id="store-media-logo" type="file" accept="image/*"></div><div class="form-actions"><button class="button" type="button" data-close-dialog>Cancel</button><button class="button button-primary" type="submit">Save pictures</button></div></form></dialog>
+    <dialog class="modal-dialog" id="vendor-ad-dialog"><form id="vendor-ad-form" class="panel modal-panel"><div class="panel-head"><div><h2 id="vendor-ad-title-text">Create an advertisement</h2><p class="panel-subtitle">Vendor-created ads are reviewed before publication.</p></div><button class="button icon-button" type="button" data-close-dialog aria-label="Close"><i data-lucide="x"></i></button></div><input id="vendor-ad-id" type="hidden"><input id="vendor-ad-existing-media" type="hidden"><div class="field"><label for="vendor-ad-title">Campaign title</label><input id="vendor-ad-title" required minlength="3" maxlength="120"></div><div class="field"><label for="vendor-ad-description">Description</label><textarea id="vendor-ad-description" required minlength="5" maxlength="2000"></textarea></div><div class="form-grid"><div class="field"><label for="vendor-ad-category">Category</label><select id="vendor-ad-category" required><option value="">Choose category</option><option>Technology</option><option>Marketing</option><option>Travel</option><option>Finance</option><option>Lifestyle</option><option>Education</option><option>Health</option><option>Retail</option><option>Real Estate</option><option>Food</option></select></div><div class="field"><label for="vendor-ad-location">Audience/location</label><input id="vendor-ad-location" required maxlength="120" value="Global"></div><div class="field"><label for="vendor-ad-price">Ad value (USD)</label><input id="vendor-ad-price" type="number" min="0.01" step="0.01" required></div><div class="field"><label for="vendor-ad-placement">Placement</label><select id="vendor-ad-placement"><option value="homepage-top">Homepage top</option><option value="sidebar">Sidebar</option><option value="featured">Featured row</option></select></div><div class="field"><label for="vendor-ad-duration">Duration (days)</label><input id="vendor-ad-duration" type="number" min="1" max="365" value="7" required></div><div class="field"><label for="vendor-ad-skip">Allow skipping</label><select id="vendor-ad-skip"><option value="true">Yes</option><option value="false">No</option></select></div></div><div class="field"><label for="vendor-ad-media">Ad image or video</label><div id="vendor-ad-preview"></div><input id="vendor-ad-media" type="file" accept="image/*,video/*" multiple></div><div class="field"><label for="vendor-ad-destination">Destination link</label><input id="vendor-ad-destination" type="url" maxlength="500" placeholder="https://example.com"></div><div class="form-actions"><button class="button" type="button" data-close-dialog>Cancel</button><button class="button button-primary" id="vendor-ad-submit" type="submit">Submit for review</button></div></form></dialog>`);
+  const [storeResponse, notifications, adsResponse] = await Promise.all([
     api('/api/store/me').catch(() => ({ stores: [] })),
-    api('/api/notifications').catch(() => ({ notifications: [] }))
+    api('/api/notifications').catch(() => ({ notifications: [] })),
+    api('/api/ads/mine').catch(() => ({ ads: [] }))
   ]);
   const stores = storeResponse.stores || (storeResponse.store ? [storeResponse.store] : []);
   $('#vendor-stores').innerHTML = stores.length ? stores.map((store) => `<article class="listing-card store-card"><img class="store-card-cover" src="${escapeHtml(store.coverUrl || '')}" alt="${escapeHtml(store.businessName)} cover"><div class="store-card-body">${store.logoUrl ? `<img class="store-card-logo" src="${escapeHtml(store.logoUrl)}" alt="">` : ''}<div class="panel-head"><h3>${escapeHtml(store.businessName)}</h3><span class="badge">${escapeHtml(store.status)}</span></div><p>${escapeHtml(store.category || 'Store')}</p>${store.status === 'verified' ? `<button class="button button-primary" type="button" data-open-store="${escapeHtml(store.id)}"><i data-lucide="external-link"></i>Open store</button>` : `<div><small>${escapeHtml(store.reviewNote || (store.status === 'pending' ? 'Waiting for admin review.' : 'Update details and resubmit.'))}</small><button class="button" type="button" data-edit-store="${escapeHtml(store.id)}"><i data-lucide="pencil"></i>Update request</button></div>`}</div></article>`).join('') : emptyState('You have not created a store yet.');
+  $('#vendor-stores').querySelectorAll('.store-card').forEach((card, index) => {
+    const button = document.createElement('button');
+    button.className = 'button store-media-action';
+    button.type = 'button';
+    button.dataset.changeStoreMedia = stores[index].id;
+    button.innerHTML = '<i data-lucide="image"></i>Change pictures';
+    card.querySelector('.store-card-body').append(button);
+  });
   $('#vendor-stores').querySelectorAll('.store-card .panel-head').forEach((heading) => heading.append(storePlanBadge(currentUser?.subscriptionTier || currentUser?.subscription_tier, currentUser?.greenTick || currentUser?.green_tick)));
+  const ads = adsResponse.ads || [];
+  $('#vendor-ad-list').innerHTML = ads.length ? ads.map((ad) => `<article class="listing-card ad-manager-card">${mediaMarkup({ title: ad.title, media: ad.media || [] })}<div class="listing-body"><div class="panel-head"><h3>${escapeHtml(ad.title)}</h3><span class="badge">${escapeHtml(ad.status)}</span></div><p>${escapeHtml(ad.category)} · ${escapeHtml(ad.placement)} · ${Number(ad.durationDays)} days</p><div class="listing-meta"><strong>${money(ad.priceCents)}</strong><button class="button" type="button" data-edit-ad="${escapeHtml(ad.id)}"><i data-lucide="pencil"></i>Edit ad</button></div></div></article>`).join('') : emptyState('No advertisements from this account yet.');
   $('#vendor-notifications').innerHTML = notificationMarkup(notifications.notifications || []);
   [['store-logo-file', 'store-logo-preview'], ['store-cover-file', 'store-cover-preview']].forEach(([inputId, previewId]) => {
     $(`#${inputId}`).addEventListener('change', (event) => {
@@ -421,6 +489,22 @@ async function renderVendor() {
       preview.classList.remove('hidden');
     });
   });
+  [['store-media-cover', 'store-media-cover-preview'], ['store-media-logo', 'store-media-logo-preview']].forEach(([inputId, previewId]) => {
+    $(`#${inputId}`).addEventListener('change', (event) => {
+      const [file] = event.target.files || [];
+      if (!file) return;
+      const preview = $(`#${previewId}`);
+      if (preview.dataset.previewUrl) URL.revokeObjectURL(preview.dataset.previewUrl);
+      preview.dataset.previewUrl = URL.createObjectURL(file);
+      preview.src = preview.dataset.previewUrl;
+      preview.classList.remove('hidden');
+    });
+  });
+  $('#vendor-ad-media').addEventListener('change', (event) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length) $('#vendor-ad-preview').textContent = `${files.length} new media ${files.length === 1 ? 'file' : 'files'} selected.`;
+  });
+  window.lucide?.createIcons();
 }
 
 async function renderWallet() {
@@ -432,12 +516,25 @@ async function renderWallet() {
 
 async function renderProfile() {
   pageFrame('profile', `<div class="dashboard-columns"><section class="panel"><div class="panel-head"><div><h2>Profile settings</h2><p class="panel-subtitle">Manage the details shown to clients and buyers.</p></div></div><form id="profile-form"><div class="field"><label for="profile-name">Display name</label><input id="profile-name" required maxlength="100"></div><div class="form-grid"><div class="field"><label for="profile-phone">Phone</label><input id="profile-phone" type="tel" placeholder="+1 555 0100"></div><div class="field"><label for="profile-country">Country</label><select id="profile-country"><option value="US">United States</option><option value="PK">Pakistan</option><option value="IN">India</option><option value="AE">United Arab Emirates</option><option value="GB">United Kingdom</option><option value="CA">Canada</option><option value="SA">Saudi Arabia</option><option value="BD">Bangladesh</option><option value="NG">Nigeria</option></select></div></div><div class="field"><label for="profile-bio">Bio</label><textarea id="profile-bio" rows="5" maxlength="500"></textarea></div><button class="button button-primary" type="submit">Save profile</button></form></section><section class="panel"><div class="panel-head"><h2>Account preview</h2><span class="badge">Active</span></div><div class="sidebar-user"><span class="avatar" data-user-initials>TF</span><span class="sidebar-user-copy"><strong data-user-name>Husnain</strong><small data-user-email>Account</small></span></div><div class="rows" style="margin-top:16px"><div class="data-row"><strong>Trust score</strong><span id="profile-trust">Not rated</span></div><div class="data-row"><strong>Account tier</strong><span id="profile-tier">Standard</span></div><div class="data-row"><strong>Member since</strong><span id="profile-joined">Active member</span></div></div></section></div>`);
+  $('#profile-form').insertAdjacentHTML('afterbegin', `<div class="field profile-picture-field"><label for="profile-avatar-file">Profile picture</label><div class="profile-picture-control"><img id="profile-avatar-preview" class="profile-avatar-preview${currentUser?.avatarUrl || currentUser?.avatar_url ? '' : ' hidden'}" src="${escapeHtml(currentUser?.avatarUrl || currentUser?.avatar_url || '')}" alt="Current profile picture"><input id="profile-avatar-file" type="file" accept="image/*"><button class="button" type="button" data-save-profile-avatar><i data-lucide="image"></i>Change picture</button></div></div>`);
   const data = await api('/api/profile').catch(() => ({ user: currentUser }));
   const user = data.user || currentUser || {};
   $('#profile-name').value = user.name || '';
   $('#profile-phone').value = user.phone || '';
   $('#profile-country').value = user.country || 'US';
   $('#profile-bio').value = user.profile?.bio || user.bio || '';
+  const avatarUrl = user.avatar_url || user.avatarUrl || '';
+  $('#profile-avatar-preview').src = avatarUrl;
+  $('#profile-avatar-preview').classList.toggle('hidden', !avatarUrl);
+  $('#profile-avatar-file').addEventListener('change', (event) => {
+    const [file] = event.target.files || [];
+    if (!file) return;
+    const preview = $('#profile-avatar-preview');
+    if (preview.dataset.previewUrl) URL.revokeObjectURL(preview.dataset.previewUrl);
+    preview.dataset.previewUrl = URL.createObjectURL(file);
+    preview.src = preview.dataset.previewUrl;
+    preview.classList.remove('hidden');
+  });
   $('#profile-trust').textContent = user.trust_score == null && user.trustScore == null ? 'Not rated' : `${user.trust_score ?? user.trustScore}%`;
   $('#profile-tier').textContent = user.subscriptionTier || 'Standard';
   $('#profile-joined').textContent = user.created_at ? new Date(user.created_at).toLocaleDateString() : 'Active member';
@@ -668,6 +765,25 @@ async function onSubmit(event) {
       const storeId = value('store-id');
       await api(storeId ? `/api/store/me/${encodeURIComponent(storeId)}` : '/api/store/me', { method: storeId ? 'PUT' : 'POST', body: JSON.stringify({ businessName: value('store-name'), category: value('store-category'), description: value('store-description'), logoUrl, coverUrl }) });
       notify('Store submitted for review.');
+    } else if (form.id === 'store-media-form') {
+      const [logo, cover] = [$('#store-media-logo', form).files?.[0], $('#store-media-cover', form).files?.[0]];
+      const files = await uploadFiles([logo, cover].filter(Boolean));
+      if (!files.length) throw new Error('Choose a new profile picture or cover photo.');
+      const media = {};
+      let index = 0;
+      if (logo) media.logoUrl = files[index++].url;
+      if (cover) media.coverUrl = files[index].url;
+      await api(`/api/store/me/${encodeURIComponent(value('store-media-id'))}/media`, { method: 'PATCH', body: JSON.stringify(media) });
+      notify('Store pictures updated. Other store details and approval status were preserved.');
+    } else if (form.id === 'vendor-ad-form') {
+      const adId = value('vendor-ad-id');
+      const files = await uploadFiles($('#vendor-ad-media', form).files);
+      const oldMedia = JSON.parse(value('vendor-ad-existing-media') || '[]');
+      const media = files.length ? files.map((file) => ({ url: file.url, mimeType: file.mimeType })) : oldMedia;
+      if (!media.length) throw new Error('Choose an image or video for the ad.');
+      const payload = { title: value('vendor-ad-title'), description: value('vendor-ad-description'), category: value('vendor-ad-category'), location: value('vendor-ad-location'), priceCents: Math.round(Number(value('vendor-ad-price')) * 100), placement: value('vendor-ad-placement'), durationDays: Number(value('vendor-ad-duration')), skipAllowed: value('vendor-ad-skip') === 'true', media, destinationUrl: value('vendor-ad-destination') || null };
+      const response = await api(adId ? `/api/ads/${encodeURIComponent(adId)}` : '/api/ads', { method: adId ? 'PATCH' : 'POST', body: JSON.stringify(payload) });
+      notify(response.submittedForReview ? 'Ad saved and sent for admin review.' : 'Ad saved successfully.');
     } else if (form.matches('[data-promotion-review-form]')) {
       const field = (name) => form.elements.namedItem(name)?.value || '';
       const decision = event.submitter?.value;
@@ -724,7 +840,38 @@ document.addEventListener('click', async (event) => {
   const dialogTrigger = event.target.closest('[data-open-dialog]');
   if (dialogTrigger) { $(`#${dialogTrigger.dataset.openDialog}`).showModal(); return; }
   if (event.target.closest('[data-close-dialog]')) { event.target.closest('dialog')?.close(); return; }
+  if (event.target.closest('[data-save-profile-avatar]')) {
+    const [file] = $('#profile-avatar-file').files || [];
+    if (!file) { notify('Choose a profile picture first.'); return; }
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const result = await api('/api/profile/avatar', { method: 'POST', body: formData });
+      currentUser = { ...currentUser, avatarUrl: result.url, avatar_url: result.url };
+      setShellUser(currentUser);
+      $('#profile-avatar-preview').src = result.url;
+      notify('Profile picture updated across your account.');
+    } catch (error) { notify(error.message); }
+    return;
+  }
   if (event.target.closest('[data-new-store]')) { openStoreForm(); return; }
+  if (event.target.closest('[data-new-ad]')) { openVendorAdForm(); return; }
+  const editAdButton = event.target.closest('[data-edit-ad]');
+  if (editAdButton) {
+    try {
+      const response = await api('/api/ads/mine');
+      const ad = (response.ads || []).find((item) => item.id === editAdButton.dataset.editAd);
+      if (!ad) throw new Error('Ad not found for this account.');
+      openVendorAdForm(ad);
+    } catch (error) { notify(error.message); }
+    return;
+  }
+  const changeStoreMediaButton = event.target.closest('[data-change-store-media]');
+  if (changeStoreMediaButton) {
+    try { await openStoreMediaDialog(changeStoreMediaButton.dataset.changeStoreMedia); }
+    catch (error) { notify(error.message); }
+    return;
+  }
   const editStoreButton = event.target.closest('[data-edit-store]');
   if (editStoreButton) {
     try {

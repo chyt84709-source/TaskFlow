@@ -32,7 +32,8 @@
     .nav-link.admin-link { margin-top: 8px; border-top: 1px solid var(--line); border-radius: 0 0 8px 8px; padding-top: 16px; }
     .sidebar-bottom { display: grid; gap: 3px; margin-top: auto; padding-top: 14px; border-top: 1px solid var(--line); }
     .sidebar-user { display: flex; align-items: center; gap: 10px; padding: 13px 8px 2px; min-width: 0; }
-    .avatar { flex: 0 0 auto; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: #ccfbf1; color: #0f766e; font-size: 12px; font-weight: 700; }
+    .avatar { position: relative; flex: 0 0 auto; display: grid; place-items: center; overflow: hidden; width: 34px; height: 34px; border-radius: 50%; background: #ccfbf1; color: #0f766e; font-size: 12px; font-weight: 700; }
+    .avatar-photo { display: block; width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
     .sidebar-user-copy { display: grid; min-width: 0; gap: 2px; }
     .sidebar-user-copy strong { overflow: hidden; color: var(--ink); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
     .sidebar-user-copy small { overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
@@ -169,6 +170,16 @@
     .store-description { margin: 18px 0; line-height: 1.6; font-size: 12px; }
     .store-metrics { margin: 0 0 24px; }
     .store-section-head { margin: 22px 0 12px; }
+    .profile-picture-control { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+    .profile-avatar-preview { width: 72px; height: 72px; border: 1px solid var(--line); border-radius: 50%; object-fit: cover; background: var(--soft); }
+    .store-media-action { width: 100%; margin-top: 10px; }
+    .vendor-ads-panel { margin-top: 12px; }
+    .ad-manager-grid { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+    .ad-manager-card { display: flex; flex-direction: column; }
+    .ad-manager-card > img, .ad-manager-card > video { height: 145px; object-fit: cover; }
+    .ad-manager-card .listing-body { display: flex; flex: 1; flex-direction: column; }
+    .ad-manager-card .panel-head { align-items: flex-start; margin-bottom: 8px; }
+    .ad-manager-card .listing-meta { margin-top: auto; }
     .support-hero { display: grid; justify-items: center; gap: 15px; padding: 48px 20px 38px; text-align: center; border-bottom: 1px solid var(--line); }
     .support-hero h2 { display: flex; align-items: center; justify-content: center; gap: 16px; color: var(--ink); font-size: 34px; }
     .support-hero h2 svg { width: 32px; height: 32px; color: #64748b; }

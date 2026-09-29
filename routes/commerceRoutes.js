@@ -84,6 +84,21 @@ router.put('/api/store/me/:id', requireUser, async (req, res, next) => {
   }
 });
 
+router.patch('/api/store/me/:id/media', requireUser, async (req, res, next) => {
+  try {
+    const imageUrl = z.string().max(500).refine((value) => value.startsWith('/api/media/') || /^https?:\/\//i.test(value), 'Invalid image URL');
+    const parsed = z.object({ logoUrl: imageUrl.optional(), coverUrl: imageUrl.optional() }).refine((value) => value.logoUrl || value.coverUrl).safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Choose a new store profile picture or cover photo.' });
+    const result = await db.query(`UPDATE stores SET logo_url=COALESCE($1,logo_url),cover_url=COALESCE($2,cover_url)
+      WHERE id=$3 AND owner_id=$4 RETURNING ${storeFields}`,
+    [parsed.data.logoUrl || null, parsed.data.coverUrl || null, req.params.id, req.session.user.id]);
+    if (!result.rows[0]) return res.status(404).json({ error: 'Store not found.' });
+    res.json({ store: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/api/admin/store-requests', requireAdmin, async (_req, res, next) => {
   try {
     const result = await db.query(`SELECT s.id,s.owner_id AS "ownerId",s.business_name AS "businessName",s.category,s.description,s.logo_url AS "logoUrl",s.cover_url AS "coverUrl",s.status,s.review_note AS "reviewNote",s.submitted_at AS "submittedAt",u.name AS "ownerName",u.email AS "ownerEmail"
@@ -558,6 +573,33 @@ router.post('/api/checkout/cart', requireUser, async (req, res, next) => {
   }
 });
 
+const adMediaItem = z.union([
+  z.string().min(1).refine((value) => value.startsWith('/') || /^https?:\/\//.test(value), 'Invalid media path'),
+  z.object({ url: z.string().min(1), mimeType: z.string().min(1).max(100) })
+]);
+const adPayload = z.object({
+  title: z.string().trim().min(3).max(120),
+  description: z.string().trim().min(5).max(2000),
+  category: z.string().trim().min(2).max(60),
+  location: z.string().trim().min(2).max(120),
+  priceCents: z.number().int().positive(),
+  placement: z.string().trim().min(2).max(80).default('homepage-top'),
+  durationDays: z.number().int().min(1).max(365).default(7),
+  skipAllowed: z.boolean().default(true),
+  media: z.array(adMediaItem).min(1).max(10),
+  destinationUrl: z.string().url().max(500).refine((value) => ['http:', 'https:'].includes(new URL(value).protocol), 'Invalid destination link').nullable().optional()
+});
+
+router.get('/api/ads/mine', requireUser, async (req, res, next) => {
+  try {
+    const result = await db.query(`SELECT id,title,description,category,location,price_cents AS "priceCents",placement,duration_days AS "durationDays",skip_allowed AS "skipAllowed",destination_url AS "destinationUrl",media,status,created_at AS "createdAt"
+      FROM ads WHERE seller_id=$1 ORDER BY created_at DESC`, [req.session.user.id]);
+    res.json({ ads: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/api/ads', async (_req, res, next) => {
   try {
     const result = await db.query("SELECT * FROM ads WHERE status = 'active' AND created_at + (COALESCE(duration_days, 7) * INTERVAL '1 day') >= NOW() ORDER BY created_at DESC");
@@ -582,18 +624,38 @@ router.get('/api/ads', async (_req, res, next) => {
   }
 });
 
-router.post('/api/ads', requireAdmin, async (req, res, next) => {
+router.post('/api/ads', requireUser, async (req, res, next) => {
   try {
-    const mediaItem = z.union([
-      z.string().min(1).refine((value) => value.startsWith('/') || /^https?:\/\//.test(value), 'Invalid media path'),
-      z.object({ url: z.string().min(1), mimeType: z.string().min(1).max(100) })
-    ]);
-    const parsed = z.object({ title: z.string().min(3).max(120), description: z.string().min(5).max(2000), category: z.string().min(2).max(60), location: z.string().min(2).max(120), priceCents: z.number().int().positive(), placement: z.string().min(2).max(80).default('homepage-top'), durationDays: z.number().int().min(1).max(365).default(7), skipAllowed: z.boolean().default(true), media: z.array(mediaItem).default([]), destinationUrl: z.string().url().max(500).refine((value) => ['http:', 'https:'].includes(new URL(value).protocol), 'Invalid destination link').nullable().optional() }).safeParse(req.body);
+    const parsed = adPayload.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid ad payload. Check the title, category, duration, price, and uploaded media.' });
 
     const ad = { id: nanoid(), sellerId: req.session.user.id, ...parsed.data, destinationUrl: parsed.data.destinationUrl || null, media: parsed.data.media, createdAt: new Date().toISOString() };
-    await db.query('INSERT INTO ads (id,seller_id,title,description,category,price_cents,location,media,status,placement,duration_days,skip_allowed,destination_url,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)', [ad.id, ad.sellerId, ad.title, ad.description, ad.category, ad.priceCents, ad.location, JSON.stringify(ad.media), 'active', ad.placement, ad.durationDays, ad.skipAllowed, ad.destinationUrl, ad.createdAt]);
-    res.status(201).json({ ad });
+    const isAdmin = req.session.user?.isAdmin || req.session.user?.role === 'admin';
+    ad.status = isAdmin ? 'active' : 'pending';
+    await db.query('INSERT INTO ads (id,seller_id,title,description,category,price_cents,location,media,status,placement,duration_days,skip_allowed,destination_url,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)', [ad.id, ad.sellerId, ad.title, ad.description, ad.category, ad.priceCents, ad.location, JSON.stringify(ad.media), ad.status, ad.placement, ad.durationDays, ad.skipAllowed, ad.destinationUrl, ad.createdAt]);
+    res.status(201).json({ ad, submittedForReview: !isAdmin });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch('/api/ads/:id', requireUser, async (req, res, next) => {
+  try {
+    const parsed = adPayload.partial().safeParse(req.body);
+    if (!parsed.success || !Object.keys(parsed.data || {}).length) return res.status(400).json({ error: 'Enter at least one valid ad change.' });
+    const columns = { title: 'title', description: 'description', category: 'category', location: 'location', priceCents: 'price_cents', placement: 'placement', durationDays: 'duration_days', skipAllowed: 'skip_allowed', media: 'media', destinationUrl: 'destination_url' };
+    const values = [];
+    const updates = Object.entries(parsed.data).map(([key, value]) => {
+      values.push(key === 'media' ? JSON.stringify(value) : value);
+      return `${columns[key]}=$${values.length}${key === 'media' ? '::jsonb' : ''}`;
+    });
+    const isAdmin = req.session.user?.isAdmin || req.session.user?.role === 'admin';
+    if (!isAdmin) updates.push("status='pending'");
+    values.push(req.params.id, req.session.user.id);
+    const result = await db.query(`UPDATE ads SET ${updates.join(',')} WHERE id=$${values.length - 1} AND seller_id=$${values.length}
+      RETURNING id,title,status`, values);
+    if (!result.rows[0]) return res.status(404).json({ error: 'Ad not found for this account.' });
+    res.json({ ad: result.rows[0], submittedForReview: !isAdmin });
   } catch (error) {
     next(error);
   }
