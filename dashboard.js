@@ -9,6 +9,8 @@ const routeTitles = {
 const routePaths = Object.fromEntries(Object.keys(routeTitles).map((route) => [route, `/${route}`]));
 let currentUser = null;
 let marketplaceItems = [];
+let selectedSupportThreadId = null;
+let supportMode = null;
 let toastTimer;
 
 function escapeHtml(value) {
@@ -442,9 +444,91 @@ async function renderProfile() {
 }
 
 async function renderSupport() {
-  pageFrame('support', `<div class="dashboard-columns"><section class="panel"><div class="panel-head"><div><h2>Contact support</h2><p class="panel-subtitle">Send a private request to the TaskFlow support team.</p></div></div><form id="support-form"><div class="field"><label for="support-subject">Subject</label><input id="support-subject" required minlength="3" maxlength="120" placeholder="What can we help with?"></div><div class="field"><label for="support-message">Message</label><textarea id="support-message" required rows="6" maxlength="2000"></textarea></div><button class="button button-primary" type="submit">Send to support</button></form></section><section class="panel"><div class="panel-head"><h2>Your conversations</h2></div><div id="support-threads">${emptyState('Loading conversations...')}</div></section></div>`);
+  pageFrame('support', `
+    <section class="support-hero">
+      <h2><i data-lucide="headset"></i>Contact Support<i data-lucide="message-square-text"></i></h2>
+      <p>We are here to help. Select a method to get in touch with our team.</p>
+      <div class="support-actions"><button class="button" type="button" data-support-mode="agent"><i data-lucide="headset"></i>Speak with an Agent</button><button class="button button-primary" type="button" data-support-mode="assistant"><i data-lucide="messages-square"></i>Chat with Support</button></div>
+    </section>
+    <section class="panel support-panel hidden" id="support-agent-panel"><div class="panel-head"><div><h2>Message an Agent</h2><p class="panel-subtitle">Private support requests and replies stay in your account.</p></div><span class="badge">Private</span></div>
+      <form id="support-form"><div class="field"><label for="support-subject">Subject</label><input id="support-subject" required minlength="3" maxlength="120" placeholder="What can we help with?"></div><div class="field"><label for="support-message">Message</label><textarea id="support-message" required rows="4" maxlength="2000" placeholder="Describe the issue or question."></textarea></div><button class="button button-primary" type="submit">Send to support</button></form>
+      <div class="support-thread-area"><div class="panel-head"><h3>Your support conversations</h3><button class="button" type="button" data-support-refresh><i data-lucide="refresh-cw"></i>Refresh</button></div><div id="support-threads">${emptyState('Loading conversations...')}</div><div class="support-thread-messages" id="support-thread-messages">${emptyState('Select a conversation to view replies.')}</div><form id="support-reply-form" class="hidden"><div class="field"><label for="support-reply">Reply</label><textarea id="support-reply" maxlength="2000" required placeholder="Write a reply"></textarea></div><button class="button" type="submit">Send reply</button></form></div>
+    </section>
+    <section class="panel support-panel hidden" id="support-assistant-panel"><div class="panel-head"><div><h2>TaskFlow Support Chat</h2><p class="panel-subtitle">Ask about TaskFlow or search current products, tasks, listings, and gigs.</p></div><span class="badge">Site-aware help</span></div><div class="support-chat-log" id="support-chat-log" role="log" aria-live="polite"><p class="support-bubble">Hi! I can search the live TaskFlow catalog and help you find the right section. What are you looking for?</p></div><form id="support-chat-form" class="support-chat-form"><label class="hidden" for="support-chat-input">Ask TaskFlow Support</label><input id="support-chat-input" maxlength="500" autocomplete="off" placeholder="Ask a question or search the catalog" required><button class="button button-primary" type="submit" aria-label="Send message" title="Send message"><i data-lucide="arrow-up"></i></button></form></section>`);
   const threads = (await api('/api/support/threads').catch(() => ({ threads: [] }))).threads || [];
-  $('#support-threads').innerHTML = threads.length ? threads.map((thread) => `<div class="data-row"><div><strong>${escapeHtml(thread.subject)}</strong><small>${escapeHtml(thread.lastMessage || 'No replies yet')}</small></div><span class="badge">${escapeHtml(thread.status)}</span></div>`).join('') : emptyState('No support conversations yet.');
+  $('#support-agent-panel').classList.toggle('hidden', supportMode !== 'agent');
+  $('#support-assistant-panel').classList.toggle('hidden', supportMode !== 'assistant');
+  $('#support-threads').innerHTML = threads.length ? threads.map((thread) => `<button class="support-thread-button${selectedSupportThreadId === thread.id ? ' is-selected' : ''}" type="button" data-support-thread="${escapeHtml(thread.id)}"><span><strong>${escapeHtml(thread.subject)}</strong><small>${escapeHtml(thread.lastMessage || 'No replies yet')}</small></span><span class="badge">${escapeHtml(thread.status)}</span></button>`).join('') : emptyState('No support conversations yet.');
+  const selectedThread = threads.find((thread) => thread.id === selectedSupportThreadId);
+  if (selectedThread) await loadSupportMessages(selectedThread.id, selectedThread.status);
+  else {
+    selectedSupportThreadId = null;
+    $('#support-reply-form').classList.add('hidden');
+    $('#support-thread-messages').innerHTML = emptyState('Select a conversation to view replies.');
+  }
+  window.lucide?.createIcons();
+}
+
+async function loadSupportMessages(threadId, status = 'open') {
+  const response = await api(`/api/support/threads/${encodeURIComponent(threadId)}/messages`);
+  $('#support-thread-messages').innerHTML = response.messages.length ? response.messages.map((message) => `<div class="support-thread-message"><strong>${escapeHtml(message.senderName || 'Support')}</strong><p>${escapeHtml(message.body)}</p><small>${new Date(message.createdAt).toLocaleString()}</small></div>`).join('') : emptyState('No messages in this conversation.');
+  $('#support-reply-form').classList.toggle('hidden', status !== 'open' || !selectedSupportThreadId);
+}
+
+function appendSupportChatMessage(text, isUser, results = []) {
+  const log = $('#support-chat-log');
+  const bubble = document.createElement('div');
+  bubble.className = `support-bubble${isUser ? ' user' : ''}`;
+  const paragraph = document.createElement('p');
+  paragraph.textContent = text;
+  bubble.append(paragraph);
+  results.forEach((item) => {
+    const link = document.createElement('a');
+    link.className = 'support-result-link';
+    link.href = item.href;
+    link.dataset.route = item.route;
+    link.textContent = `${item.title}${item.priceCents ? ` · ${money(item.priceCents)}` : ''}`;
+    bubble.append(link);
+  });
+  log.append(bubble);
+  log.scrollTop = log.scrollHeight;
+}
+
+async function getSupportAssistantReply(question) {
+  const text = question.toLowerCase();
+  if (/sign.?in|log.?in|password|account|register|verification/.test(text)) return { text: 'For account access, use Sign in or Create account. Never share your password or verification code here. For account-specific help, choose Speak with an Agent.' };
+  if (/payment|wallet|card|payout|withdraw|refund|billing/.test(text)) return { text: 'Open Wallet to review your balance and payment activity. For a specific transaction, choose Speak with an Agent; never share full card details.' };
+  if (/premium|blue.?tick|referral/.test(text)) return { text: 'Open Premium to review your status and request. Premium can be activated after 10 verified referrals or admin approval of your Premium request; the blue tick appears with approved Premium status.', results: [{ title: 'Open Premium', href: '/premium', route: 'premium' }] };
+  if (/store|vendor|storefront/.test(text)) return { text: 'Open Vendor dashboard to create a store and submit it for review. Verified stores open separately; each store keeps its own cover, profile image, details, products, and sales.', results: [{ title: 'Open Vendor dashboard', href: '/vendor', route: 'vendor' }] };
+  if (/sell|buy|product|catalog/.test(text) && /how|where|create|list|sell|buy|purchase|browse/.test(text)) return { text: 'Open Products to browse and search current items. Use Sell a product to create a listing, or choose a product to see its available purchase action.', results: [{ title: 'Browse Products', href: '/products', route: 'products' }] };
+  if (/task|gig|marketplace|listing/.test(text) && /how|where|create|find|browse|publish|post|open/.test(text)) {
+    const route = /gig/.test(text) ? 'gigs' : /task/.test(text) ? 'tasks' : 'marketplace';
+    const title = route === 'gigs' ? 'Open Gigs' : route === 'tasks' ? 'Open Tasks' : 'Open Marketplace';
+    return { text: 'Use the matching section to browse available items or publish your own. I can also search the live catalog if you provide a name or category.', results: [{ title, href: `/${route}`, route }] };
+  }
+  if (/human|agent|person|support request/.test(text)) return { text: 'Choose Speak with an Agent to send a private message. Replies will appear in Your support conversations.' };
+
+  const ignored = new Set(['about', 'browse', 'buy', 'can', 'create', 'find', 'for', 'from', 'get', 'help', 'how', 'list', 'looking', 'make', 'need', 'open', 'please', 'purchase', 'search', 'sell', 'show', 'some', 'that', 'the', 'this', 'want', 'where', 'which', 'with', 'what', 'you']);
+  const terms = [...new Set((question.toLowerCase().match(/[a-z0-9-]{2,}/g) || []).filter((term) => !ignored.has(term)))].slice(0, 3);
+  if (!terms.length) return { text: 'Tell me a product name, category, task, listing, or gig to search the live TaskFlow catalog.' };
+  const responses = await Promise.all(terms.map((term) => api(`/api/search?q=${encodeURIComponent(term)}`).catch(() => ({}))));
+  const kinds = [
+    ['products', '/products', 'products'],
+    ['listings', '/marketplace', 'listings'],
+    ['tasks', '/tasks', 'tasks'],
+    ['gigs', '/gigs', 'gigs']
+  ];
+  const seen = new Set();
+  const results = [];
+  responses.forEach((response) => kinds.forEach(([key, route, kind]) => (response[key] || []).filter((item) => !item.status || item.status === 'active').forEach((item) => {
+    const id = `${kind}:${item.id}`;
+    if (seen.has(id)) return;
+    seen.add(id);
+    results.push({ title: item.title || kind, href: route, route: route.slice(1), priceCents: item.price_cents || item.priceCents || item.payout_cents || 0 });
+  })));
+  return results.length
+    ? { text: `I found ${results.length} matching items in the live TaskFlow catalog:`, results: results.slice(0, 6) }
+    : { text: 'I could not find a matching catalog item. Try a shorter product name or category, or choose Speak with an Agent for personal help.' };
 }
 
 async function renderSettings() {
@@ -527,7 +611,27 @@ async function onSubmit(event) {
   event.preventDefault();
   const value = (id) => $(`#${id}`, form)?.value?.trim() || '';
   try {
-    if (form.id === 'task-form' || form.id === 'quick-task-form') {
+    if (form.id === 'support-chat-form') {
+      const input = $('#support-chat-input');
+      const question = input.value.trim();
+      if (!question) return;
+      appendSupportChatMessage(question, true);
+      input.value = '';
+      input.disabled = true;
+      try {
+        const answer = await getSupportAssistantReply(question);
+        appendSupportChatMessage(answer.text, false, answer.results || []);
+      } finally {
+        input.disabled = false;
+        input.focus();
+      }
+      return;
+    } else if (form.id === 'support-reply-form') {
+      await api(`/api/support/threads/${encodeURIComponent(selectedSupportThreadId)}/messages`, { method: 'POST', body: JSON.stringify({ body: value('support-reply') }) });
+      notify('Reply sent.');
+      await renderSupport();
+      return;
+    } else if (form.id === 'task-form' || form.id === 'quick-task-form') {
       const quick = form.id === 'quick-task-form';
       await api('/api/tasks', { method: 'POST', body: JSON.stringify({ title: value(quick ? 'quick-title' : 'task-title'), videoUrl: value(quick ? 'quick-video' : 'task-video'), category: value(quick ? 'quick-category' : 'task-category'), description: value(quick ? 'quick-description' : 'task-description'), instructions: value('task-instructions'), amountDollars: Number(value(quick ? 'quick-budget' : 'task-budget')), seconds: 60 }) });
       notify('Task published successfully.');
@@ -548,7 +652,9 @@ async function onSubmit(event) {
       setShellUser(currentUser);
       notify('Profile saved successfully.');
     } else if (form.id === 'support-form') {
-      await api('/api/support/threads', { method: 'POST', body: JSON.stringify({ subject: value('support-subject'), body: value('support-message') }) });
+      const response = await api('/api/support/threads', { method: 'POST', body: JSON.stringify({ subject: value('support-subject'), body: value('support-message') }) });
+      selectedSupportThreadId = response.thread.id;
+      supportMode = 'agent';
       notify('Your message was sent to support.');
     } else if (form.id === 'store-form') {
       let logoUrl = value('store-current-logo');
@@ -590,6 +696,23 @@ document.addEventListener('click', async (event) => {
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
     event.preventDefault();
     navigate(routeLink.dataset.route);
+    return;
+  }
+  const supportModeButton = event.target.closest('[data-support-mode]');
+  if (supportModeButton) {
+    supportMode = supportModeButton.dataset.supportMode;
+    $('#support-agent-panel').classList.toggle('hidden', supportMode !== 'agent');
+    $('#support-assistant-panel').classList.toggle('hidden', supportMode !== 'assistant');
+    const focusTarget = supportMode === 'agent' ? $('#support-subject') : $('#support-chat-input');
+    focusTarget?.focus({ preventScroll: true });
+    return;
+  }
+  if (event.target.closest('[data-support-refresh]')) { await renderSupport(); return; }
+  const supportThreadButton = event.target.closest('[data-support-thread]');
+  if (supportThreadButton) {
+    selectedSupportThreadId = supportThreadButton.dataset.supportThread;
+    supportMode = 'agent';
+    await renderSupport();
     return;
   }
   if (event.target.closest('#sign-out')) {
