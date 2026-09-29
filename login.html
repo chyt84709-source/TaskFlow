@@ -521,6 +521,53 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 18px;
     }
+    .vendor-dashboard { display: grid; gap: 15px; min-width: 0; }
+    .vendor-storefront { overflow: hidden; border: 1px solid var(--line); border-radius: 11px; background: #fff; }
+    .vendor-cover-frame { position: relative; min-width: 0; height: 154px; background: linear-gradient(110deg, #dce8e5, #edf2f1 48%, #d7e3df); }
+    .vendor-cover-frame::after { position: absolute; inset: 0; content: ""; background: linear-gradient(180deg, transparent 48%, rgba(15,23,42,.16)); pointer-events: none; }
+    .vendor-cover-frame img { position: absolute; inset: 0; display: block; width: 100%; max-width: 100%; height: 100%; object-fit: cover; }
+    .vendor-cover-placeholder { display: grid; width: 100%; height: 100%; place-items: center; color: #64748b; font-size: .85rem; }
+    .vendor-store-identity { display: flex; align-items: center; gap: 14px; min-width: 0; padding: 0 18px 17px; }
+    .vendor-store-logo { position: relative; z-index: 1; flex: 0 0 auto; width: 76px; height: 76px; margin-top: -34px; border: 4px solid #fff; border-radius: 50%; background: #fff; object-fit: cover; box-shadow: 0 2px 8px rgba(15,23,42,.12); }
+    .vendor-store-copy { min-width: 0; padding-top: 9px; }
+    .vendor-store-copy h2 { margin: 0; color: #0f172a; font-size: 1.15rem; line-height: 1.25; }
+    .vendor-store-category { display: block; margin-top: 3px; color: #475569; font-size: .72rem; font-weight: 600; }
+    .vendor-store-copy p { margin: 4px 0 0; font-size: .82rem; line-height: 1.45; }
+    .vendor-store-status { margin-left: auto; flex: 0 0 auto; }
+    .vendor-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+    .vendor-metric { min-width: 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+    .vendor-metric-label { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--muted); font-size: .7rem; font-weight: 700; text-transform: uppercase; }
+    .vendor-metric-label svg { width: 16px; height: 16px; color: #0f766e; }
+    .vendor-metric strong { display: block; margin-top: 8px; color: #0f172a; font-size: 1.35rem; overflow-wrap: anywhere; }
+    .vendor-metric small { display: block; margin-top: 3px; color: #64748b; font-size: .7rem; }
+    .vendor-tabs { display: flex; gap: 3px; overflow-x: auto; border-bottom: 1px solid var(--line); scrollbar-width: thin; }
+    .vendor-tab { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 7px; min-height: 42px; padding: 9px 12px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: #64748b; font-size: .8rem; font-weight: 650; white-space: nowrap; }
+    .vendor-tab svg { width: 15px; height: 15px; }
+    .vendor-tab:hover, .vendor-tab[aria-selected="true"] { color: #0f766e; }
+    .vendor-tab[aria-selected="true"] { border-bottom-color: #0f766e; }
+    .vendor-panel { display: none; min-width: 0; }
+    .vendor-panel.active { display: grid; gap: 14px; }
+    .vendor-shop-layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(260px, .9fr); gap: 14px; align-items: start; }
+    .vendor-shop-layout #store-logo-preview { display: block; width: 64px; height: 64px; max-width: 100%; margin: 0 0 12px; border: 3px solid #fff; border-radius: 50%; background: #fff; object-fit: cover; }
+    .vendor-quick-link { display: inline-flex; align-items: center; gap: 7px; }
+    .vendor-quick-link svg { width: 15px; height: 15px; }
+    .vendor-customers-table { min-width: 560px; }
+    .vendor-chart { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); align-items: end; gap: 10px; min-height: 180px; padding: 14px 8px 0; border-bottom: 1px solid var(--line); }
+    .vendor-chart-column { display: grid; grid-template-rows: 1fr auto; gap: 8px; height: 160px; text-align: center; }
+    .vendor-chart-track { display: flex; align-items: end; justify-content: center; height: 100%; }
+    .vendor-chart-bar { width: min(34px, 70%); min-height: 3px; border-radius: 5px 5px 0 0; background: #0f766e; }
+    .vendor-chart-column span { color: var(--muted); font-size: .7rem; }
+    @media (max-width: 760px) {
+      .vendor-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .vendor-shop-layout { grid-template-columns: minmax(0, 1fr); }
+      .vendor-store-identity { flex-wrap: wrap; padding-inline: 13px; }
+      .vendor-store-status { margin-left: 90px; }
+      .vendor-cover-frame { height: 128px; }
+    }
+    @media (max-width: 980px) {
+      .app-shell:has(.page-section[data-section="vendor"].active) { grid-template-columns: minmax(0, 1fr); }
+      .app-shell:has(.page-section[data-section="vendor"].active) .sidebar { min-width: 0; width: 100%; }
+    }
     .support-hero {
       padding: clamp(26px, 5vw, 54px) 18px 30px;
       text-align: center;
@@ -1310,30 +1357,69 @@
       </section>
 
       <section class="page-section" data-section="vendor">
-        <div class="simple-grid">
-          <div class="section-panel">
-            <div class="section-header"><h3>Store identity</h3><span class="tag" id="store-status-tag">No request</span></div>
-            <form id="store-profile-form">
-              <div class="field"><label for="store-business-name">Business name</label><input id="store-business-name" maxlength="120" required placeholder="Your shop name"></div>
-              <div class="field"><label for="store-description">Store description</label><textarea id="store-description" rows="4" maxlength="1500" required placeholder="What do you sell, and what should customers know?"></textarea></div>
-              <div class="field"><label for="store-logo-file">Store logo</label><input id="store-logo-file" type="file" accept="image/*"></div>
-              <img id="store-logo-preview" class="marketplace-media hidden" alt="Store logo preview" style="max-width:180px;max-height:180px;margin-bottom:14px;">
-              <p id="store-review-note" class="muted hidden"></p>
-              <button class="primary-btn full" type="submit">Submit store for review</button>
-            </form>
-          </div>
-          <div class="section-panel">
-            <div class="section-header"><h3>Inventory</h3><span class="tag" id="vendor-product-count">0 products</span></div>
-            <div class="meta-list" id="vendor-inventory-list"><p class="muted">No products yet.</p></div>
-          </div>
-          <div class="section-panel">
-            <div class="section-header"><h3>Incoming orders</h3><span class="tag" id="vendor-order-count">0 orders</span></div>
-            <div class="meta-list" id="vendor-orders-list"><p class="muted">No orders yet.</p></div>
-          </div>
-          <div class="section-panel">
-            <div class="section-header"><h3>Alerts and messages</h3><div class="row-actions" style="margin:0;"><span class="tag" id="vendor-unread-count">0 unread</span><button type="button" class="ghost-btn" id="vendor-mark-all-read">Mark all read</button></div></div>
-            <div class="meta-list" id="vendor-notifications-list"><p class="muted">No alerts yet.</p></div>
-          </div>
+        <div class="vendor-dashboard">
+          <section class="vendor-storefront" aria-label="Store overview">
+            <div class="vendor-cover-frame"><div class="vendor-cover-placeholder" id="vendor-cover-placeholder">Add a cover photo to introduce your store</div><img id="vendor-store-cover" class="hidden" alt="Store cover photo"></div>
+            <div class="vendor-store-identity">
+              <img id="vendor-store-logo" class="vendor-store-logo hidden" alt="Store logo">
+              <div class="vendor-store-copy"><h2 id="vendor-store-name">Your store name</h2><span class="vendor-store-category" id="vendor-store-category">Set up your store profile to get started</span><p id="vendor-store-description">Create your store profile and upload a cover photo.</p></div>
+              <span class="tag vendor-store-status" id="store-status-tag">No store yet</span>
+            </div>
+          </section>
+          <section class="vendor-metrics" aria-label="Store performance">
+            <article class="vendor-metric"><div class="vendor-metric-label">Orders this month<i data-lucide="shopping-bag"></i></div><strong id="vendor-month-orders">0</strong><small>Based on incoming store orders</small></article>
+            <article class="vendor-metric"><div class="vendor-metric-label">Revenue<i data-lucide="trending-up"></i></div><strong id="vendor-revenue">$0</strong><small id="vendor-revenue-note">All-time order total</small></article>
+            <article class="vendor-metric"><div class="vendor-metric-label">Products<i data-lucide="package"></i></div><strong id="vendor-product-metric">0</strong><small>Items in your inventory</small></article>
+            <article class="vendor-metric"><div class="vendor-metric-label">Store rating<i data-lucide="star"></i></div><strong id="vendor-rating">New</strong><small id="vendor-rating-note">No product reviews yet</small></article>
+          </section>
+          <nav class="vendor-tabs" aria-label="Store management tabs" role="tablist">
+            <button type="button" class="vendor-tab" role="tab" aria-selected="true" data-vendor-tab="shop"><i data-lucide="store"></i>My Shop</button>
+            <button type="button" class="vendor-tab" role="tab" aria-selected="false" data-vendor-tab="orders"><i data-lucide="shopping-cart"></i>Orders<span class="tag" id="vendor-order-count">0</span></button>
+            <button type="button" class="vendor-tab" role="tab" aria-selected="false" data-vendor-tab="inventory"><i data-lucide="boxes"></i>Inventory<span class="tag" id="vendor-product-count">0</span></button>
+            <button type="button" class="vendor-tab" role="tab" aria-selected="false" data-vendor-tab="customers"><i data-lucide="users"></i>Customers</button>
+            <button type="button" class="vendor-tab" role="tab" aria-selected="false" data-vendor-tab="marketing"><i data-lucide="megaphone"></i>Marketing</button>
+            <button type="button" class="vendor-tab" role="tab" aria-selected="false" data-vendor-tab="analytics"><i data-lucide="chart-no-axes-column-increasing"></i>Analytics</button>
+            <button type="button" class="vendor-tab" role="tab" aria-selected="false" data-vendor-tab="alerts"><i data-lucide="bell"></i>Alerts<span class="tag" id="vendor-unread-count">0</span></button>
+          </nav>
+          <section class="vendor-panel active" id="vendor-shop-panel" data-vendor-panel="shop" role="tabpanel">
+            <div class="vendor-shop-layout">
+              <section class="section-panel">
+                <div class="section-header"><div><h3>Store profile</h3><p class="muted" style="margin:4px 0 0;">Your public store identity and photos.</p></div><button type="button" class="ghost-btn" id="vendor-refresh">Refresh</button></div>
+                <form id="store-profile-form">
+                  <div class="field"><label for="store-business-name">Business name</label><input id="store-business-name" maxlength="120" required placeholder="Your shop name"></div>
+                  <div class="field"><label for="store-category">Store category</label><select id="store-category" required><option value="">Choose a category</option><option>Fashion &amp; retail</option><option>Food &amp; restaurants</option><option>Automotive</option><option>Electronics</option><option>Home &amp; lifestyle</option><option>Digital products</option><option>Professional services</option><option>Other</option></select></div>
+                  <div class="field"><label for="store-description">Store description</label><textarea id="store-description" rows="4" maxlength="1500" required minlength="10" placeholder="What do you sell, and what should customers know?"></textarea></div>
+                  <div class="field"><label for="store-cover-file">Cover photo</label><input id="store-cover-file" type="file" accept="image/*"><input id="store-current-cover" type="hidden"></div>
+                  <div class="field"><label for="store-logo-file">Store profile picture</label><input id="store-logo-file" type="file" accept="image/*"><input id="store-current-logo" type="hidden"><img id="store-logo-preview" class="store-logo-preview hidden" alt="Store profile picture preview"></div>
+                  <p id="store-review-note" class="muted hidden"></p>
+                  <button class="primary-btn full" type="submit" id="store-save-button">Create store</button>
+                </form>
+              </section>
+              <section class="section-panel">
+                <div class="section-header"><h3>Store checklist</h3><span class="tag">Getting started</span></div>
+                <div class="meta-list" id="vendor-store-checklist"></div>
+              </section>
+            </div>
+          </section>
+          <section class="vendor-panel" id="vendor-orders-panel" data-vendor-panel="orders" role="tabpanel">
+            <section class="section-panel"><div class="section-header"><div><h3>Incoming orders</h3><p class="muted" style="margin:4px 0 0;">Review orders and move each one through fulfillment.</p></div><span class="tag" id="vendor-orders-count-label">0 orders</span></div><div class="meta-list" id="vendor-orders-list"><p class="muted">No orders yet.</p></div></section>
+          </section>
+          <section class="vendor-panel" id="vendor-inventory-panel" data-vendor-panel="inventory" role="tabpanel">
+            <section class="section-panel"><div class="section-header"><div><h3>Inventory</h3><p class="muted" style="margin:4px 0 0;">Manage stock for products in your shop.</p></div><a class="primary-btn vendor-quick-link" href="#products" data-view="products"><i data-lucide="plus"></i>Add product</a></div><div class="meta-list" id="vendor-inventory-list"><p class="muted">No products yet.</p></div></section>
+          </section>
+          <section class="vendor-panel" id="vendor-customers-panel" data-vendor-panel="customers" role="tabpanel">
+            <section class="section-panel"><div class="section-header"><div><h3>Customers</h3><p class="muted" style="margin:4px 0 0;">Customers are listed from orders placed in your store.</p></div><span class="tag" id="vendor-customer-count">0 customers</span></div><div class="table-wrap"><table class="vendor-customers-table"><thead><tr><th>Customer</th><th>Email</th><th>Orders</th><th>Total spent</th><th>Last order</th></tr></thead><tbody id="vendor-customers-list"><tr><td colspan="5" class="muted">No customers yet.</td></tr></tbody></table></div></section>
+          </section>
+          <section class="vendor-panel" id="vendor-marketing-panel" data-vendor-panel="marketing" role="tabpanel">
+            <section class="section-panel"><div class="section-header"><div><h3>Marketing</h3><p class="muted" style="margin:4px 0 0;">Request a homepage feature for an active product.</p></div><span class="tag" id="vendor-marketing-badge">Product promotion</span></div><div class="meta-list" id="vendor-marketing-list"><p class="muted">Add an active product to explore promotion options.</p></div></section>
+          </section>
+          <section class="vendor-panel" id="vendor-analytics-panel" data-vendor-panel="analytics" role="tabpanel">
+            <section class="section-panel"><div class="section-header"><div><h3>Sales analytics</h3><p class="muted" style="margin:4px 0 0;">Monthly sales totals from your store orders.</p></div><span class="tag">Last 6 months</span></div><div class="vendor-chart" id="vendor-sales-chart" role="img" aria-label="Monthly store sales chart"></div></section>
+            <section class="section-panel"><div class="section-header"><h3>Order summary</h3></div><div class="meta-list" id="vendor-analytics-summary"></div></section>
+          </section>
+          <section class="vendor-panel" id="vendor-alerts-panel" data-vendor-panel="alerts" role="tabpanel">
+            <section class="section-panel"><div class="section-header"><div><h3>Alerts and messages</h3><p class="muted" style="margin:4px 0 0;">Recent updates for your account and store.</p></div><button type="button" class="ghost-btn" id="vendor-mark-all-read">Mark all read</button></div><div class="meta-list" id="vendor-notifications-list"><p class="muted">No alerts yet.</p></div></section>
+          </section>
         </div>
       </section>
 
@@ -1706,6 +1792,7 @@
     let selectedUserSupportThreadId = null;
     let selectedAdminSupportThreadId = null;
     let currentStoreLogoUrl = null;
+    let currentStoreCoverUrl = null;
     let profilePhoneCountry = 'US';
     const countryDialCodes = { US: '+1', PK: '+92', IN: '+91', AE: '+971', GB: '+44', CA: '+1', SA: '+966', BD: '+880', NG: '+234' };
 
@@ -2042,23 +2129,64 @@
 
     async function loadVendorDashboard() {
       try {
-        const [storeResponse, inventoryResponse, ordersResponse, notificationResponse] = await Promise.all([
+        const [storeResponse, inventoryResponse, ordersResponse, notificationResponse, catalogResponse, promotionResponse] = await Promise.all([
           api('/api/store/me'),
           api('/api/vendor/inventory'),
           api('/api/vendor/orders'),
           api('/api/notifications'),
+          api('/api/products').catch(() => ({ products: [] })),
+          api('/api/promotions/requests/mine').catch(() => ({ requests: [] })),
         ]);
         const store = storeResponse.store;
         currentStoreLogoUrl = store?.logoUrl || null;
+        currentStoreCoverUrl = store?.coverUrl || null;
+        $('store-current-logo').value = currentStoreLogoUrl || '';
+        $('store-current-cover').value = currentStoreCoverUrl || '';
         $('store-business-name').value = store?.businessName || '';
+        $('store-category').value = store?.category || '';
         $('store-description').value = store?.description || '';
-        $('store-status-tag').textContent = store?.status || 'No request';
+        $('store-status-tag').textContent = store?.status || 'No store yet';
+        $('store-save-button').textContent = store ? 'Save and resubmit for review' : 'Create store';
         $('store-review-note').textContent = store?.reviewNote || '';
         $('store-review-note').classList.toggle('hidden', !store?.reviewNote);
         $('store-logo-preview').src = currentStoreLogoUrl || '';
         $('store-logo-preview').classList.toggle('hidden', !currentStoreLogoUrl);
+        $('store-logo-file').required = !currentStoreLogoUrl;
+        $('store-cover-file').required = !currentStoreCoverUrl;
+        $('vendor-store-name').textContent = store?.businessName || 'Your store name';
+        $('vendor-store-category').textContent = store?.category || 'Set up your store profile to get started';
+        $('vendor-store-description').textContent = store?.description || 'Create your store profile and upload a cover photo.';
+        $('vendor-store-cover').src = currentStoreCoverUrl || '';
+        $('vendor-store-cover').classList.toggle('hidden', !currentStoreCoverUrl);
+        $('vendor-cover-placeholder').classList.toggle('hidden', Boolean(currentStoreCoverUrl));
+        $('vendor-store-logo').src = currentStoreLogoUrl || '';
+        $('vendor-store-logo').classList.toggle('hidden', !currentStoreLogoUrl);
+        const setupSteps = [
+          ['Store name', Boolean(store?.businessName)],
+          ['Category and description', Boolean(store?.category && store?.description)],
+          ['Cover photo', Boolean(store?.coverUrl)],
+          ['Profile picture', Boolean(store?.logoUrl)],
+        ];
+        $('vendor-store-checklist').innerHTML = setupSteps.map(([label, complete]) => `<div class="data-row"><strong>${label}</strong><span>${complete ? 'Complete' : 'Add details'}</span></div>`).join('');
 
         const products = inventoryResponse.products || [];
+        const orders = ordersResponse.orders || [];
+        const catalogProducts = (catalogResponse.products || []).filter((product) => String(product.vendor_id || product.vendorId) === String(currentUser?.id));
+        const currentMonth = new Date();
+        const monthStart = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+        const monthOrders = orders.filter((order) => new Date(order.createdAt).getTime() >= monthStart.getTime());
+        const totalRevenue = orders.reduce((total, order) => total + Number(order.amountCents || 0), 0);
+        const productReviews = catalogProducts.reduce((total, product) => total + Number(product.review_count || 0), 0);
+        const weightedRating = productReviews
+          ? catalogProducts.reduce((total, product) => total + Number(product.avg_rating || 0) * Number(product.review_count || 0), 0) / productReviews
+          : 0;
+        $('vendor-month-orders').textContent = String(monthOrders.length);
+        $('vendor-revenue').textContent = formatMoney(totalRevenue);
+        $('vendor-revenue-note').textContent = `${orders.length} total orders`;
+        $('vendor-product-metric').textContent = String(products.length);
+        $('vendor-rating').textContent = productReviews ? `${weightedRating.toFixed(1)} / 5` : 'New';
+        $('vendor-rating-note').textContent = productReviews ? `${productReviews} product reviews` : 'No product reviews yet';
+        $('vendor-orders-count-label').textContent = `${orders.length} orders`;
         $('vendor-product-count').textContent = `${products.length} products`;
         $('vendor-inventory-list').innerHTML = products.length ? products.map((product) => `
           <div class="item-card"><h4>${escapeHtml(product.title)}</h4><p>${escapeHtml(product.category)} · ${formatMoney(product.priceCents)} · ${escapeHtml(product.status)}</p><div class="row-actions"><input type="number" min="0" max="1000000" value="${Number(product.stock)}" aria-label="Stock for ${escapeHtml(product.title)}" data-stock-input="${escapeHtml(product.id)}"><button type="button" class="mini-btn primary" data-save-stock="${escapeHtml(product.id)}">Save stock</button></div></div>
@@ -2077,7 +2205,6 @@
           };
         });
 
-        const orders = ordersResponse.orders || [];
         $('vendor-order-count').textContent = `${orders.length} orders`;
         $('vendor-orders-list').innerHTML = orders.length ? orders.map((order) => {
           const nextStatus = { paid: 'processing', processing: 'shipped', shipped: 'completed' }[order.status];
@@ -2095,6 +2222,64 @@
             }
           };
         });
+
+        const customerMap = new Map();
+        orders.forEach((order) => {
+          const customerKey = order.buyerId || order.buyerEmail || order.buyerName;
+          if (!customerKey) return;
+          const customer = customerMap.get(customerKey) || { name: order.buyerName || 'Customer', email: order.buyerEmail || 'Not provided', count: 0, totalCents: 0, lastOrder: null };
+          customer.count += 1;
+          customer.totalCents += Number(order.amountCents || 0);
+          if (!customer.lastOrder || new Date(order.createdAt) > new Date(customer.lastOrder)) customer.lastOrder = order.createdAt;
+          customerMap.set(customerKey, customer);
+        });
+        const customers = [...customerMap.values()].sort((first, second) => second.totalCents - first.totalCents);
+        $('vendor-customer-count').textContent = `${customers.length} customers`;
+        $('vendor-customers-list').innerHTML = customers.length ? customers.map((customer) => `<tr><td><strong>${escapeHtml(customer.name)}</strong></td><td>${escapeHtml(customer.email)}</td><td>${customer.count}</td><td>${formatMoney(customer.totalCents)}</td><td>${new Date(customer.lastOrder).toLocaleDateString()}</td></tr>`).join('') : '<tr><td colspan="5" class="muted">Customers will appear after your first order.</td></tr>';
+
+        const promotionRequests = promotionResponse.requests || [];
+        const latestPromotions = new Map();
+        promotionRequests.forEach((request) => {
+          if (!latestPromotions.has(request.productId)) latestPromotions.set(request.productId, request);
+        });
+        const activeProducts = products.filter((product) => product.status === 'active');
+        $('vendor-marketing-list').innerHTML = activeProducts.length ? activeProducts.map((product) => {
+          const request = latestPromotions.get(product.id);
+          const promotionStatus = request ? `<span class="tag">${escapeHtml(request.status)}${request.offeredDays ? ` · ${Number(request.offeredDays)} days` : ''}</span>` : `<button type="button" class="mini-btn primary" data-vendor-promote="${escapeHtml(product.id)}">Request homepage feature</button>`;
+          return `<div class="item-card"><div class="item-row"><strong>${escapeHtml(product.title)}</strong>${promotionStatus}</div><p>${escapeHtml(product.category || 'Product')} · ${formatMoney(product.priceCents)} · ${Number(product.stock)} in stock</p>${request?.adminReply ? `<p class="muted">${escapeHtml(request.adminReply)}</p>` : ''}</div>`;
+        }).join('') : '<p class="muted">Add an active product to explore promotion options.</p>';
+        document.querySelectorAll('[data-vendor-promote]').forEach((button) => {
+          button.onclick = async () => {
+            if (currentUser?.subscriptionTier !== 'premium') {
+              notify('Premium membership is required to request a product feature.');
+              setActiveView('premium');
+              return;
+            }
+            try {
+              await api('/api/promotions/requests', { method: 'POST', body: JSON.stringify({ productId: button.dataset.vendorPromote, requestedDays: 7 }) });
+              notify('Homepage feature request sent for review.');
+              await loadVendorDashboard();
+            } catch (error) {
+              notify(error.message);
+            }
+          };
+        });
+
+        const monthlySales = Array.from({ length: 6 }, (_, index) => new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 5 + index, 1));
+        const salesByMonth = monthlySales.map((month) => orders.filter((order) => {
+          const createdAt = new Date(order.createdAt);
+          return createdAt.getFullYear() === month.getFullYear() && createdAt.getMonth() === month.getMonth();
+        }).reduce((total, order) => total + Number(order.amountCents || 0), 0));
+        const maxMonthlySales = Math.max(...salesByMonth, 1);
+        $('vendor-sales-chart').innerHTML = monthlySales.map((month, index) => `<div class="vendor-chart-column"><div class="vendor-chart-track"><div class="vendor-chart-bar" style="height:${Math.max(3, salesByMonth[index] / maxMonthlySales * 100)}%" title="${formatMoney(salesByMonth[index])}"></div></div><span>${month.toLocaleDateString(undefined, { month: 'short' })}<small>${formatMoney(salesByMonth[index])}</small></span></div>`).join('');
+        const completedOrders = orders.filter((order) => order.status === 'completed').length;
+        const averageOrder = orders.length ? Math.round(totalRevenue / orders.length) : 0;
+        $('vendor-analytics-summary').innerHTML = [
+          ['Total orders', String(orders.length)],
+          ['Completed orders', String(completedOrders)],
+          ['Unique customers', String(customers.length)],
+          ['Average order value', formatMoney(averageOrder)],
+        ].map(([label, value]) => `<div class="data-row"><strong>${label}</strong><span>${value}</span></div>`).join('');
 
         const notifications = notificationResponse.notifications || [];
         $('vendor-unread-count').textContent = `${notificationResponse.unreadCount || 0} unread`;
@@ -2178,24 +2363,69 @@
       } catch (error) { notify(error.message); }
     });
 
+    document.querySelectorAll('[data-vendor-tab]').forEach((button) => {
+      button.addEventListener('click', () => {
+        document.querySelectorAll('[data-vendor-tab]').forEach((tab) => tab.setAttribute('aria-selected', String(tab === button)));
+        document.querySelectorAll('[data-vendor-panel]').forEach((panel) => panel.classList.toggle('active', panel.dataset.vendorPanel === button.dataset.vendorTab));
+      });
+    });
+    $('vendor-refresh').addEventListener('click', loadVendorDashboard);
+    $('store-business-name').addEventListener('input', (event) => {
+      $('vendor-store-name').textContent = event.target.value.trim() || 'Your store name';
+    });
+    $('store-category').addEventListener('change', (event) => {
+      $('vendor-store-category').textContent = event.target.value || 'Set up your store profile to get started';
+    });
+    $('store-description').addEventListener('input', (event) => {
+      $('vendor-store-description').textContent = event.target.value.trim() || 'Create your store profile and upload a cover photo.';
+    });
+    function bindVendorAssetPreview(inputId, formPreviewId, storePreviewId, placeholderId = null) {
+      const input = $(inputId);
+      input.addEventListener('change', () => {
+        const [file] = input.files || [];
+        if (!file) return;
+        const formPreview = formPreviewId ? $(formPreviewId) : null;
+        if (formPreview?.dataset.previewUrl) URL.revokeObjectURL(formPreview.dataset.previewUrl);
+        const previewUrl = URL.createObjectURL(file);
+        if (formPreview) {
+          formPreview.dataset.previewUrl = previewUrl;
+          formPreview.src = previewUrl;
+          formPreview.classList.remove('hidden');
+        }
+        const storePreview = $(storePreviewId);
+        storePreview.src = previewUrl;
+        storePreview.classList.remove('hidden');
+        if (placeholderId) $(placeholderId).classList.add('hidden');
+      });
+    }
+    bindVendorAssetPreview('store-cover-file', null, 'vendor-store-cover', 'vendor-cover-placeholder');
+    bindVendorAssetPreview('store-logo-file', 'store-logo-preview', 'vendor-store-logo');
     $('store-profile-form').addEventListener('submit', async (event) => {
       event.preventDefault();
       try {
         let logoUrl = currentStoreLogoUrl;
+        let coverUrl = currentStoreCoverUrl;
         const [logoFile] = $('store-logo-file').files || [];
-        if (logoFile) {
+        const [coverFile] = $('store-cover-file').files || [];
+        if (logoFile || coverFile) {
           const formData = new FormData();
-          formData.append('files', logoFile);
+          if (logoFile) formData.append('files', logoFile);
+          if (coverFile) formData.append('files', coverFile);
           const uploadResponse = await fetch('/api/uploads', { method: 'POST', body: formData, credentials: 'include' });
           const uploadData = await uploadResponse.json().catch(() => ({}));
-          if (!uploadResponse.ok || !uploadData.files?.[0]?.url) throw new Error(uploadData.error || 'Store logo upload failed.');
-          logoUrl = uploadData.files[0].url;
+          if (!uploadResponse.ok) throw new Error(uploadData.error || 'Store photos could not be uploaded.');
+          let uploadIndex = 0;
+          if (logoFile) logoUrl = uploadData.files?.[uploadIndex++]?.url || '';
+          if (coverFile) coverUrl = uploadData.files?.[uploadIndex]?.url || '';
         }
-        const result = await api('/api/store/me', { method: 'PUT', body: JSON.stringify({ businessName: $('store-business-name').value.trim(), description: $('store-description').value.trim(), logoUrl }) });
+        if (!logoUrl || !coverUrl) throw new Error('Add a profile picture and cover photo before creating your store.');
+        const result = await api('/api/store/me', { method: 'PUT', body: JSON.stringify({ businessName: $('store-business-name').value.trim(), category: $('store-category').value, description: $('store-description').value.trim(), logoUrl, coverUrl }) });
         if (!result.submitted || !result.store) throw new Error('Store request was not submitted.');
         currentStoreLogoUrl = result.store.logoUrl;
+        currentStoreCoverUrl = result.store.coverUrl;
         $('store-logo-file').value = '';
-        notify('Store submitted for admin review.');
+        $('store-cover-file').value = '';
+        notify('Store submitted for review. Your storefront is ready.');
         await loadVendorDashboard();
       } catch (error) {
         notify(error.message);
