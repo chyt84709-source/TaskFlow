@@ -125,7 +125,7 @@ router.get('/api/products', async (req, res, next) => {
   try {
     const search = String(req.query.search || '').trim();
     const category = String(req.query.category || '').trim();
-    let query = `SELECT p.*, COALESCE(AVG(r.rating), 0)::float AS avg_rating, COUNT(r.id)::int AS review_count,s.business_name AS store_name,s.logo_url AS store_logo_url,s.cover_url AS store_cover_url FROM products p LEFT JOIN reviews r ON r.product_id = p.id LEFT JOIN stores s ON s.id=p.store_id WHERE p.status = 'active'`;
+    let query = `SELECT p.*, COALESCE(AVG(r.rating), 0)::float AS avg_rating, COUNT(r.id)::int AS review_count,s.business_name AS store_name,s.logo_url AS store_logo_url,s.cover_url AS store_cover_url,u.subscription_tier AS store_tier,u.green_tick AS store_green_tick FROM products p LEFT JOIN reviews r ON r.product_id = p.id LEFT JOIN stores s ON s.id=p.store_id LEFT JOIN users u ON u.id=p.vendor_id WHERE p.status = 'active'`;
     const params = [];
 
     if (search) {
@@ -137,7 +137,7 @@ router.get('/api/products', async (req, res, next) => {
       query += ' AND';
       query += ` p.category = $${params.length}`;
     }
-    query += ' GROUP BY p.id,s.business_name,s.logo_url,s.cover_url ORDER BY p.created_at DESC';
+    query += ' GROUP BY p.id,s.business_name,s.logo_url,s.cover_url,u.subscription_tier,u.green_tick ORDER BY p.created_at DESC';
 
     const result = await db.query(query, params);
     res.json({ products: result.rows });

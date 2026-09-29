@@ -80,6 +80,19 @@ function emptyState(message) {
   return `<p class="empty">${escapeHtml(message)}</p>`;
 }
 
+function storePlanBadge(tier, greenTick) {
+  const premium = tier === 'premium';
+  const badge = document.createElement('span');
+  badge.className = 'badge store-plan-badge';
+  badge.textContent = premium ? 'Premium store' : 'Standard store';
+  if (premium && greenTick) {
+    const icon = document.createElement('i');
+    icon.setAttribute('data-lucide', 'badge-check');
+    badge.prepend(icon);
+  }
+  return badge;
+}
+
 function notificationMarkup(items) {
   return items.length ? items.slice(0, 5).map((item) => `<div class="feed-item"><span class="feed-dot"></span><p>${escapeHtml(item.body || item.kind || 'Platform update')}<small>${escapeHtml(item.kind || 'Update')} · ${new Date(item.createdAt || item.created_at || Date.now()).toLocaleString()}</small></p></div>`).join('') : emptyState('No recent notifications.');
 }
@@ -284,6 +297,11 @@ async function renderProducts() {
       }
       return `<article class="listing-card product-card">${mediaMarkup({ ...product, media: product.media || [] })}<div class="listing-body"><span class="badge">${escapeHtml(product.category || 'Product')}</span><h3>${escapeHtml(product.title)}</h3>${product.store_name ? `<div class="product-brand">${product.store_logo_url ? `<img src="${escapeHtml(product.store_logo_url)}" alt="">` : ''}<span>${escapeHtml(product.store_name)}</span></div>` : ''}<p class="listing-description">${escapeHtml(product.description || '')}</p><div class="listing-meta"><span class="product-rating">${Number(product.review_count || 0) ? `${Number(product.avg_rating || 0).toFixed(1)} ★ · ${Number(product.review_count)} reviews` : 'New arrival'}</span><strong>${money(product.price_cents || product.priceCents)}</strong></div><div class="product-stock-row"><span class="badge">${Number(product.stock || 0)} in stock</span><button class="button button-primary" type="button" data-buy-product="${escapeHtml(product.id)}" ${Number(product.stock || 0) < 1 || isOwner ? 'disabled' : ''}><i data-lucide="shopping-bag"></i>Buy product</button></div><button class="button product-contact" type="button" data-contact="product" data-id="${escapeHtml(product.id)}" data-title="${escapeHtml(product.title)}">Contact seller</button>${promotionMarkup}</div></article>`;
     }).join('') : emptyState('No products match these filters.');
+    $('#product-cards').querySelectorAll('[data-buy-product]').forEach((button) => {
+      const product = filtered.find((item) => String(item.id) === button.dataset.buyProduct);
+      const brand = button.closest('.product-card')?.querySelector('.product-brand');
+      if (product?.store_name && brand) brand.append(storePlanBadge(product.store_tier, product.store_green_tick));
+    });
     window.lucide?.createIcons();
   };
   $('#product-search').addEventListener('input', renderCards);
@@ -361,6 +379,8 @@ async function renderVendorStore(storeId) {
   const store = detail.store;
   const sales = detail.sales || {};
   target.innerHTML = `<section class="panel store-detail-panel"><img class="store-detail-cover" src="${escapeHtml(store.coverUrl || '')}" alt="${escapeHtml(store.businessName)} cover"><div class="store-profile"><img class="store-profile-image" src="${escapeHtml(store.logoUrl || '')}" alt=""><div><span class="badge">${escapeHtml(store.status)}</span><h2>${escapeHtml(store.businessName)}</h2><p>${escapeHtml(store.category || 'Store')}</p></div><button class="button" type="button" data-back-stores><i data-lucide="arrow-left"></i>All stores</button></div><p class="store-description">${escapeHtml(store.description)}</p><div class="metric-grid store-metrics"><article class="metric"><div class="metric-top"><span>Products</span><i data-lucide="package"></i></div><strong>${detail.products.length}</strong></article><article class="metric"><div class="metric-top"><span>Sales</span><i data-lucide="receipt-text"></i></div><strong>${Number(sales.salesCount || 0)}</strong></article><article class="metric"><div class="metric-top"><span>Units sold</span><i data-lucide="chart-no-axes-column-increasing"></i></div><strong>${Number(sales.unitsSold || 0)}</strong></article><article class="metric"><div class="metric-top"><span>Sales value</span><i data-lucide="circle-dollar-sign"></i></div><strong>${money(sales.salesCents)}</strong></article></div><div class="panel-head store-section-head"><h2>Store products</h2><a class="button button-primary" href="/products" data-route="products"><i data-lucide="plus"></i>Add product</a></div><div class="cards-grid">${detail.products.length ? detail.products.map((product) => `<article class="listing-card product-card">${mediaMarkup(product)}<div class="listing-body"><span class="badge">${escapeHtml(product.category || 'Product')}</span><h3>${escapeHtml(product.title)}</h3><p class="listing-description">${escapeHtml(product.description || '')}</p><div class="listing-meta"><span class="badge">${Number(product.stock)} in stock</span><strong>${money(product.priceCents)}</strong></div></div></article>`).join('') : emptyState('No products are assigned to this store yet.')}</div><div class="panel-head store-section-head"><h2>Recent sales</h2><span class="badge">${detail.orders.length} orders</span></div><div class="rows">${detail.orders.length ? detail.orders.map((order) => `<div class="data-row"><div><strong>${escapeHtml(order.productTitle)}</strong><small>${escapeHtml(order.status)} · ${Number(order.quantity)} units · ${new Date(order.createdAt).toLocaleDateString()}</small></div><span>${money(order.amountCents)}</span></div>`).join('') : emptyState('No sales for this store yet.')}</div></section>`;
+  const profileDetails = target.querySelector('.store-profile > div');
+  profileDetails.append(storePlanBadge(currentUser?.subscriptionTier || currentUser?.subscription_tier, currentUser?.greenTick || currentUser?.green_tick));
   window.lucide?.createIcons();
 }
 
@@ -386,6 +406,7 @@ async function renderVendor() {
   ]);
   const stores = storeResponse.stores || (storeResponse.store ? [storeResponse.store] : []);
   $('#vendor-stores').innerHTML = stores.length ? stores.map((store) => `<article class="listing-card store-card"><img class="store-card-cover" src="${escapeHtml(store.coverUrl || '')}" alt="${escapeHtml(store.businessName)} cover"><div class="store-card-body">${store.logoUrl ? `<img class="store-card-logo" src="${escapeHtml(store.logoUrl)}" alt="">` : ''}<div class="panel-head"><h3>${escapeHtml(store.businessName)}</h3><span class="badge">${escapeHtml(store.status)}</span></div><p>${escapeHtml(store.category || 'Store')}</p>${store.status === 'verified' ? `<button class="button button-primary" type="button" data-open-store="${escapeHtml(store.id)}"><i data-lucide="external-link"></i>Open store</button>` : `<div><small>${escapeHtml(store.reviewNote || (store.status === 'pending' ? 'Waiting for admin review.' : 'Update details and resubmit.'))}</small><button class="button" type="button" data-edit-store="${escapeHtml(store.id)}"><i data-lucide="pencil"></i>Update request</button></div>`}</div></article>`).join('') : emptyState('You have not created a store yet.');
+  $('#vendor-stores').querySelectorAll('.store-card .panel-head').forEach((heading) => heading.append(storePlanBadge(currentUser?.subscriptionTier || currentUser?.subscription_tier, currentUser?.greenTick || currentUser?.green_tick)));
   $('#vendor-notifications').innerHTML = notificationMarkup(notifications.notifications || []);
   [['store-logo-file', 'store-logo-preview'], ['store-cover-file', 'store-cover-preview']].forEach(([inputId, previewId]) => {
     $(`#${inputId}`).addEventListener('change', (event) => {
