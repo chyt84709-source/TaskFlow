@@ -521,6 +521,48 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 18px;
     }
+    .support-hero {
+      padding: clamp(26px, 5vw, 54px) 18px 30px;
+      text-align: center;
+      background: #fff;
+      border-bottom: 1px solid var(--line);
+    }
+    .support-title {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 14px;
+      margin: 0;
+      color: #17211d;
+      font-size: clamp(2rem, 4vw, 3rem);
+      line-height: 1.1;
+    }
+    .support-title-mark { color: #2479a8; font-size: 0.82em; }
+    .support-hero p { margin: 14px 0 20px; color: #424d48; }
+    .support-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; }
+    .support-action { display: inline-flex; align-items: center; gap: 9px; min-height: 48px; border-radius: 9px; }
+    .support-action-mark { color: #2479a8; font-size: 1.15rem; }
+    .support-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; padding-top: 18px; }
+    .support-workspace .section-panel { box-shadow: none; border-radius: 12px; }
+    .support-side { display: grid; align-content: start; gap: 18px; min-width: 0; }
+    .support-assistant { display: grid; grid-template-rows: auto minmax(220px, 1fr) auto; gap: 14px; }
+    .support-assistant-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .support-assistant-head h3 { margin: 0; }
+    .support-ai-tag { color: #176f96; background: #e9f5fa; }
+    .support-chat-log { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; min-height: 220px; max-height: 360px; overflow-y: auto; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: #f8fbfa; }
+    .support-bubble { max-width: min(88%, 460px); margin: 0; padding: 10px 13px; border-radius: 12px 12px 12px 3px; background: #eaf2ed; color: #24352d; line-height: 1.5; overflow-wrap: anywhere; }
+    .support-bubble.user { align-self: flex-end; border-radius: 12px 12px 3px 12px; background: #e9f5fa; }
+    .support-chat-form { display: flex; align-items: center; gap: 8px; }
+    .support-chat-form input { min-width: 0; }
+    .support-chat-form button { flex: 0 0 auto; min-width: 48px; min-height: 46px; padding: 8px; font-size: 1.2rem; }
+    .support-note { margin: 0; color: var(--muted); font-size: 0.82rem; line-height: 1.5; }
+    .support-contact-form textarea { min-height: 118px; }
+    .support-thread-messages { max-height: 260px; overflow-y: auto; }
+    @media (max-width: 760px) {
+      .support-workspace { grid-template-columns: minmax(0, 1fr); }
+      .support-title { gap: 9px; }
+      .support-actions > button { flex: 1 1 190px; }
+    }
     .profile-card {
       display: flex;
       align-items: center;
@@ -1082,23 +1124,48 @@
         </div>
       </section>
   <section class="page-section" data-section="support">
-                <div class="simple-grid">
-                  <div class="section-panel">
-                    <div class="section-header"><h3>Contact support</h3><span class="tag">Private</span></div>
-                    <form id="support-new-form">
-                      <div class="field"><label for="support-subject">Subject</label><input id="support-subject" maxlength="120" required placeholder="What can we help with?"></div>
-                      <div class="field"><label for="support-first-message">Message</label><textarea id="support-first-message" rows="5" maxlength="2000" required placeholder="Describe the issue or question."></textarea></div>
-                      <button class="primary-btn full" type="submit">Send to support</button>
-                    </form>
-                  </div>
-                  <div class="section-panel">
-                    <div class="section-header"><h3>Your support conversations</h3><button type="button" class="ghost-btn" id="refresh-user-support">Refresh</button></div>
-                    <div class="meta-list" id="user-support-threads"><p class="muted">No support conversations yet.</p></div>
-                    <div class="meta-list" id="user-support-messages" style="margin-top:14px;"><p class="muted">Select a conversation to view replies.</p></div>
-                    <form id="user-support-reply-form" class="row-actions hidden" style="margin-top:14px;"><input id="user-support-reply" maxlength="2000" required placeholder="Write a reply..."><button class="primary-btn" type="submit">Send</button></form>
-                  </div>
-                </div>
-              </section>
+    <header class="support-hero">
+      <h2 class="support-title"><span class="support-title-mark" aria-hidden="true">◉</span>Contact Support<span class="support-title-mark" aria-hidden="true">▤</span></h2>
+      <p>We are here to help. Choose a way to get in touch with our team.</p>
+      <div class="support-actions">
+        <button type="button" class="secondary-btn support-action" data-support-action="agent"><span class="support-action-mark" aria-hidden="true">✉</span>Message an Agent</button>
+        <button type="button" class="primary-btn support-action" data-support-action="assistant"><span aria-hidden="true">✦</span>Chat with AI Support</button>
+      </div>
+    </header>
+    <div class="support-workspace">
+      <section class="section-panel support-assistant" id="support-assistant" aria-labelledby="support-assistant-title">
+        <div class="support-assistant-head">
+          <h3 id="support-assistant-title">AI Support Booth</h3>
+          <span class="tag support-ai-tag">AI assistant</span>
+        </div>
+        <div class="support-chat-log" id="support-chat-log" role="log" aria-live="polite" aria-relevant="additions">
+          <p class="support-bubble">Hi! I can help with common TaskFlow questions about accounts, payments, tasks, and marketplace messages. What can I help you with?</p>
+        </div>
+        <form class="support-chat-form" id="support-chat-form">
+          <label class="hidden" for="support-chat-input">Ask the support assistant</label>
+          <input id="support-chat-input" maxlength="500" autocomplete="off" placeholder="Ask a question..." required>
+          <button type="submit" class="primary-btn" aria-label="Send question" title="Send question">↑</button>
+        </form>
+        <p class="support-note">For account-specific help, send a private message to the support team.</p>
+      </section>
+      <div class="support-side">
+        <section class="section-panel" id="support-contact" aria-labelledby="support-contact-title">
+          <div class="section-header"><h3 id="support-contact-title">Message an Agent</h3><span class="tag">Private</span></div>
+          <form id="support-new-form" class="support-contact-form">
+            <div class="field"><label for="support-subject">Subject</label><input id="support-subject" maxlength="120" required placeholder="What can we help with?"></div>
+            <div class="field"><label for="support-first-message">Message</label><textarea id="support-first-message" rows="4" maxlength="2000" required placeholder="Describe the issue or question."></textarea></div>
+            <button class="primary-btn full" type="submit">Send to support</button>
+          </form>
+        </section>
+        <section class="section-panel">
+          <div class="section-header"><h3>Your support conversations</h3><button type="button" class="ghost-btn" id="refresh-user-support">Refresh</button></div>
+          <div class="meta-list" id="user-support-threads"><p class="muted">No support conversations yet.</p></div>
+          <div class="meta-list support-thread-messages" id="user-support-messages" style="margin-top:14px;"><p class="muted">Select a conversation to view replies.</p></div>
+          <form id="user-support-reply-form" class="row-actions hidden" style="margin-top:14px;"><input id="user-support-reply" maxlength="2000" required placeholder="Write a reply..."><button class="primary-btn" type="submit">Send</button></form>
+        </section>
+      </div>
+    </div>
+  </section>
 
               <section class="page-section" data-section="tasks">
         <div class="simple-grid">
@@ -2156,6 +2223,50 @@
       } catch (error) {
         notify(error.message);
       }
+    });
+    document.querySelectorAll('[data-support-action]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const target = button.dataset.supportAction === 'agent' ? $('support-contact') : $('support-assistant');
+        const input = button.dataset.supportAction === 'agent' ? $('support-subject') : $('support-chat-input');
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        input.focus({ preventScroll: true });
+      });
+    });
+    function appendSupportChatMessage(message, isUser = false) {
+      const bubble = document.createElement('p');
+      bubble.className = `support-bubble${isUser ? ' user' : ''}`;
+      bubble.textContent = message;
+      $('support-chat-log').append(bubble);
+      $('support-chat-log').scrollTop = $('support-chat-log').scrollHeight;
+    }
+    function getSupportAssistantReply(question) {
+      const text = question.toLowerCase();
+      if (/sign.?in|log.?in|password|account|register|verification/.test(text)) {
+        return 'For account access, use Sign in or Create account. Never share your password or verification code in chat. If you still cannot access your account, send a private message to an agent.';
+      }
+      if (/payment|wallet|card|payout|withdraw|refund|billing/.test(text)) {
+        return 'Open Wallet to review your balance, activity, and payment methods. For a specific transaction or payout, message an agent and include the date and amount, but never send full card details.';
+      }
+      if (/task|gig|product|listing|marketplace|seller|buyer/.test(text)) {
+        return 'Tasks, gigs, products, and listings each have their own section in TaskFlow. Open the relevant item to review its details; for a problem with a particular item, message an agent with its title.';
+      }
+      if (/message|conversation|offer|order|chat/.test(text)) {
+        return 'Your member conversations and offers are available from the Overview page. Support requests and agent replies stay in Contact support under Your support conversations.';
+      }
+      if (/human|agent|person|support|help/.test(text)) {
+        return 'Use the Message an Agent form on this page. Your message is saved as a private support conversation and appears in the support inbox for the team to review.';
+      }
+      return 'I can help with account access, payments, tasks, marketplace items, and conversations. For anything account-specific, use Message an Agent and the team can reply in your support conversations.';
+    }
+    $('support-chat-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const input = $('support-chat-input');
+      const question = input.value.trim();
+      if (!question) return;
+      appendSupportChatMessage(question, true);
+      input.value = '';
+      appendSupportChatMessage(getSupportAssistantReply(question));
+      input.focus();
     });
     $('refresh-user-support').addEventListener('click', loadUserSupportThreads);
     $('user-support-reply-form').addEventListener('submit', async (event) => {
