@@ -180,6 +180,20 @@
     .ad-manager-card .listing-body { display: flex; flex: 1; flex-direction: column; }
     .ad-manager-card .panel-head { align-items: flex-start; margin-bottom: 8px; }
     .ad-manager-card .listing-meta { margin-top: auto; }
+    .overview-metrics .metric { display: block; transition: border-color .15s ease, transform .15s ease; }
+    .overview-metrics .metric:hover { border-color: #94a3b8; transform: translateY(-2px); }
+    .overview-cards { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+    .store-detail-panel .product-card { position: relative; }
+    .product-menu { position: absolute; z-index: 2; top: 8px; right: 8px; }
+    .product-menu > summary { display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 50%; background: white; color: var(--ink); cursor: pointer; list-style: none; box-shadow: 0 2px 8px rgba(15, 23, 42, .14); }
+    .product-menu > summary::-webkit-details-marker { display: none; }
+    .product-menu > summary svg { width: 17px; height: 17px; }
+    .product-menu-items { position: absolute; top: 40px; right: 0; display: grid; min-width: 150px; padding: 5px; border: 1px solid var(--line); border-radius: 8px; background: white; box-shadow: 0 8px 22px rgba(15, 23, 42, .15); }
+    .product-menu:not([open]) .product-menu-items { display: none; }
+    .product-menu-items button { display: flex; align-items: center; gap: 8px; padding: 8px; border: 0; background: white; color: var(--ink); font-size: 11px; text-align: left; }
+    .product-menu-items button:hover { background: var(--soft); }
+    .product-menu-items button svg { width: 14px; height: 14px; }
+    .product-edit-media-preview img, #vendor-product-media-preview img { width: min(100%, 220px); height: 120px; border-radius: 7px; object-fit: cover; }
     .support-hero { display: grid; justify-items: center; gap: 15px; padding: 48px 20px 38px; text-align: center; border-bottom: 1px solid var(--line); }
     .support-hero h2 { display: flex; align-items: center; justify-content: center; gap: 16px; color: var(--ink); font-size: 34px; }
     .support-hero h2 svg { width: 32px; height: 32px; color: #64748b; }

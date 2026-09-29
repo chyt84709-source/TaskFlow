@@ -40,7 +40,7 @@ router.get('/api/store/me/:id', requireUser, async (req, res, next) => {
     const storeResult = await db.query(`SELECT ${storeFields} FROM stores WHERE id=$1 AND owner_id=$2`, [req.params.id, req.session.user.id]);
     if (!storeResult.rows[0]) return res.status(404).json({ error: 'Store not found.' });
     const [products, sales, orders] = await Promise.all([
-      db.query('SELECT id,title,description,category,price_cents AS "priceCents",stock,status,media,created_at AS "createdAt" FROM products WHERE store_id=$1 AND vendor_id=$2 ORDER BY created_at DESC', [req.params.id, req.session.user.id]),
+      db.query("SELECT id,title,description,category,price_cents AS \"priceCents\",stock,status,media,created_at AS \"createdAt\" FROM products WHERE store_id=$1 AND vendor_id=$2 AND status<>'removed' ORDER BY created_at DESC", [req.params.id, req.session.user.id]),
       db.query(`SELECT COUNT(*)::int AS "salesCount",COALESCE(SUM(o.quantity),0)::int AS "unitsSold",COALESCE(SUM(o.amount_cents),0)::int AS "salesCents"
         FROM product_orders o JOIN products p ON p.id=o.product_id
         WHERE p.store_id=$1 AND p.vendor_id=$2 AND o.seller_id=$2 AND o.status IN ('paid','processing','shipped','completed')`, [req.params.id, req.session.user.id]),
@@ -227,6 +227,38 @@ router.patch('/api/vendor/products/:id/stock', requireUser, async (req, res, nex
     const result = await db.query('UPDATE products SET stock=$1 WHERE id=$2 AND vendor_id=$3 RETURNING id,stock', [parsed.data.stock, req.params.id, req.session.user.id]);
     if (!result.rows[0]) return res.status(404).json({ error: 'Your product was not found.' });
     res.json({ updated: true, product: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch('/api/vendor/products/:id', requireUser, async (req, res, next) => {
+  try {
+    const parsed = z.object({
+      title: z.string().trim().min(3).max(120),
+      description: z.string().trim().min(5).max(2000),
+      category: z.string().trim().min(2).max(60),
+      priceCents: z.number().int().positive(),
+      stock: z.number().int().min(0).max(1000000),
+      media: z.array(z.string().min(1)).max(10).optional()
+    }).safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Enter valid product details.' });
+    const result = await db.query(`UPDATE products SET title=$1,description=$2,category=$3,price_cents=$4,stock=$5,media=COALESCE($6::jsonb,media)
+      WHERE id=$7 AND vendor_id=$8 AND status='active'
+      RETURNING id,title,description,category,price_cents AS "priceCents",stock,media,status`,
+    [parsed.data.title, parsed.data.description, parsed.data.category, parsed.data.priceCents, parsed.data.stock, parsed.data.media ? JSON.stringify(parsed.data.media) : null, req.params.id, req.session.user.id]);
+    if (!result.rows[0]) return res.status(404).json({ error: 'Active product not found for this account.' });
+    res.json({ product: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/api/vendor/products/:id', requireUser, async (req, res, next) => {
+  try {
+    const result = await db.query("UPDATE products SET status='removed' WHERE id=$1 AND vendor_id=$2 AND status='active' RETURNING id", [req.params.id, req.session.user.id]);
+    if (!result.rows[0]) return res.status(404).json({ error: 'Active product not found for this account.' });
+    res.json({ removed: true, productId: result.rows[0].id });
   } catch (error) {
     next(error);
   }

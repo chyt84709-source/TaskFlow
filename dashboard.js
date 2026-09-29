@@ -9,6 +9,7 @@ const routeTitles = {
 const routePaths = Object.fromEntries(Object.keys(routeTitles).map((route) => [route, `/${route}`]));
 let currentUser = null;
 let marketplaceItems = [];
+let vendorStoreProducts = new Map();
 let selectedSupportThreadId = null;
 let supportMode = null;
 let toastTimer;
@@ -168,38 +169,49 @@ function showAd(ad) {
 async function renderOverview() {
   pageFrame('overview', `
     <div class="ad-slot" id="ad-slot"></div>
-    <div class="dashboard-columns">
+    <div class="metric-grid overview-metrics">
+      <a class="metric" href="/marketplace" data-route="marketplace"><div class="metric-top"><span>Marketplace items</span><i data-lucide="store"></i></div><strong id="overview-listing-count">0</strong><small>Browse current listings</small></a>
+      <a class="metric" href="/tasks" data-route="tasks"><div class="metric-top"><span>Active tasks</span><i data-lucide="list-checks"></i></div><strong id="overview-task-count">0</strong><small>Available opportunities</small></a>
+      <a class="metric" href="/products" data-route="products"><div class="metric-top"><span>Products</span><i data-lucide="package"></i></div><strong id="overview-product-count">0</strong><small>Browse products</small></a>
+      <a class="metric" href="/vendor" data-route="vendor"><div class="metric-top"><span>Your stores</span><i data-lucide="building-2"></i></div><strong id="overview-store-count">0</strong><small>Store and order activity</small></a>
+    </div>
+    <div class="dashboard-columns overview-content">
       <div class="column">
-        <div class="metric-grid">
-          <article class="metric"><div class="metric-top"><span>Wallet</span><i data-lucide="wallet"></i></div><strong id="metric-wallet">$0</strong><small>Available balance</small></article>
-          <article class="metric"><div class="metric-top"><span>Active tasks</span><i data-lucide="list-checks"></i></div><strong id="metric-tasks">0</strong><small>Opportunities on TaskFlow</small></article>
-          <article class="metric"><div class="metric-top"><span>Gigs</span><i data-lucide="briefcase-business"></i></div><strong id="metric-gigs">0</strong><small>Services available</small></article>
-        </div>
-        <section class="panel"><div class="panel-head"><div><h2>Messages & offers</h2><p class="panel-subtitle">Conversations and offers from other members.</p></div><button class="button" type="button" data-refresh-overview><i data-lucide="refresh-cw"></i>Refresh</button></div><div id="overview-messages">${emptyState('No conversations or offers yet.')}</div></section>
-        <section class="panel"><div class="panel-head"><h2>Profile & trust</h2><span class="badge" id="overview-tier">Standard</span></div><div class="rows"><div class="data-row"><strong>Wallet security</strong><span>Enabled</span></div><div class="data-row"><strong>Marketplace fees</strong><span>1% + 5% commission</span></div><div class="data-row"><strong>Escrow verification</strong><span>Manual review</span></div></div></section>
+        <section class="panel"><div class="panel-head"><div><h2>Marketplace</h2><p class="panel-subtitle">Recently added listings.</p></div><a class="button-quiet" href="/marketplace" data-route="marketplace">View all</a></div><div class="cards-grid overview-cards" id="overview-marketplace">${emptyState('Loading marketplace items...')}</div></section>
+        <section class="panel"><div class="panel-head"><div><h2>Products</h2><p class="panel-subtitle">New products from the community.</p></div><a class="button-quiet" href="/products" data-route="products">View all</a></div><div class="cards-grid overview-cards" id="overview-products">${emptyState('Loading products...')}</div></section>
       </div>
       <div class="column">
-        <section class="panel"><div class="panel-head"><div><h2>Publish task</h2></div><span class="badge">Simple</span></div><form id="quick-task-form"><div class="field"><label for="quick-title">Task title</label><input id="quick-title" required minlength="3" maxlength="160" placeholder="Task title"></div><div class="field"><label for="quick-description">Task description</label><textarea id="quick-description" required placeholder="Task description"></textarea></div><div class="field"><label for="quick-category">Category</label><select id="quick-category" required><option value="">Loading categories...</option></select></div><details class="task-details"><summary>Video and payout details</summary><div class="field"><label for="quick-video">Video URL</label><input id="quick-video" type="url" required placeholder="https://example.com/video"></div><div class="field"><label for="quick-budget">Budget (USD)</label><input id="quick-budget" type="number" min="1" step="0.01" value="10" required></div></details><button class="button button-primary" type="submit">Publish task</button></form></section>
-        <section class="panel"><div class="panel-head"><h2>Recent notifications</h2><a href="/vendor" class="button-quiet" data-route="vendor">View all</a></div><div class="feed" id="overview-notifications">${emptyState('No recent notifications.')}</div></section>
+        <section class="panel"><div class="panel-head"><div><h2>Active tasks</h2><p class="panel-subtitle">Tasks currently open on TaskFlow.</p></div><a class="button-quiet" href="/tasks" data-route="tasks">View all</a></div><div class="rows" id="overview-tasks">${emptyState('Loading tasks...')}</div></section>
+        <section class="panel"><div class="panel-head"><div><h2>Vendor store activity</h2><p class="panel-subtitle">Your store reviews and recent incoming orders.</p></div><a class="button-quiet" href="/vendor" data-route="vendor">Open stores</a></div><div class="rows" id="overview-vendor-activity">${emptyState('Loading store activity...')}</div></section>
       </div>
     </div>`);
-  const [summary, wallet, tasks, gigs, notifications, offers, ads] = await Promise.all([
-    api('/api/summary').catch(() => ({})), api('/api/wallet').catch(() => ({ balanceCents: 0 })),
+  const [listingsResponse, tasksResponse, productsResponse, storeResponse, ordersResponse, ads] = await Promise.all([
+    api('/api/listings').catch(() => ({ listings: [] })),
     api('/api/tasks').catch(() => ({ tasks: [] })),
-    api('/api/gigs').catch(() => ({ gigs: [] })), api('/api/notifications').catch(() => ({ notifications: [] })),
-    api('/api/content-offers').catch(() => ({ offers: [] })), api('/api/ads').catch(() => ({ ads: [] }))
+    api('/api/products').catch(() => ({ products: [] })),
+    api('/api/store/me').catch(() => ({ stores: [] })),
+    api('/api/vendor/orders').catch(() => ({ orders: [] })),
+    api('/api/ads').catch(() => ({ ads: [] }))
   ]);
-  const balance = Number(wallet.balanceCents || 0);
-  $('#metric-wallet').textContent = money(balance);
-  $('#metric-tasks').textContent = String(tasks.tasks?.length ?? summary.activeTasks ?? 0);
-  $('#metric-gigs').textContent = String(gigs.gigs?.length ?? 0);
-  $('#overview-notifications').innerHTML = notificationMarkup(notifications.notifications || []);
-  $('#overview-tier').textContent = (currentUser?.subscriptionTier || 'standard').replace(/^./, (letter) => letter.toUpperCase());
-  $('#overview-messages').innerHTML = offers.offers?.length ? offers.offers.slice(0, 5).map((offer) => `<div class="data-row"><div><strong>${escapeHtml(offer.content_type)} offer</strong><small>${escapeHtml(offer.status)}</small></div><span>${money(offer.amount_cents)}</span></div>`).join('') : emptyState('No conversations or offers yet.');
+  const listings = listingsResponse.listings || [];
+  const tasks = tasksResponse.tasks || [];
+  const products = productsResponse.products || [];
+  const stores = storeResponse.stores || (storeResponse.store ? [storeResponse.store] : []);
+  const orders = ordersResponse.orders || [];
+  $('#overview-listing-count').textContent = String(listings.length);
+  $('#overview-task-count').textContent = String(tasks.length);
+  $('#overview-product-count').textContent = String(products.length);
+  $('#overview-store-count').textContent = String(stores.length);
+  $('#overview-marketplace').innerHTML = listings.length ? listings.slice(0, 4).map((item) => `<article class="listing-card">${mediaMarkup(item)}<div class="listing-body"><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.category || item.type || 'Marketplace listing')}</p><div class="listing-meta"><span class="badge">${escapeHtml(item.type || 'Listing')}</span><strong>${money(item.priceCents || item.price_cents)}</strong></div></div></article>`).join('') : emptyState('No marketplace listings yet.');
+  $('#overview-products').innerHTML = products.length ? products.slice(0, 4).map((item) => `<article class="listing-card product-card">${mediaMarkup(item)}<div class="listing-body"><span class="badge">${escapeHtml(item.category || 'Product')}</span><h3>${escapeHtml(item.title)}</h3><div class="listing-meta"><span class="product-rating">${item.store_name ? escapeHtml(item.store_name) : 'New arrival'}</span><strong>${money(item.price_cents || item.priceCents)}</strong></div></div></article>`).join('') : emptyState('No products listed yet.');
+  $('#overview-tasks').innerHTML = tasks.length ? tasks.slice(0, 6).map((task) => `<div class="data-row"><div><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(task.category || 'General')}</small></div><span>${money(task.payoutCents || task.payout_cents)}</span></div>`).join('') : emptyState('No active tasks right now.');
+  const activity = [
+    ...stores.map((store) => `<div class="data-row"><div><strong>${escapeHtml(store.businessName)}</strong><small>Store review · ${escapeHtml(store.reviewNote || store.status)}</small></div><span class="badge">${escapeHtml(store.status)}</span></div>`),
+    ...orders.slice(0, 5).map((order) => `<div class="data-row"><div><strong>${escapeHtml(order.productTitle)}</strong><small>Incoming order · ${escapeHtml(order.status)}</small></div><span>${money(order.amountCents)}</span></div>`)
+  ];
+  $('#overview-vendor-activity').innerHTML = activity.length ? activity.slice(0, 8).join('') : emptyState('No store activity yet.');
   const topAd = (ads.ads || []).find((ad) => ['premium-product', 'premium-store', 'homepage-top', 'featured'].includes(ad.placement)) || (ads.ads || [])[0];
   showAd(topAd);
-  const categories = await loadCategories();
-  $('#quick-category').innerHTML = categoryOptions(categories);
 }
 
 async function renderTasks() {
@@ -397,6 +409,19 @@ async function openStoreMediaDialog(storeId) {
   $('#store-media-dialog').showModal();
 }
 
+function openVendorProductEdit(product) {
+  const form = $('#vendor-product-edit-form');
+  form.reset();
+  $('#vendor-product-id').value = product.id;
+  $('#vendor-product-title').value = product.title || '';
+  $('#vendor-product-category').value = product.category || '';
+  $('#vendor-product-description').value = product.description || '';
+  $('#vendor-product-price').value = Number(product.priceCents || product.price_cents || 0) / 100;
+  $('#vendor-product-stock').value = Number(product.stock || 0);
+  $('#vendor-product-media-preview').innerHTML = product.media?.length ? mediaMarkup({ title: product.title, media: product.media }) : emptyState('No product image.');
+  $('#vendor-product-edit-dialog').showModal();
+}
+
 function openVendorAdForm(ad = null) {
   const form = $('#vendor-ad-form');
   form.reset();
@@ -427,7 +452,19 @@ async function renderVendorStore(storeId) {
   target.classList.remove('hidden');
   const store = detail.store;
   const sales = detail.sales || {};
+  vendorStoreProducts = new Map(detail.products.map((product) => [product.id, product]));
   target.innerHTML = `<section class="panel store-detail-panel"><img class="store-detail-cover" src="${escapeHtml(store.coverUrl || '')}" alt="${escapeHtml(store.businessName)} cover"><div class="store-profile"><img class="store-profile-image" src="${escapeHtml(store.logoUrl || '')}" alt=""><div><span class="badge">${escapeHtml(store.status)}</span><h2>${escapeHtml(store.businessName)}</h2><p>${escapeHtml(store.category || 'Store')}</p></div><button class="button" type="button" data-back-stores><i data-lucide="arrow-left"></i>All stores</button></div><p class="store-description">${escapeHtml(store.description)}</p><div class="metric-grid store-metrics"><article class="metric"><div class="metric-top"><span>Products</span><i data-lucide="package"></i></div><strong>${detail.products.length}</strong></article><article class="metric"><div class="metric-top"><span>Sales</span><i data-lucide="receipt-text"></i></div><strong>${Number(sales.salesCount || 0)}</strong></article><article class="metric"><div class="metric-top"><span>Units sold</span><i data-lucide="chart-no-axes-column-increasing"></i></div><strong>${Number(sales.unitsSold || 0)}</strong></article><article class="metric"><div class="metric-top"><span>Sales value</span><i data-lucide="circle-dollar-sign"></i></div><strong>${money(sales.salesCents)}</strong></article></div><div class="panel-head store-section-head"><h2>Store products</h2><a class="button button-primary" href="/products" data-route="products"><i data-lucide="plus"></i>Add product</a></div><div class="cards-grid">${detail.products.length ? detail.products.map((product) => `<article class="listing-card product-card">${mediaMarkup(product)}<div class="listing-body"><span class="badge">${escapeHtml(product.category || 'Product')}</span><h3>${escapeHtml(product.title)}</h3><p class="listing-description">${escapeHtml(product.description || '')}</p><div class="listing-meta"><span class="badge">${Number(product.stock)} in stock</span><strong>${money(product.priceCents)}</strong></div></div></article>`).join('') : emptyState('No products are assigned to this store yet.')}</div><div class="panel-head store-section-head"><h2>Recent sales</h2><span class="badge">${detail.orders.length} orders</span></div><div class="rows">${detail.orders.length ? detail.orders.map((order) => `<div class="data-row"><div><strong>${escapeHtml(order.productTitle)}</strong><small>${escapeHtml(order.status)} · ${Number(order.quantity)} units · ${new Date(order.createdAt).toLocaleDateString()}</small></div><span>${money(order.amountCents)}</span></div>`).join('') : emptyState('No sales for this store yet.')}</div></section>`;
+  target.dataset.storeId = store.id;
+  const productGrid = target.querySelector('.store-section-head').nextElementSibling;
+  productGrid.querySelectorAll('.product-card').forEach((card, index) => {
+    const product = detail.products[index];
+    if (!product) return;
+    const menu = document.createElement('details');
+    menu.className = 'product-menu';
+    menu.innerHTML = `<summary aria-label="Product actions" title="Product actions"><i data-lucide="more-horizontal"></i></summary><div class="product-menu-items"><button type="button" data-edit-product="${escapeHtml(product.id)}"><i data-lucide="pencil"></i>Edit product</button><button type="button" data-delete-product="${escapeHtml(product.id)}"><i data-lucide="trash-2"></i>Delete product</button></div>`;
+    card.append(menu);
+  });
+  target.insertAdjacentHTML('beforeend', `<dialog class="modal-dialog" id="vendor-product-edit-dialog"><form id="vendor-product-edit-form" class="panel modal-panel"><div class="panel-head"><div><h2>Edit product</h2><p class="panel-subtitle">Changes apply only to this product.</p></div><button class="button icon-button" type="button" data-close-dialog aria-label="Close"><i data-lucide="x"></i></button></div><input id="vendor-product-id" type="hidden"><div class="field"><label for="vendor-product-title">Product title</label><input id="vendor-product-title" required minlength="3" maxlength="120"></div><div class="field"><label for="vendor-product-category">Category</label><input id="vendor-product-category" required minlength="2" maxlength="60"></div><div class="field"><label for="vendor-product-description">Description</label><textarea id="vendor-product-description" required minlength="5" maxlength="2000"></textarea></div><div class="form-grid"><div class="field"><label for="vendor-product-price">Price (USD)</label><input id="vendor-product-price" type="number" min="0.01" step="0.01" required></div><div class="field"><label for="vendor-product-stock">Stock</label><input id="vendor-product-stock" type="number" min="0" max="1000000" required></div></div><div class="field"><label for="vendor-product-media">Replace product images (optional)</label><div id="vendor-product-media-preview"></div><input id="vendor-product-media" type="file" accept="image/*" multiple></div><div class="form-actions"><button class="button" type="button" data-close-dialog>Cancel</button><button class="button button-primary" type="submit">Save product</button></div></form></dialog>`);
   const profileDetails = target.querySelector('.store-profile > div');
   profileDetails.append(storePlanBadge(currentUser?.subscriptionTier || currentUser?.subscription_tier, currentUser?.greenTick || currentUser?.green_tick));
   const mediaButton = document.createElement('button');
@@ -728,6 +765,21 @@ async function onSubmit(event) {
       notify('Reply sent.');
       await renderSupport();
       return;
+    } else if (form.id === 'vendor-product-edit-form') {
+      const files = await uploadFiles($('#vendor-product-media', form).files);
+      const payload = {
+        title: value('vendor-product-title'),
+        category: value('vendor-product-category'),
+        description: value('vendor-product-description'),
+        priceCents: Math.round(Number(value('vendor-product-price')) * 100),
+        stock: Number(value('vendor-product-stock'))
+      };
+      if (files.length) payload.media = files.map((file) => file.url);
+      await api(`/api/vendor/products/${encodeURIComponent(value('vendor-product-id'))}`, { method: 'PATCH', body: JSON.stringify(payload) });
+      const storeId = $('#vendor-store-detail').dataset.storeId;
+      notify('Product updated.');
+      await renderVendorStore(storeId);
+      return;
     } else if (form.id === 'task-form' || form.id === 'quick-task-form') {
       const quick = form.id === 'quick-task-form';
       await api('/api/tasks', { method: 'POST', body: JSON.stringify({ title: value(quick ? 'quick-title' : 'task-title'), videoUrl: value(quick ? 'quick-video' : 'task-video'), category: value(quick ? 'quick-category' : 'task-category'), description: value(quick ? 'quick-description' : 'task-description'), instructions: value('task-instructions'), amountDollars: Number(value(quick ? 'quick-budget' : 'task-budget')), seconds: 60 }) });
@@ -885,6 +937,23 @@ document.addEventListener('click', async (event) => {
   if (openStoreButton) {
     try { await renderVendorStore(openStoreButton.dataset.openStore); }
     catch (error) { notify(error.message); }
+    return;
+  }
+  const editProductButton = event.target.closest('[data-edit-product]');
+  if (editProductButton) {
+    const product = vendorStoreProducts.get(editProductButton.dataset.editProduct);
+    if (product) openVendorProductEdit(product);
+    else notify('Product not found in this store.');
+    return;
+  }
+  const deleteProductButton = event.target.closest('[data-delete-product]');
+  if (deleteProductButton) {
+    if (!window.confirm('Remove this product from the store? Existing orders and sales history will be preserved.')) return;
+    try {
+      await api(`/api/vendor/products/${encodeURIComponent(deleteProductButton.dataset.deleteProduct)}`, { method: 'DELETE' });
+      notify('Product removed from the store. Existing sales history was preserved.');
+      await renderVendorStore($('#vendor-store-detail').dataset.storeId);
+    } catch (error) { notify(error.message); }
     return;
   }
   if (event.target.closest('[data-back-stores]')) {
