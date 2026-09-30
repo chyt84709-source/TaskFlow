@@ -282,6 +282,7 @@ router.post('/api/profile/avatar', requireUser, imageUpload.single('file'), asyn
     await db.query('INSERT INTO media_files (id,user_id,filename,mime_type,purpose) VALUES ($1,$2,$3,$4,$5)', [id, req.session.user.id, filename, image.mimeType, 'profile-avatar']);
     const avatarUrl = `/api/media/${id}`;
     await db.query('UPDATE users SET avatar_url=$1 WHERE id=$2', [avatarUrl, req.session.user.id]);
+    await db.query('INSERT INTO profiles (id,user_id,avatar_url,created_at) VALUES ($1,$2,$3,NOW()) ON CONFLICT (user_id) DO UPDATE SET avatar_url=EXCLUDED.avatar_url', [nanoid(), req.session.user.id, avatarUrl]);
     req.session.user.avatarUrl = avatarUrl;
     req.session.user.avatar_url = avatarUrl;
     res.status(201).json({ url: avatarUrl, mimeType: image.mimeType });
@@ -423,7 +424,7 @@ router.put('/api/profile', requireUser, async (req, res, next) => {
     if (values.country) await db.query('UPDATE users SET country=$1 WHERE id=$2', [normalizeCountry(values.country), req.session.user.id]);
     if (values.avatarUrl) await db.query('UPDATE users SET avatar_url=$1 WHERE id=$2', [values.avatarUrl, req.session.user.id]);
 
-    await db.query(`INSERT INTO profiles (id, user_id, bio, location, avatar_url, skills, category, social_links, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (user_id) DO UPDATE SET bio = EXCLUDED.bio, location = EXCLUDED.location, avatar_url = EXCLUDED.avatar_url, skills = EXCLUDED.skills, category = EXCLUDED.category`, [nanoid(), req.session.user.id, values.bio || null, values.location || null, values.avatarUrl || null, values.skills || null, values.category || null, JSON.stringify({}), new Date().toISOString()]);
+    await db.query(`INSERT INTO profiles (id, user_id, bio, location, avatar_url, skills, category, social_links, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (user_id) DO UPDATE SET bio = EXCLUDED.bio, location = EXCLUDED.location, avatar_url = COALESCE(EXCLUDED.avatar_url, profiles.avatar_url), skills = EXCLUDED.skills, category = EXCLUDED.category`, [nanoid(), req.session.user.id, values.bio || null, values.location || null, values.avatarUrl || null, values.skills || null, values.category || null, JSON.stringify({}), new Date().toISOString()]);
 
     req.session.user.name = values.name || req.session.user.name;
     req.session.user.country = normalizeCountry(values.country || req.session.user.country || 'US');

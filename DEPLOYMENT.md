@@ -8,6 +8,8 @@ Copy `.env.example` to `.env` for local development and replace every placeholde
 
 Set `APP_BASE_URL`, `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, and `STRIPE_WEBHOOK_SECRET` for Premium Checkout and hosted card verification. Register `POST /api/payments/stripe/webhook` in Stripe and enable the `checkout.session.completed` event. Set a separate random `UPLOAD_ENCRYPTION_KEY`; changing it later makes existing encrypted media unreadable.
 
+Set `UPLOAD_DIR` to the exact mount path of persistent upload storage. For example, if the Railway volume is mounted at `/app/upload`, set `UPLOAD_DIR=/app/upload` (not `/app/uploads`). The server creates this directory at startup; all instances reading media must use the same persistent storage.
+
 ## Custom domain: taskflow.monster
 
 In Railway, add `taskflow.monster` to the TaskFlow web service's custom domains and copy the DNS target Railway displays. Add the requested DNS record at your domain provider and wait for Railway to issue HTTPS. Then set these TaskFlow service variables:

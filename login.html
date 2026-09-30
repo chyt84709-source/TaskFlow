@@ -1879,6 +1879,8 @@
       });
       $('profile-bio').value = bio;
       ['profile-avatar-pip', 'profile-avatar-pip-preview'].forEach((id) => {
+        const element = $(id);
+        if (!element) return;
         element.style.backgroundImage = avatarUrl ? `url("${avatarUrl}")` : 'linear-gradient(135deg, #123b30 0%, #2a5a48 100%)';
         element.style.backgroundSize = 'cover';
         element.style.backgroundPosition = 'center';
