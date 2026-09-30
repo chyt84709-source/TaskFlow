@@ -105,7 +105,7 @@ router.get('/api/summary', async (_req, res, next) => {
 router.get('/api/me', async (req, res, next) => {
   if (!req.session.user || req.session.user.isAdmin || req.session.user.role === 'admin') return res.json({ user: req.session.user || null });
   try {
-    const result = await db.query('SELECT account_status,subscription_tier,green_tick,name,email,role,country FROM users WHERE id=$1', [req.session.user.id]);
+    const result = await db.query('SELECT account_status,subscription_tier,green_tick,name,email,role,country,avatar_url AS "avatarUrl" FROM users WHERE id=$1', [req.session.user.id]);
     if (result.rows[0]?.account_status !== 'active') {
       req.session = null;
       return res.json({ user: null });
@@ -116,6 +116,8 @@ router.get('/api/me', async (req, res, next) => {
       email: result.rows[0].email || req.session.user.email || null,
       role: result.rows[0].role || req.session.user.role,
       country: normalizeCountry(result.rows[0].country || req.session.user.country || 'US'),
+      avatarUrl: result.rows[0].avatarUrl || null,
+      avatar_url: result.rows[0].avatarUrl || null,
       subscriptionTier: result.rows[0].subscription_tier || 'standard',
       greenTick: result.rows[0].subscription_tier === 'premium' && Boolean(result.rows[0].green_tick)
     };
@@ -278,6 +280,8 @@ router.post('/api/profile/avatar', requireUser, imageUpload.single('file'), asyn
     await db.query('INSERT INTO media_files (id,user_id,filename,mime_type,purpose) VALUES ($1,$2,$3,$4,$5)', [id, req.session.user.id, filename, image.mimeType, 'profile-avatar']);
     const avatarUrl = `/api/media/${id}`;
     await db.query('UPDATE users SET avatar_url=$1 WHERE id=$2', [avatarUrl, req.session.user.id]);
+    req.session.user.avatarUrl = avatarUrl;
+    req.session.user.avatar_url = avatarUrl;
     res.status(201).json({ url: avatarUrl, mimeType: image.mimeType });
   } catch (error) {
     next(error);

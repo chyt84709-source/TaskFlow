@@ -50,7 +50,7 @@ function setShellUser(user) {
   document.querySelectorAll('[data-user-name]').forEach((element) => { element.textContent = user?.name || 'Husnain'; });
   document.querySelectorAll('[data-user-email]').forEach((element) => { element.textContent = user?.email || '@taskflow'; });
   document.querySelectorAll('[data-user-initials]').forEach((element) => {
-    const avatarUrl = user?.avatarUrl || user?.avatar_url || '';
+    const avatarUrl = user?.avatar_url || user?.avatarUrl || '';
     element.replaceChildren();
     if (avatarUrl) {
       const image = document.createElement('img');
