@@ -8,6 +8,18 @@ Copy `.env.example` to `.env` for local development and replace every placeholde
 
 Set `APP_BASE_URL`, `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, and `STRIPE_WEBHOOK_SECRET` for Premium Checkout and hosted card verification. Register `POST /api/payments/stripe/webhook` in Stripe and enable the `checkout.session.completed` event. Set a separate random `UPLOAD_ENCRYPTION_KEY`; changing it later makes existing encrypted media unreadable.
 
+## Custom domain: taskflow.monster
+
+In Railway, add `taskflow.monster` to the TaskFlow web service's custom domains and copy the DNS target Railway displays. Add the requested DNS record at your domain provider and wait for Railway to issue HTTPS. Then set these TaskFlow service variables:
+
+```text
+APP_BASE_URL=https://taskflow.monster
+CORS_ORIGIN=https://taskflow.monster
+GOOGLE_CALLBACK_URL=https://taskflow.monster/api/auth/google/callback
+```
+
+Add that exact callback URL to Google OAuth's authorized redirect URIs, and update Stripe's webhook endpoint to `https://taskflow.monster/api/payments/stripe/webhook`. Use the custom domain for the public site; Railway's generated `*.up.railway.app` URL can remain as a service fallback.
+
 Set `CLOUDFLARE_TURNSTILE_SITE_KEY` and `CLOUDFLARE_TURNSTILE_SECRET_KEY` for wallet payment-method verification. The server rejects card requests when Turnstile verification is missing or invalid.
 
 Set `PLATFORM_COUNTRY` and `INTERNATIONAL_TAX_RATE` for tax policy. Taxes apply only when the user's normalized country differs from `PLATFORM_COUNTRY`. Set `STRIPE_PAYMENT_METHOD_TYPES` to the Stripe payment methods enabled in your account; regional options are filtered against that allowlist.
