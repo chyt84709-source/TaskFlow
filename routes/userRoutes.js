@@ -277,6 +277,8 @@ router.post('/api/profile/avatar', requireUser, imageUpload.single('file'), asyn
     const image = await processAndEncryptImage(req.file.buffer);
     const id = nanoid();
     const filename = await saveEncryptedImage(image.payload, id);
+    const savedImage = await readEncryptedImage(filename);
+    if (!decryptImage(savedImage).length) throw new Error('Uploaded image could not be verified from storage.');
     await db.query('INSERT INTO media_files (id,user_id,filename,mime_type,purpose) VALUES ($1,$2,$3,$4,$5)', [id, req.session.user.id, filename, image.mimeType, 'profile-avatar']);
     const avatarUrl = `/api/media/${id}`;
     await db.query('UPDATE users SET avatar_url=$1 WHERE id=$2', [avatarUrl, req.session.user.id]);

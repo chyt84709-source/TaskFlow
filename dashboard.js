@@ -899,6 +899,13 @@ document.addEventListener('click', async (event) => {
       const formData = new FormData();
       formData.append('file', file);
       const result = await api('/api/profile/avatar', { method: 'POST', body: formData });
+      const uploadedImage = new Image();
+      uploadedImage.src = result.url;
+      try {
+        await uploadedImage.decode();
+      } catch {
+        throw new Error('The image was saved but could not be displayed. Check that UPLOAD_DIR points to the mounted Railway volume.');
+      }
       currentUser = { ...currentUser, avatarUrl: result.url, avatar_url: result.url };
       setShellUser(currentUser);
       $('#profile-avatar-preview').src = result.url;

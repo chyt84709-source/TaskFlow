@@ -3238,6 +3238,13 @@
         if (!uploadResponse.ok) throw new Error(uploadData.error || 'Profile image upload failed');
         const uploadedUrl = uploadData.url || '';
         if (uploadedUrl) {
+          const uploadedImage = new Image();
+          uploadedImage.src = uploadedUrl;
+          try {
+            await uploadedImage.decode();
+          } catch {
+            throw new Error('The image was saved but could not be displayed. Check that UPLOAD_DIR points to the mounted Railway volume.');
+          }
           notify('Profile picture updated successfully.');
           await hydrateProfile();
         }
