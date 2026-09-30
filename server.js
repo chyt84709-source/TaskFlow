@@ -26,7 +26,9 @@ const { Pool } = pg;
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT || 3000);
-const uploadDir = path.resolve(process.env.UPLOAD_DIR || './data/uploads');
+const uploadDirectory = process.env.UPLOAD_DIR?.trim();
+if (!uploadDirectory) throw new Error('UPLOAD_DIR environment variable is required.');
+const uploadDir = path.resolve(uploadDirectory);
 const PLATFORM_FEE_RATE = 0.05;
 fs.mkdirSync(uploadDir, { recursive: true });
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required.');

@@ -3,7 +3,9 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import sharp from 'sharp';
 
-const mediaDir = path.resolve(process.env.UPLOAD_DIR || './data/uploads');
+const uploadDirectory = process.env.UPLOAD_DIR?.trim();
+if (!uploadDirectory) throw new Error('UPLOAD_DIR environment variable is required.');
+const mediaDir = path.resolve(uploadDirectory);
 const encryptionKey = crypto.createHash('sha256').update(process.env.UPLOAD_ENCRYPTION_KEY || process.env.SESSION_SECRET || 'development-only').digest();
 
 export async function processAndEncryptImage(buffer, mimeType = 'image/jpeg') {
