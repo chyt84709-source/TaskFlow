@@ -39,16 +39,23 @@ router.get('/api/store/me/:id', requireUser, async (req, res, next) => {
   try {
     const storeResult = await db.query(`SELECT ${storeFields} FROM stores WHERE id=$1 AND owner_id=$2`, [req.params.id, req.session.user.id]);
     if (!storeResult.rows[0]) return res.status(404).json({ error: 'Store not found.' });
-    const [products, sales, orders] = await Promise.all([
+    const [products, sales, orders, inventory, monthlyActivity] = await Promise.all([
       db.query("SELECT id,title,description,category,price_cents AS \"priceCents\",stock,status,media,created_at AS \"createdAt\" FROM products WHERE store_id=$1 AND vendor_id=$2 AND status<>'removed' ORDER BY created_at DESC", [req.params.id, req.session.user.id]),
       db.query(`SELECT COUNT(*)::int AS "salesCount",COALESCE(SUM(o.quantity),0)::int AS "unitsSold",COALESCE(SUM(o.amount_cents),0)::int AS "salesCents"
         FROM product_orders o JOIN products p ON p.id=o.product_id
         WHERE p.store_id=$1 AND p.vendor_id=$2 AND o.seller_id=$2 AND o.status IN ('paid','processing','shipped','completed')`, [req.params.id, req.session.user.id]),
       db.query(`SELECT o.id,o.quantity,o.amount_cents AS "amountCents",o.status,o.created_at AS "createdAt",p.title AS "productTitle"
         FROM product_orders o JOIN products p ON p.id=o.product_id
-        WHERE p.store_id=$1 AND p.vendor_id=$2 AND o.seller_id=$2 ORDER BY o.created_at DESC LIMIT 20`, [req.params.id, req.session.user.id])
+        WHERE p.store_id=$1 AND p.vendor_id=$2 AND o.seller_id=$2 ORDER BY o.created_at DESC LIMIT 20`, [req.params.id, req.session.user.id]),
+      db.query(`SELECT COUNT(*) FILTER (WHERE status<>'removed')::int AS "productCount",
+          COALESCE(SUM(stock) FILTER (WHERE status='active'),0)::int AS "unitsInStock",
+          COALESCE(SUM(stock::bigint * price_cents::bigint) FILTER (WHERE status='active'),0)::bigint AS "inventoryValueCents"
+        FROM products WHERE store_id=$1 AND vendor_id=$2`, [req.params.id, req.session.user.id]),
+      db.query(`SELECT COUNT(*) FILTER (WHERE created_at >= date_trunc('month', NOW()))::int AS "ordersThisMonth",
+          COALESCE(SUM(amount_cents) FILTER (WHERE created_at >= date_trunc('month', NOW()) AND status IN ('paid','processing','shipped','completed')),0)::bigint AS "revenueThisMonthCents"
+        FROM product_orders WHERE seller_id=$1 AND product_id IN (SELECT id FROM products WHERE store_id=$2 AND vendor_id=$1)`, [req.session.user.id, req.params.id])
     ]);
-    res.json({ store: storeResult.rows[0], products: products.rows, sales: sales.rows[0], orders: orders.rows });
+    res.json({ store: storeResult.rows[0], products: products.rows, sales: sales.rows[0], orders: orders.rows, inventory: inventory.rows[0], monthlyActivity: monthlyActivity.rows[0] });
   } catch (error) {
     next(error);
   }
