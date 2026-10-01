@@ -2,10 +2,8 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import sharp from 'sharp';
+import { uploadDirectory } from '../config/storage.js';
 
-const uploadDirectory = process.env.UPLOAD_DIR?.trim();
-if (!uploadDirectory) throw new Error('UPLOAD_DIR environment variable is required.');
-const mediaDir = path.resolve(uploadDirectory);
 const encryptionKey = crypto.createHash('sha256').update(process.env.UPLOAD_ENCRYPTION_KEY || process.env.SESSION_SECRET || 'development-only').digest();
 
 export async function processAndEncryptImage(buffer, mimeType = 'image/jpeg') {
@@ -37,18 +35,18 @@ export function decryptImage(payload) {
 }
 
 export async function saveEncryptedImage(payload, id) {
-  await fs.mkdir(mediaDir, { recursive: true });
+  await fs.mkdir(uploadDirectory, { recursive: true });
   const filename = `${id}.enc`;
-  await fs.writeFile(path.join(mediaDir, filename), payload);
+  await fs.writeFile(path.join(uploadDirectory, filename), payload);
   return filename;
 }
 
 export async function readEncryptedImage(filename) {
   const safeName = path.basename(filename);
-  return fs.readFile(path.join(mediaDir, safeName));
+  return fs.readFile(path.join(uploadDirectory, safeName));
 }
 
 export async function deleteEncryptedMedia(filename) {
   const safeName = path.basename(filename);
-  await fs.rm(path.join(mediaDir, safeName), { force: true });
+  await fs.rm(path.join(uploadDirectory, safeName), { force: true });
 }

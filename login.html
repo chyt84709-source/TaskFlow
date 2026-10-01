@@ -1810,6 +1810,16 @@
       return parts.map((part) => part[0]?.toUpperCase() || '').join('') || 'TF';
     }
 
+    function mediaUrl(value) {
+      if (!value) return '';
+      try {
+        const url = new URL(value, window.location.origin);
+        return ['http:', 'https:', 'blob:'].includes(url.protocol) ? url.href : '';
+      } catch {
+        return '';
+      }
+    }
+
     function formatMoney(cents, countryCode = currentUser?.country || 'US') {
       const rateMap = { US: 1, PK: 278, IN: 83, AE: 3.67, GB: 0.79, CA: 1.36, SA: 3.75, BD: 108, NG: 1500 };
       const rate = rateMap[countryCode] || 1;
@@ -1823,7 +1833,7 @@
     function applyProfileToUi(user, profileData = null) {
       const userName = user?.name || user?.email || 'TaskFlow member';
       const userEmail = user?.email || 'member@taskflow.com';
-      const avatarUrl = user?.avatar_url || user?.avatarUrl || profileData?.avatar_url || profileData?.avatarUrl || '';
+      const avatarUrl = mediaUrl(user?.avatar_url || user?.avatarUrl || profileData?.avatar_url || profileData?.avatarUrl);
       const bio = profileData?.bio || user?.bio || '';
       const countryCode = String(user?.country || 'US').toUpperCase();
       const subscriptionTier = user?.subscriptionTier || profileData?.subscription_tier || 'standard';
@@ -3238,7 +3248,8 @@
         });
         const uploadData = await uploadResponse.json();
         if (!uploadResponse.ok) throw new Error(uploadData.error || 'Profile image upload failed');
-        const uploadedUrl = uploadData.url || '';
+        const uploadedUrl = mediaUrl(uploadData.url);
+        if (!uploadedUrl) throw new Error('The server returned an invalid profile image URL.');
         if (uploadedUrl) {
           const uploadedImage = new Image();
           uploadedImage.src = uploadedUrl;

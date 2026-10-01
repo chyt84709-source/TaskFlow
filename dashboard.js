@@ -22,6 +22,16 @@ function initials(name) {
   return String(name || 'TaskFlow').trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() || '').join('') || 'TF';
 }
 
+function mediaUrl(value) {
+  if (!value) return '';
+  try {
+    const url = new URL(value, window.location.origin);
+    return ['http:', 'https:', 'blob:'].includes(url.protocol) ? url.href : '';
+  } catch {
+    return '';
+  }
+}
+
 function money(cents) {
   return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(Number(cents || 0) / 100);
 }
@@ -50,7 +60,7 @@ function setShellUser(user) {
   document.querySelectorAll('[data-user-name]').forEach((element) => { element.textContent = user?.name || 'Husnain'; });
   document.querySelectorAll('[data-user-email]').forEach((element) => { element.textContent = user?.email || '@taskflow'; });
   document.querySelectorAll('[data-user-initials]').forEach((element) => {
-    const avatarUrl = user?.avatar_url || user?.avatarUrl || '';
+    const avatarUrl = mediaUrl(user?.avatar_url || user?.avatarUrl);
     element.replaceChildren();
     if (avatarUrl) {
       const image = document.createElement('img');
@@ -561,8 +571,10 @@ async function renderProfile() {
   $('#profile-country').value = user.country || 'US';
   $('#profile-bio').value = user.profile?.bio || user.bio || '';
   const avatarUrl = user.avatar_url || user.avatarUrl || '';
-  $('#profile-avatar-preview').src = avatarUrl;
-  $('#profile-avatar-preview').classList.toggle('hidden', !avatarUrl);
+  const resolvedAvatarUrl = mediaUrl(avatarUrl);
+  if (resolvedAvatarUrl) $('#profile-avatar-preview').src = resolvedAvatarUrl;
+  else $('#profile-avatar-preview').removeAttribute('src');
+  $('#profile-avatar-preview').classList.toggle('hidden', !resolvedAvatarUrl);
   $('#profile-avatar-file').addEventListener('change', (event) => {
     const [file] = event.target.files || [];
     if (!file) return;
@@ -899,8 +911,10 @@ document.addEventListener('click', async (event) => {
       const formData = new FormData();
       formData.append('file', file);
       const result = await api('/api/profile/avatar', { method: 'POST', body: formData });
+      const uploadedUrl = mediaUrl(result.url);
+      if (!uploadedUrl) throw new Error('The server returned an invalid profile image URL.');
       const uploadedImage = new Image();
-      uploadedImage.src = result.url;
+      uploadedImage.src = uploadedUrl;
       try {
         await uploadedImage.decode();
       } catch {
@@ -908,7 +922,7 @@ document.addEventListener('click', async (event) => {
       }
       currentUser = { ...currentUser, avatarUrl: result.url, avatar_url: result.url };
       setShellUser(currentUser);
-      $('#profile-avatar-preview').src = result.url;
+      $('#profile-avatar-preview').src = uploadedUrl;
       notify('Profile picture updated across your account.');
     } catch (error) { notify(error.message); }
     return;

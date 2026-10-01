@@ -21,16 +21,14 @@ import userRoutes from './routes/userRoutes.js';
 import commerceRoutes from './routes/commerceRoutes.js';
 import { deleteEncryptedMedia, processAndEncryptImage, saveEncryptedImage } from './services/media.js';
 import { calculateInternationalTax } from './config/database.js';
+import { uploadDirectory } from './config/storage.js';
 
 const { Pool } = pg;
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT || 3000);
-const uploadDirectory = process.env.UPLOAD_DIR?.trim();
-if (!uploadDirectory) throw new Error('UPLOAD_DIR environment variable is required.');
-const uploadDir = path.resolve(uploadDirectory);
 const PLATFORM_FEE_RATE = 0.05;
-fs.mkdirSync(uploadDir, { recursive: true });
+fs.mkdirSync(uploadDirectory, { recursive: true });
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required.');
 const db = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : undefined });
 const googleClient = process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET ? new OAuth2Client(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET, process.env.GOOGLE_CALLBACK_URL) : null;
@@ -168,7 +166,6 @@ async function initializeSchema() {
   await db.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS green_tick BOOLEAN NOT NULL DEFAULT FALSE;");
   await db.query("UPDATE users SET subscription_tier = 'premium', premium_source = 'referrals', premium_activated_at = COALESCE(premium_activated_at, NOW()), green_tick = TRUE WHERE referral_count >= 10;");
   await db.query("ALTER TABLE wallet_card_verifications ADD COLUMN IF NOT EXISTS setup_intent_id TEXT;");
-  await db.query("DELETE FROM transactions WHERE kind = 'deposit';");
   await db.query("ALTER TABLE content_offers ADD COLUMN IF NOT EXISTS conversation_id TEXT;");
   await db.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';");
 }
