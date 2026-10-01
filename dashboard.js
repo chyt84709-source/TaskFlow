@@ -142,7 +142,17 @@ function storePlanBadge(tier, greenTick) {
 }
 
 function notificationMarkup(items) {
-  return items.length ? items.slice(0, 5).map((item) => `<div class="feed-item"><span class="feed-dot"></span><p>${escapeHtml(item.body || item.kind || 'Platform update')}<small>${escapeHtml(item.kind || 'Update')} · ${new Date(item.createdAt || item.created_at || Date.now()).toLocaleString()}</small></p></div>`).join('') : emptyState('No recent notifications.');
+  const preferences = getNotificationPreferences();
+  const visibleItems = items.filter((item) => preferences[notificationCategory(item.kind)] !== false);
+  return visibleItems.length ? visibleItems.slice(0, 5).map((item) => `<div class="feed-item"><span class="feed-dot"></span><p>${escapeHtml(item.body || item.kind || 'Platform update')}<small>${escapeHtml(item.kind || 'Update')} · ${new Date(item.createdAt || item.created_at || Date.now()).toLocaleString()}</small></p></div>`).join('') : emptyState('No recent notifications.');
+}
+
+const notificationPreferenceKey = 'taskflow.notificationPreferences';
+const notificationCategories = { order: 'orders', message: 'messages', offer: 'offers', premium: 'premium', 'promotion-review': 'updates' };
+function notificationCategory(kind) { return notificationCategories[kind] || 'updates'; }
+function getNotificationPreferences() {
+  try { return JSON.parse(localStorage.getItem(notificationPreferenceKey) || '{}'); }
+  catch { return {}; }
 }
 
 function showAd(ad) {
@@ -497,7 +507,10 @@ function openVendorAdForm(ad = null) {
 }
 
 async function renderVendorStore(storeId) {
-  const detail = await api(`/api/store/me/${encodeURIComponent(storeId)}`);
+  const [detail, offersResponse] = await Promise.all([
+    api(`/api/store/me/${encodeURIComponent(storeId)}`),
+    api('/api/content-offers').catch(() => ({ offers: [] }))
+  ]);
   const target = $('#vendor-store-detail');
   $('#vendor-stores-panel').classList.add('hidden');
   target.classList.remove('hidden');
@@ -506,6 +519,10 @@ async function renderVendorStore(storeId) {
   vendorStoreProducts = new Map(detail.products.map((product) => [product.id, product]));
   target.innerHTML = `<section class="panel store-detail-panel"><img class="store-detail-cover" src="${escapeHtml(store.coverUrl || '')}" alt="${escapeHtml(store.businessName)} cover"><div class="store-profile"><img class="store-profile-image" src="${escapeHtml(store.logoUrl || '')}" alt=""><div><span class="badge">${escapeHtml(store.status)}</span><h2>${escapeHtml(store.businessName)}</h2><p>${escapeHtml(store.category || 'Store')}</p></div><button class="button" type="button" data-back-stores><i data-lucide="arrow-left"></i>All stores</button></div><p class="store-description">${escapeHtml(store.description)}</p><div class="metric-grid store-metrics"><article class="metric"><div class="metric-top"><span>Products</span><i data-lucide="package"></i></div><strong>${detail.products.length}</strong></article><article class="metric"><div class="metric-top"><span>Sales</span><i data-lucide="receipt-text"></i></div><strong>${Number(sales.salesCount || 0)}</strong></article><article class="metric"><div class="metric-top"><span>Units sold</span><i data-lucide="chart-no-axes-column-increasing"></i></div><strong>${Number(sales.unitsSold || 0)}</strong></article><article class="metric"><div class="metric-top"><span>Sales value</span><i data-lucide="circle-dollar-sign"></i></div><strong>${money(sales.salesCents)}</strong></article></div><div class="panel-head store-section-head"><h2>Store products</h2><a class="button button-primary" href="/products" data-route="products"><i data-lucide="plus"></i>Add product</a></div><div class="cards-grid">${detail.products.length ? detail.products.map((product) => `<article class="listing-card product-card">${mediaMarkup(product)}<div class="listing-body"><span class="badge">${escapeHtml(product.category || 'Product')}</span><h3>${escapeHtml(product.title)}</h3><p class="listing-description">${escapeHtml(product.description || '')}</p><div class="listing-meta"><span class="badge">${Number(product.stock)} in stock</span><strong>${money(product.priceCents)}</strong></div></div></article>`).join('') : emptyState('No products are assigned to this store yet.')}</div><div class="panel-head store-section-head"><h2>Recent sales</h2><span class="badge">${detail.orders.length} orders</span></div><div class="rows">${detail.orders.length ? detail.orders.map((order) => `<div class="data-row"><div><strong>${escapeHtml(order.productTitle)}</strong><small>${escapeHtml(order.status)} · ${Number(order.quantity)} units · ${new Date(order.createdAt).toLocaleDateString()}</small></div><span>${money(order.amountCents)}</span></div>`).join('') : emptyState('No sales for this store yet.')}</div></section>`;
   target.dataset.storeId = store.id;
+  const reviewCount = detail.products.reduce((sum, product) => sum + Number(product.reviewCount ?? product.review_count ?? 0), 0);
+  const ratingTotal = detail.products.reduce((sum, product) => sum + Number(product.avgRating ?? product.avg_rating ?? 0) * Number(product.reviewCount ?? product.review_count ?? 0), 0);
+  const averageRating = reviewCount ? (ratingTotal / reviewCount).toFixed(1) : 'No reviews';
+  target.querySelector('.store-metrics').innerHTML = `<article class="metric"><div class="metric-top"><span>Total Sales</span><i data-lucide="circle-dollar-sign"></i></div><strong>${money(sales.salesCents)}</strong></article><article class="metric"><div class="metric-top"><span>Total Orders</span><i data-lucide="shopping-bag"></i></div><strong>${Number(sales.orderCount ?? sales.salesCount ?? 0).toLocaleString()}</strong></article><article class="metric"><div class="metric-top"><span>Average Rating</span><i data-lucide="star"></i></div><strong>${escapeHtml(averageRating)}</strong></article><article class="metric"><div class="metric-top"><span>Products</span><i data-lucide="package"></i></div><strong>${detail.products.length}</strong></article>`;
   const inventory = detail.inventory || {};
   const monthlyActivity = detail.monthlyActivity || {};
   target.querySelector('.store-metrics').insertAdjacentHTML('afterend', `<div class="metric-grid store-metrics"><article class="metric"><div class="metric-top"><span>Orders this month</span><i data-lucide="shopping-bag"></i></div><strong>${Number(monthlyActivity.ordersThisMonth || 0).toLocaleString()}</strong></article><article class="metric"><div class="metric-top"><span>Units in stock</span><i data-lucide="boxes"></i></div><strong>${Number(inventory.unitsInStock || 0).toLocaleString()}</strong></article><article class="metric"><div class="metric-top"><span>Inventory value</span><i data-lucide="warehouse"></i></div><strong>${money(inventory.inventoryValueCents)}</strong></article><article class="metric"><div class="metric-top"><span>Revenue this month</span><i data-lucide="chart-no-axes-combined"></i></div><strong>${money(monthlyActivity.revenueThisMonthCents)}</strong></article></div>`);
@@ -513,6 +530,10 @@ async function renderVendorStore(storeId) {
   productGrid.querySelectorAll('.product-card').forEach((card, index) => {
     const product = detail.products[index];
     if (!product) return;
+    const report = document.createElement('p');
+    report.className = 'panel-subtitle product-report';
+    report.textContent = `${Number(product.orderCount || 0)} orders · ${money(product.revenueCents)} revenue · ${Number(product.reviewCount || 0)} reviews`;
+    card.querySelector('.listing-body')?.append(report);
     const menu = document.createElement('details');
     menu.className = 'product-menu';
     menu.innerHTML = `<summary aria-label="Product actions" title="Product actions"><i data-lucide="more-horizontal"></i></summary><div class="product-menu-items"><button type="button" data-edit-product="${escapeHtml(product.id)}"><i data-lucide="pencil"></i>Edit product</button><button type="button" data-delete-product="${escapeHtml(product.id)}"><i data-lucide="trash-2"></i>Delete product</button></div>`;
@@ -522,6 +543,22 @@ async function renderVendorStore(storeId) {
   const profileDetails = target.querySelector('.store-profile > div');
   const orders = detail.orders || [];
   target.insertAdjacentHTML('beforeend', `<section class="panel store-orders-panel"><div class="panel-head"><div><h2>Recent orders</h2><p class="panel-subtitle">Latest orders for this store.</p></div><span class="badge">${orders.length} shown</span></div><div class="rows">${orders.length ? orders.map((order) => `<div class="data-row"><div><strong>${escapeHtml(order.productTitle || 'Product')}</strong><small>${Number(order.quantity || 0)} units · ${escapeHtml(order.status)} · ${new Date(order.createdAt).toLocaleDateString()}</small></div><span>${money(order.amountCents)}</span></div>`).join('') : emptyState('No orders for this store yet.')}</div></section>`);
+  const nextOrderStatus = { paid: 'processing', processing: 'shipped', shipped: 'completed' };
+  const orderRows = orders.map((order) => {
+    const nextStatus = nextOrderStatus[order.status];
+    const action = nextStatus ? `<button class="button" type="button" data-vendor-order="${escapeHtml(order.id)}" data-next-status="${nextStatus}">${nextStatus === 'processing' ? 'Accept order' : nextStatus === 'shipped' ? 'Mark shipped' : 'Complete order'}</button>` : '';
+    return `<div class="data-row"><div><strong>${escapeHtml(order.productTitle || 'Product')}</strong><small>${escapeHtml(order.buyerName || order.buyerEmail || 'Customer')} · ${Number(order.quantity || 0)} units · ${escapeHtml(order.status)} · ${new Date(order.createdAt).toLocaleDateString()}${order.notes ? ` · ${escapeHtml(order.notes)}` : ''}</small></div><div class="form-actions"><span>${money(order.amountCents)}</span>${action}</div></div>`;
+  }).join('');
+  target.querySelector('.store-orders-panel .rows').innerHTML = orderRows || emptyState('No orders for this store yet.');
+  const storeProductIds = new Set(detail.products.map((product) => String(product.id)));
+  const inquiries = (offersResponse.offers || []).filter((offer) => offer.content_type === 'product' && storeProductIds.has(String(offer.content_id)));
+  const inquiryRows = inquiries.map((offer) => {
+    const pending = offer.status === 'pending';
+    const actions = pending ? `<div class="form-actions"><button class="button" type="button" data-vendor-offer="${escapeHtml(offer.id)}" data-decision="accepted">Accept</button><button class="button" type="button" data-vendor-offer="${escapeHtml(offer.id)}" data-decision="rejected">Decline</button></div>` : '';
+    const product = detail.products.find((item) => String(item.id) === String(offer.content_id));
+    return `<div class="data-row"><div><strong>${escapeHtml(offer.buyer_name || 'Customer')} · ${escapeHtml(product?.title || 'Product inquiry')}</strong><small>${escapeHtml(offer.message || 'Offer inquiry')} · ${escapeHtml(offer.status || 'pending')}</small></div><div class="form-actions"><span>${money(offer.amount_cents)}</span>${actions}</div></div>`;
+  }).join('');
+  target.querySelector('.store-orders-panel').insertAdjacentHTML('afterend', `<section class="panel store-inquiries-panel"><div class="panel-head"><div><h2>Customer inquiries</h2><p class="panel-subtitle">Offers and buyer inquiries for this store's products.</p></div><span class="badge">${inquiries.length} total</span></div><div class="rows">${inquiryRows || emptyState('No customer inquiries yet.')}</div></section>`);
   profileDetails.append(storePlanBadge(currentUser?.subscriptionTier || currentUser?.subscription_tier, currentUser?.greenTick || currentUser?.green_tick));
   const mediaButton = document.createElement('button');
   mediaButton.className = 'button';
@@ -724,12 +761,29 @@ async function getSupportAssistantReply(question) {
 }
 
 async function renderSettings() {
-  pageFrame('settings', `<div class="dashboard-columns"><section class="panel"><div class="panel-head"><h2>Account preferences</h2><span class="badge">Personal</span></div><div class="rows"><div class="data-row"><strong>Email address</strong><span>${escapeHtml(currentUser?.email || 'Not set')}</span></div><div class="data-row"><strong>Account role</strong><span>${escapeHtml(currentUser?.role || 'Member')}</span></div><div class="data-row"><strong>Account tier</strong><span>${escapeHtml(currentUser?.subscriptionTier || 'Standard')}</span></div></div><a class="button" href="/profile" data-route="profile">Edit profile</a></section><section class="panel"><div class="panel-head"><h2>Security</h2><span class="badge">Protected</span></div><div class="rows"><div class="data-row"><strong>Wallet security</strong><span>Enabled</span></div><div class="data-row"><strong>Payment verification</strong><span>Cloudflare + email OTP</span></div><div class="data-row"><strong>Session status</strong><span>Active</span></div></div><a class="button" href="/wallet" data-route="wallet">Wallet settings</a></section></div>`);
+  const preferences = getNotificationPreferences();
+  const alertOptions = [['orders', 'Order updates'], ['messages', 'Messages'], ['offers', 'Customer offers'], ['premium', 'Premium updates'], ['updates', 'Other platform updates']];
+  pageFrame('settings', `<div class="stack">
+    <section class="panel"><div class="panel-head"><div><h2>Account Preferences</h2><p class="panel-subtitle">Profile and account details.</p></div><span class="badge">Personal</span></div><div class="rows"><div class="data-row"><strong>Email address</strong><span>${escapeHtml(currentUser?.email || 'Not set')}</span></div><div class="data-row"><strong>Account role</strong><span>${escapeHtml(currentUser?.role || 'Member')}</span></div><div class="data-row"><strong>Account tier</strong><span>${escapeHtml(currentUser?.subscriptionTier || 'Standard')}</span></div></div><a class="button" href="/profile" data-route="profile"><i data-lucide="user-round-cog"></i>Edit profile details</a></section>
+    <section class="panel"><div class="panel-head"><div><h2>Security</h2><p class="panel-subtitle">Password and authentication management.</p></div><span class="badge">Protected</span></div><div class="rows"><div class="data-row"><strong>Sign-in email</strong><span>${escapeHtml(currentUser?.email || 'Not set')}</span></div><div class="data-row"><strong>Two-step verification</strong><span>${currentUser?.twoFactor || currentUser?.two_factor ? 'Enabled' : 'Not enabled'}</span></div><div class="data-row"><strong>Session status</strong><span>Active</span></div></div><form id="password-change-form"><div class="field"><label for="current-password">Current password</label><input id="current-password" name="currentPassword" type="password" autocomplete="current-password" required minlength="6" maxlength="128"></div><div class="form-grid"><div class="field"><label for="new-password">New password</label><input id="new-password" name="newPassword" type="password" autocomplete="new-password" required minlength="8" maxlength="128"></div><div class="field"><label for="confirm-password">Confirm new password</label><input id="confirm-password" name="confirmPassword" type="password" autocomplete="new-password" required minlength="8" maxlength="128"></div></div><button class="button button-primary" type="submit">Update password</button></form></section>
+    <section class="panel"><div class="panel-head"><div><h2>Notification preferences</h2><p class="panel-subtitle">Choose which alert categories appear in your dashboard.</p></div></div><div class="rows">${alertOptions.map(([key, label]) => `<label class="data-row notification-preference"><strong>${label}</strong><input type="checkbox" data-notification-preference="${key}" aria-label="Show ${label.toLowerCase()}" ${preferences[key] === false ? '' : 'checked'}></label>`).join('')}</div></section>
+  </div>`);
 }
 
 async function renderPremium() {
-  pageFrame('premium', `<div class="dashboard-columns"><section class="panel"><div class="panel-head"><h2>Premium membership</h2><span class="badge">Account boost</span></div><p class="panel-subtitle">Priority visibility, a verified profile badge, and member benefits.</p><div class="trust-grid"><div class="trust-stat"><span>Visibility</span><strong>Priority placement</strong></div><div class="trust-stat"><span>Profile</span><strong>Premium badge</strong></div><div class="trust-stat"><span>Marketplace</span><strong>Member discounts</strong></div><div class="trust-stat"><span>Product promotion</span><strong>Request a 7-day homepage feature for your product</strong></div></div></section><section class="panel"><div class="panel-head"><h2>Premium status</h2><span class="badge" id="premium-state">Standard</span></div><p class="panel-subtitle">You can pay through checkout, qualify by referrals, or request owner review.</p><div class="form-actions"><button class="button button-primary" id="premium-pay" type="button">Upgrade to Premium</button><button class="button" id="premium-referrals" type="button">View referrals</button><button class="button" id="premium-request" type="button">Request Premium</button></div><p class="panel-subtitle" id="premium-note"></p></section></div>`);
-  $('#premium-state').textContent = currentUser?.subscriptionTier || 'Standard';
+  pageFrame('premium', `<div class="dashboard-columns"><section class="panel"><div class="panel-head"><h2>Premium membership</h2><span class="badge">Account boost</span></div><p class="panel-subtitle">Priority visibility, a verified profile badge, and member benefits.</p><div class="trust-grid"><div class="trust-stat"><span>Visibility</span><strong>Priority placement</strong></div><div class="trust-stat"><span>Profile</span><strong>Premium badge</strong></div><div class="trust-stat"><span>Marketplace</span><strong>Member discounts</strong></div><div class="trust-stat"><span>Product promotion</span><strong>Request a 7-day homepage feature for your product</strong></div></div></section><section class="panel"><div class="panel-head"><h2>Premium status</h2><span class="badge" id="premium-state">Loading</span></div><p class="panel-subtitle" id="premium-eligibility">Checking account eligibility...</p><div class="form-actions"><button class="button button-primary" id="premium-pay" type="button">Upgrade to Premium</button><button class="button" id="premium-referrals" type="button">View referrals</button><button class="button" id="premium-request" type="button" disabled>Request Premium</button></div><p class="panel-subtitle" id="premium-note"></p></section></div>`);
+  const eligibility = await api('/api/premium/requests/mine');
+  const active = eligibility.subscriptionTier === 'premium';
+  const referrals = Number(eligibility.referralCount || 0);
+  const requestButton = $('#premium-request');
+  $('#premium-state').textContent = active ? 'Premium' : 'Standard';
+  requestButton.disabled = active || referrals < 10 || eligibility.requestStatus === 'pending';
+  requestButton.textContent = active ? 'Premium active' : eligibility.requestStatus === 'pending' ? 'Request pending' : referrals < 10 ? '10 referrals required' : 'Request Premium';
+  $('#premium-eligibility').textContent = active
+    ? 'Premium access is already active on this account.'
+    : eligibility.requestStatus === 'pending'
+      ? 'Your request is waiting for administrator review.'
+      : `${referrals} of 10 successful referrals completed. Administrator approval is required after you submit a request.`;
 }
 
 function adminTable(title, rows, emptyMessage = 'Nothing to review.') {
@@ -847,7 +901,12 @@ async function onSubmit(event) {
   event.preventDefault();
   const value = (id) => $(`#${id}`, form)?.value?.trim() || '';
   try {
-    if (form.id === 'support-chat-form') {
+    if (form.id === 'password-change-form') {
+      const newPassword = $('#new-password', form).value;
+      if (newPassword !== $('#confirm-password', form).value) throw new Error('The new passwords do not match.');
+      await api('/api/auth/password/change', { method: 'POST', body: JSON.stringify({ currentPassword: $('#current-password', form).value, newPassword }) });
+      notify('Password updated successfully.');
+    } else if (form.id === 'support-chat-form') {
       const input = $('#support-chat-input');
       const question = input.value.trim();
       if (!question) return;
@@ -1062,6 +1121,24 @@ document.addEventListener('click', async (event) => {
     catch (error) { notify(error.message); }
     return;
   }
+  const vendorOrderButton = event.target.closest('[data-vendor-order]');
+  if (vendorOrderButton) {
+    try {
+      await api(`/api/vendor/orders/${encodeURIComponent(vendorOrderButton.dataset.vendorOrder)}/status`, { method: 'POST', body: JSON.stringify({ status: vendorOrderButton.dataset.nextStatus }) });
+      notify(`Order updated to ${vendorOrderButton.dataset.nextStatus}.`);
+      await renderVendorStore($('#vendor-store-detail').dataset.storeId);
+    } catch (error) { notify(error.message); }
+    return;
+  }
+  const vendorOfferButton = event.target.closest('[data-vendor-offer]');
+  if (vendorOfferButton) {
+    try {
+      await api(`/api/content-offers/${encodeURIComponent(vendorOfferButton.dataset.vendorOffer)}/respond`, { method: 'POST', body: JSON.stringify({ decision: vendorOfferButton.dataset.decision }) });
+      notify(`Customer offer ${vendorOfferButton.dataset.decision}.`);
+      await renderVendorStore($('#vendor-store-detail').dataset.storeId);
+    } catch (error) { notify(error.message); }
+    return;
+  }
   const editProductButton = event.target.closest('[data-edit-product]');
   if (editProductButton) {
     const product = vendorStoreProducts.get(editProductButton.dataset.editProduct);
@@ -1196,6 +1273,9 @@ document.addEventListener('click', async (event) => {
       await api('/api/premium/requests', { method: 'POST', body: JSON.stringify({ reason: 'Please review my account for Premium access.' }) });
       notify('Premium request sent to the owner.');
       $('#premium-note').textContent = 'Your request is pending owner review.';
+      $('#premium-request').disabled = true;
+      $('#premium-request').textContent = 'Request pending';
+      $('#premium-eligibility').textContent = 'Your request is waiting for administrator review.';
     } catch (error) { notify(error.message); }
   }
 });
@@ -1206,7 +1286,16 @@ document.addEventListener('invalid', (event) => {
 }, true);
 document.addEventListener('submit', onSubmit);
 document.addEventListener('input', (event) => { if (event.target.id === 'market-search') renderMarketplaceCards(marketplaceItems); });
-document.addEventListener('change', (event) => { if (event.target.id === 'market-category') renderMarketplaceCards(marketplaceItems); });
+document.addEventListener('change', (event) => {
+  if (event.target.id === 'market-category') renderMarketplaceCards(marketplaceItems);
+  const preference = event.target.closest('[data-notification-preference]');
+  if (preference) {
+    const preferences = getNotificationPreferences();
+    preferences[preference.dataset.notificationPreference] = preference.checked;
+    localStorage.setItem(notificationPreferenceKey, JSON.stringify(preferences));
+    notify('Notification preferences saved on this device.');
+  }
+});
 document.addEventListener('keydown', async (event) => {
   if (event.target.id !== 'global-search' || event.key !== 'Enter') return;
   event.preventDefault();

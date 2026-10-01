@@ -40,12 +40,17 @@ router.get('/api/store/me/:id', requireUser, async (req, res, next) => {
     const storeResult = await db.query(`SELECT ${storeFields} FROM stores WHERE id=$1 AND owner_id=$2`, [req.params.id, req.session.user.id]);
     if (!storeResult.rows[0]) return res.status(404).json({ error: 'Store not found.' });
     const [products, sales, orders, inventory, monthlyActivity] = await Promise.all([
-      db.query("SELECT id,title,description,category,price_cents AS \"priceCents\",stock,status,media,created_at AS \"createdAt\" FROM products WHERE store_id=$1 AND vendor_id=$2 AND status<>'removed' ORDER BY created_at DESC", [req.params.id, req.session.user.id]),
-      db.query(`SELECT COUNT(*)::int AS "salesCount",COALESCE(SUM(o.quantity),0)::int AS "unitsSold",COALESCE(SUM(o.amount_cents),0)::int AS "salesCents"
+      db.query(`SELECT p.id,p.title,p.description,p.category,p.price_cents AS "priceCents",p.stock,p.status,p.media,p.created_at AS "createdAt",
+          COALESCE((SELECT AVG(r.rating)::float FROM reviews r WHERE r.product_id=p.id),0)::float AS "avgRating",
+          (SELECT COUNT(*)::int FROM reviews r WHERE r.product_id=p.id) AS "reviewCount",
+          (SELECT COALESCE(SUM(o.amount_cents),0)::bigint FROM product_orders o WHERE o.product_id=p.id AND o.status IN ('paid','processing','shipped','completed')) AS "revenueCents",
+          (SELECT COUNT(*)::int FROM product_orders o WHERE o.product_id=p.id AND o.status IN ('paid','processing','shipped','completed')) AS "orderCount"
+        FROM products p WHERE p.store_id=$1 AND p.vendor_id=$2 AND p.status<>'removed' ORDER BY p.created_at DESC`, [req.params.id, req.session.user.id]),
+      db.query(`SELECT COUNT(*)::int AS "salesCount",COUNT(*)::int AS "orderCount",COALESCE(SUM(o.quantity),0)::int AS "unitsSold",COALESCE(SUM(o.amount_cents),0)::bigint AS "salesCents"
         FROM product_orders o JOIN products p ON p.id=o.product_id
         WHERE p.store_id=$1 AND p.vendor_id=$2 AND o.seller_id=$2 AND o.status IN ('paid','processing','shipped','completed')`, [req.params.id, req.session.user.id]),
-      db.query(`SELECT o.id,o.quantity,o.amount_cents AS "amountCents",o.status,o.created_at AS "createdAt",p.title AS "productTitle"
-        FROM product_orders o JOIN products p ON p.id=o.product_id
+      db.query(`SELECT o.id,o.quantity,o.amount_cents AS "amountCents",o.status,o.notes,o.created_at AS "createdAt",p.title AS "productTitle",u.name AS "buyerName",u.email AS "buyerEmail"
+        FROM product_orders o JOIN products p ON p.id=o.product_id LEFT JOIN users u ON u.id=o.buyer_id
         WHERE p.store_id=$1 AND p.vendor_id=$2 AND o.seller_id=$2 ORDER BY o.created_at DESC LIMIT 20`, [req.params.id, req.session.user.id]),
       db.query(`SELECT COUNT(*) FILTER (WHERE status<>'removed')::int AS "productCount",
           COALESCE(SUM(stock) FILTER (WHERE status='active'),0)::int AS "unitsInStock",

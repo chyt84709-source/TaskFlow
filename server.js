@@ -94,12 +94,6 @@ async function updateTrustScoreOnSuccessfulTransaction(userId) {
       AND referrals.referrer_id = referrer.id
       AND referrals.status = 'pending'`, [userId]);
   await db.query("UPDATE referrals SET status = 'verified', verified_at = NOW() WHERE referred_user_id = $1 AND status = 'pending'", [userId]);
-  await db.query(`UPDATE users
-    SET subscription_tier = 'premium',
-        premium_source = 'referrals',
-        premium_activated_at = COALESCE(premium_activated_at, NOW()),
-        green_tick = TRUE
-    WHERE referral_count >= 10`);
 }
 async function initializeSchema() {
   await db.query(`CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, phone TEXT UNIQUE, email TEXT UNIQUE, name TEXT, role TEXT NOT NULL DEFAULT 'worker', country TEXT, account_status TEXT NOT NULL DEFAULT 'active', subscription_tier TEXT NOT NULL DEFAULT 'standard', trust_score DOUBLE PRECISION DEFAULT NULL, two_factor BOOLEAN NOT NULL DEFAULT FALSE, password_hash TEXT, referral_count INTEGER NOT NULL DEFAULT 0, referral_code TEXT UNIQUE, green_tick BOOLEAN NOT NULL DEFAULT FALSE, created_at TIMESTAMPTZ NOT NULL);
@@ -164,7 +158,6 @@ async function initializeSchema() {
   await db.query("ALTER TABLE ads ADD COLUMN IF NOT EXISTS destination_url TEXT;");
   await db.query("ALTER TABLE listings ADD COLUMN IF NOT EXISTS media JSONB NOT NULL DEFAULT '[]'::jsonb;");
   await db.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS green_tick BOOLEAN NOT NULL DEFAULT FALSE;");
-  await db.query("UPDATE users SET subscription_tier = 'premium', premium_source = 'referrals', premium_activated_at = COALESCE(premium_activated_at, NOW()), green_tick = TRUE WHERE referral_count >= 10;");
   await db.query("ALTER TABLE wallet_card_verifications ADD COLUMN IF NOT EXISTS setup_intent_id TEXT;");
   await db.query("ALTER TABLE content_offers ADD COLUMN IF NOT EXISTS conversation_id TEXT;");
   await db.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';");

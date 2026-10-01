@@ -8,6 +8,16 @@ import { requireAdmin, requireUser } from '../../utils/helpers.js';
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 const router = express.Router();
 
+router.get('/api/premium/requests/mine', requireUser, async (req, res, next) => {
+  try {
+    const result = await db.query(`SELECT u.referral_count AS "referralCount",u.subscription_tier AS "subscriptionTier",
+        (SELECT status FROM premium_requests WHERE user_id=u.id ORDER BY created_at DESC LIMIT 1) AS "requestStatus"
+      FROM users u WHERE u.id=$1`, [req.session.user.id]);
+    if (!result.rows[0]) return res.status(404).json({ error: 'User not found.' });
+    res.json(result.rows[0]);
+  } catch (error) { next(error); }
+});
+
 router.post('/api/premium/requests', requireUser, async (req, res, next) => {
   try {
     const parsed = z.object({ reason: z.string().trim().max(500).default('I would like to be considered for Premium access.') }).safeParse(req.body || {});
@@ -15,19 +25,13 @@ router.post('/api/premium/requests', requireUser, async (req, res, next) => {
     const userResult = await db.query('SELECT referral_count,subscription_tier FROM users WHERE id=$1', [req.session.user.id]);
     const user = userResult.rows[0];
     if (!user) return res.status(404).json({ error: 'User not found.' });
-    if (user.subscription_tier === 'premium') return res.json({ requested: true, status: 'approved', tier: 'premium' });
+    if (user.subscription_tier === 'premium') return res.status(409).json({ error: 'This account already has active Premium access.' });
+    if (Number(user.referral_count || 0) < 10) return res.status(403).json({ error: 'Complete 10 successful referrals before requesting Premium.' });
     const existing = await db.query("SELECT id FROM premium_requests WHERE user_id=$1 AND status='pending'", [req.session.user.id]);
-    if (existing.rows[0]) return res.json({ requested: true, status: 'pending' });
-    const qualifiesByReferral = Number(user.referral_count || 0) >= 10;
-    const status = qualifiesByReferral ? 'approved' : 'pending';
-    await db.query('INSERT INTO premium_requests (id,user_id,reason,status,reviewed_by,reviewed_at) VALUES ($1,$2,$3,$4,$5,CASE WHEN $4=$6 THEN NOW() ELSE NULL END)', [nanoid(), req.session.user.id, parsed.data.reason, status, qualifiesByReferral ? 'system-referrals' : null, 'approved']);
-    if (qualifiesByReferral) {
-      await db.query("UPDATE users SET subscription_tier='premium',green_tick=TRUE,premium_source='referrals',premium_activated_at=COALESCE(premium_activated_at,NOW()) WHERE id=$1", [req.session.user.id]);
-      req.session.user.subscriptionTier = 'premium';
-      req.session.user.greenTick = true;
-      await db.query('INSERT INTO notifications (id,user_id,kind,body,created_at) VALUES ($1,$2,$3,$4,NOW())', [nanoid(), req.session.user.id, 'premium', 'Your 10 verified referrals qualified you for Premium. Your verified blue tick is now active.']);
-    }
-    res.status(201).json({ requested: true, status, tier: qualifiesByReferral ? 'premium' : 'standard' });
+    if (existing.rows[0]) return res.status(409).json({ error: 'You already have a pending Premium request.' });
+    const requestId = nanoid();
+    await db.query('INSERT INTO premium_requests (id,user_id,reason,status,created_at) VALUES ($1,$2,$3,$4,NOW())', [requestId, req.session.user.id, parsed.data.reason, 'pending']);
+    res.status(201).json({ requested: true, status: 'pending', requestId });
   } catch (error) { next(error); }
 });
 

@@ -235,6 +235,10 @@
     .admin-review-media { display: block; width: min(100%, 420px); max-height: 220px; margin-top: 8px; border-radius: 7px; object-fit: contain; background: var(--soft); }
       .admin-user-avatar { display: block; width: 42px; height: 42px; margin-top: 8px; border: 1px solid var(--line); border-radius: 50%; object-fit: cover; background: var(--soft); }
     .listing-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 10px 0; }
+    .notification-preference { align-items: center; cursor: pointer; }
+    .notification-preference input { flex: 0 0 auto; width: 18px; height: 18px; margin: 0; accent-color: var(--teal); }
+    .product-report { margin: 8px 0 0; }
+    .store-orders-panel .data-row > div:last-child, .store-inquiries-panel .data-row > div:last-child { flex-wrap: wrap; justify-content: flex-end; }
     .listing-meta strong { color: var(--ink); font-size: 13px; }
     .table-wrap { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; text-align: left; }
@@ -246,7 +250,7 @@
     .mobile-menu { display: none; }
     @media (max-width: 1120px) { .shell { grid-template-columns: 220px minmax(0, 1fr); } .sidebar { padding-inline: 12px; } .main { padding-inline: 22px; } .topbar { flex-wrap: wrap; } .search { max-width: none; } }
     @media (max-width: 860px) { .shell { grid-template-columns: 1fr; } .sidebar { position: static; height: auto; padding: 12px 14px; border-right: 0; border-bottom: 1px solid var(--line); } .brand { padding: 0 6px 12px; } .nav { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: thin; } .nav-link { flex: 0 0 auto; min-height: 36px; padding: 8px 10px; } .sidebar-bottom { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; padding-top: 8px; } .sidebar-bottom .sidebar-user { padding: 4px; } .dashboard-columns { grid-template-columns: 1fr; } }
-    @media (max-width: 620px) { .main { padding: 19px 14px 34px; } .topbar { align-items: stretch; gap: 10px; margin-bottom: 21px; } .search { flex-basis: 100%; max-width: none; } .top-actions { justify-content: space-between; flex-wrap: wrap; } .profile-copy { display: none; } .metric-grid { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 9px; } .metric { padding: 14px; } .metric strong { font-size: 23px; } .panel { padding: 15px; } .form-grid { grid-template-columns: 1fr; } .field-full { grid-column: auto; } .cards-grid { grid-template-columns: repeat(auto-fill, minmax(155px,1fr)); gap: 9px; } .listing-card img, .listing-card video { height: 120px; } .page-heading h1 { font-size: 22px; } .product-catalog-head, .product-catalog-footer { align-items: stretch; flex-direction: column; } .product-filters { grid-template-columns: 1fr; gap: 8px; } .product-filters .badge { margin-bottom: 8px; } .product-catalog-grid { grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); } .store-profile { flex-wrap: wrap; margin-left: 0; } .store-profile > div { flex-basis: calc(100% - 100px); } .store-profile > .button { margin-left: 0; } .store-detail-cover { aspect-ratio: 2 / 1; } .support-hero { padding: 35px 12px 28px; } .support-hero h2 { gap: 9px; font-size: 26px; } .support-hero h2 svg { width: 25px; height: 25px; } .support-hero > p { font-size: 13px; } .support-actions { width: 100%; } .support-actions .button { flex: 1 1 100%; } .support-panel { margin-top: 14px; } .support-bubble { max-width: 94%; } }
+    @media (max-width: 620px) { .main { padding: 19px 14px 34px; } .topbar { align-items: stretch; gap: 10px; margin-bottom: 21px; } .search { flex-basis: 100%; max-width: none; } .top-actions { justify-content: space-between; flex-wrap: wrap; } .profile-copy { display: none; } .metric-grid { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 9px; } .metric { padding: 14px; } .metric strong { font-size: 23px; } .panel { padding: 15px; } .form-grid { grid-template-columns: 1fr; } .field-full { grid-column: auto; } .cards-grid { grid-template-columns: repeat(auto-fill, minmax(155px,1fr)); gap: 9px; } .listing-card img, .listing-card video { height: 120px; } .page-heading h1 { font-size: 22px; } .product-catalog-head, .product-catalog-footer { align-items: stretch; flex-direction: column; } .product-filters { grid-template-columns: 1fr; gap: 8px; } .product-filters .badge { margin-bottom: 8px; } .product-catalog-grid { grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); } .store-profile { flex-wrap: wrap; margin-left: 0; } .store-profile > div { flex-basis: calc(100% - 100px); } .store-profile > .button { margin-left: 0; } .store-detail-cover { aspect-ratio: 2 / 1; } .store-orders-panel .data-row, .store-inquiries-panel .data-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; } .store-orders-panel .data-row > div:last-child, .store-inquiries-panel .data-row > div:last-child { justify-content: space-between; } .support-hero { padding: 35px 12px 28px; } .support-hero h2 { gap: 9px; font-size: 26px; } .support-hero h2 svg { width: 25px; height: 25px; } .support-hero > p { font-size: 13px; } .support-actions { width: 100%; } .support-actions .button { flex: 1 1 100%; } .support-panel { margin-top: 14px; } .support-bubble { max-width: 94%; } }
   </style>
 </head>
 <body>
@@ -254,7 +258,6 @@
     <aside class="sidebar">
       <a class="brand" href="/overview" data-route="overview"><span class="brand-mark"><i data-lucide="arrow-up-right"></i></span>TaskFlow</a>
       <nav class="nav" aria-label="Main navigation">
-        <a class="nav-link" href="/overview" data-route="overview"><i data-lucide="layout-dashboard"></i>Overview</a>
         <a class="nav-link" href="/overview" data-route="overview"><i data-lucide="layout-dashboard"></i>Dashboard</a>
         <a class="nav-link" href="/tasks" data-route="tasks"><i data-lucide="list-checks"></i>Tasks</a>
         <a class="nav-link" href="/marketplace" data-route="marketplace"><i data-lucide="store"></i>Marketplace</a>
@@ -282,7 +285,6 @@
           <div class="profile-pill"><span class="avatar" data-user-initials>TF</span><span class="profile-copy"><strong><span data-user-name>Husnain</span><span class="verify hidden" data-verified>✓</span><span class="premium" data-tier>STANDARD</span></strong><small data-user-email>Account</small></span></div>
         </div>
       </header>
-      <div class="page-heading"><p class="eyebrow" id="page-eyebrow">Workspace</p><h1 id="page-title">Overview</h1></div>
       <div class="page-heading"><p class="eyebrow" id="page-eyebrow">Workspace</p><h1 id="page-title">Dashboard</h1></div>
       <div class="page-content" id="page-content" aria-live="polite"></div>
     </main>

@@ -193,6 +193,22 @@ router.post('/api/auth/logout', (req, res) => {
   res.status(204).end();
 });
 
+router.post('/api/auth/password/change', requireUser, async (req, res, next) => {
+  try {
+    const parsed = z.object({ currentPassword: z.string().min(6).max(128), newPassword: z.string().min(8).max(128) }).safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Enter your current password and a new password of at least 8 characters.' });
+    const result = await db.query('SELECT password_hash FROM users WHERE id=$1', [req.session.user.id]);
+    const passwordHash = result.rows[0]?.password_hash;
+    if (!passwordHash) return res.status(400).json({ error: 'Password changes are unavailable for this sign-in method. Use password reset instead.' });
+    if (!verifyPassword(parsed.data.currentPassword, passwordHash)) return res.status(401).json({ error: 'Current password is incorrect.' });
+    if (verifyPassword(parsed.data.newPassword, passwordHash)) return res.status(400).json({ error: 'Choose a password different from your current password.' });
+    await db.query('UPDATE users SET password_hash=$1 WHERE id=$2', [hashPassword(parsed.data.newPassword), req.session.user.id]);
+    res.json({ updated: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post('/api/auth/phone/request', (_req, res) => res.status(503).json({ error: 'Phone verification is not configured. Use email verification or configure a phone provider.' }));
 
 router.post('/api/auth/phone/verify', async (req, res, next) => {

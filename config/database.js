@@ -113,7 +113,6 @@ export async function initializeSchema() {
   await db.query("ALTER TABLE listings ADD COLUMN IF NOT EXISTS media JSONB NOT NULL DEFAULT '[]'::jsonb;");
   await db.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS green_tick BOOLEAN NOT NULL DEFAULT FALSE;");
   await db.query("ALTER TABLE wallet_cards ADD COLUMN IF NOT EXISTS card_type TEXT NOT NULL DEFAULT 'credit';");
-  await db.query("UPDATE users SET subscription_tier = 'premium', premium_source = 'referrals', premium_activated_at = COALESCE(premium_activated_at, NOW()), green_tick = TRUE WHERE referral_count >= 10;");
   await db.query("ALTER TABLE wallet_card_verifications ADD COLUMN IF NOT EXISTS setup_intent_id TEXT;");
   await db.query("ALTER TABLE content_offers ADD COLUMN IF NOT EXISTS conversation_id TEXT;");
   await db.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';");
