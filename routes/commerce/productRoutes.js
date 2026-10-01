@@ -207,6 +207,50 @@ router.get('/api/admin/content', requireAdmin, async (_req, res, next) => {
   }
 });
 
+const adminContentFields = {
+  task: { table: 'tasks', columns: { title: 'title', description: 'description', category: 'category', status: 'status', payoutCents: 'payout_cents', seconds: 'seconds', videoUrl: 'video_url' } },
+  product: { table: 'products', columns: { title: 'title', description: 'description', category: 'category', status: 'status', priceCents: 'price_cents', stock: 'stock' } },
+  listing: { table: 'listings', columns: { title: 'title', description: 'description', category: 'category', status: 'status', priceCents: 'price_cents', type: 'type' } },
+  gig: { table: 'gigs', columns: { title: 'title', description: 'description', category: 'category', status: 'status', priceCents: 'price_cents', deliveryDays: 'delivery_days' } },
+};
+const adminContentUpdate = z.object({
+  title: z.string().trim().min(1).max(160).optional(),
+  description: z.string().max(2000).optional(),
+  category: z.string().trim().min(1).max(120).optional(),
+  status: z.string().trim().min(1).max(30).optional(),
+  payoutCents: z.number().int().positive().optional(),
+  priceCents: z.number().int().positive().optional(),
+  stock: z.number().int().min(0).max(1000000).optional(),
+  seconds: z.number().int().min(5).max(3600).optional(),
+  videoUrl: z.string().url().optional(),
+  deliveryDays: z.number().int().min(1).max(30).optional(),
+  type: z.enum(['physical', 'digital', 'service', 'software']).optional(),
+}).strict();
+
+router.patch('/api/admin/content/:type/:id', requireAdmin, async (req, res, next) => {
+  const content = adminContentFields[req.params.type];
+  if (!content) return res.status(400).json({ error: 'Unsupported content type.' });
+  const parsed = adminContentUpdate.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Enter valid content changes.' });
+
+  const values = [req.params.id];
+  const assignments = [];
+  for (const [key, column] of Object.entries(content.columns)) {
+    if (parsed.data[key] === undefined) continue;
+    values.push(parsed.data[key]);
+    assignments.push(`${column}=$${values.length}`);
+  }
+  if (!assignments.length) return res.status(400).json({ error: 'Choose at least one field to update.' });
+
+  try {
+    const result = await db.query(`UPDATE ${content.table} SET ${assignments.join(',')} WHERE id=$1 RETURNING *`, values);
+    if (!result.rows[0]) return res.status(404).json({ error: 'Content not found.' });
+    res.json({ updated: true, item: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/api/admin/promotion-requests', requireAdmin, async (_req, res, next) => {
   try {
     const result = await db.query(`SELECT r.id,r.user_id AS "userId",r.product_id AS "productId",r.requested_days AS "requestedDays",r.offered_days AS "offeredDays",r.price_cents AS "priceCents",r.admin_reply AS "adminReply",r.status,r.created_at AS "createdAt",r.reviewed_at AS "reviewedAt",p.title AS "productTitle",p.description AS "productDescription",p.category,p.price_cents AS "productPriceCents",p.media,u.name AS "userName",u.email AS "userEmail"

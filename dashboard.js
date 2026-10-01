@@ -2,7 +2,7 @@ const $ = (selector, root = document) => root.querySelector(selector);
 const pageContent = $('#page-content');
 const toastElement = $('#toast');
 const routeTitles = {
-  overview: 'Overview', tasks: 'Tasks', marketplace: 'Marketplace', products: 'Products',
+  overview: 'Dashboard', tasks: 'Tasks', marketplace: 'Marketplace', products: 'Products',
   vendor: 'Vendor dashboard', gigs: 'Gigs', wallet: 'Wallet', profile: 'Profile',
   support: 'Contact support', premium: 'Premium', settings: 'Settings', admin: 'Admin'
 };
@@ -10,6 +10,7 @@ const routePaths = Object.fromEntries(Object.keys(routeTitles).map((route) => [r
 let currentUser = null;
 let marketplaceItems = [];
 let vendorStoreProducts = new Map();
+let adminContentItems = new Map();
 let selectedSupportThreadId = null;
 let supportMode = null;
 let toastTimer;
@@ -92,10 +93,34 @@ async function loadCategories() {
 }
 
 function pageFrame(route, body, eyebrow = 'Workspace') {
-  $('#page-title').textContent = routeTitles[route] || 'Overview';
+  $('#page-title').textContent = routeTitles[route] || 'Dashboard';
   $('#page-eyebrow').textContent = eyebrow;
   document.querySelectorAll('[data-route]').forEach((link) => link.classList.toggle('active', link.dataset.route === route && link.classList.contains('nav-link')));
   pageContent.innerHTML = body;
+  window.lucide?.createIcons();
+}
+
+function moveCreateFormToDialog(formId, dialogId, title, buttonLabel) {
+  const form = $(`#${formId}`);
+  const panel = form?.closest('.panel');
+  if (!form || !panel) return;
+
+  const trigger = document.createElement('button');
+  trigger.className = 'button button-primary';
+  trigger.type = 'button';
+  trigger.dataset.openDialog = dialogId;
+  trigger.innerHTML = `<i data-lucide="plus"></i>${escapeHtml(buttonLabel)}`;
+  panel.append(trigger);
+
+  const dialog = document.createElement('dialog');
+  dialog.className = 'modal-dialog';
+  dialog.id = dialogId;
+  const modalPanel = document.createElement('section');
+  modalPanel.className = 'panel modal-panel';
+  modalPanel.innerHTML = `<div class="panel-head"><div><h2>${escapeHtml(title)}</h2></div><button class="button icon-button" type="button" data-close-dialog aria-label="Close"><i data-lucide="x"></i></button></div>`;
+  modalPanel.append(form);
+  dialog.append(modalPanel);
+  pageContent.append(dialog);
   window.lucide?.createIcons();
 }
 
@@ -192,13 +217,16 @@ async function renderOverview() {
       </div>
       <div class="column">
         <section class="panel"><div class="panel-head"><div><h2>Active tasks</h2><p class="panel-subtitle">Tasks currently open on TaskFlow.</p></div><a class="button-quiet" href="/tasks" data-route="tasks">View all</a></div><div class="rows" id="overview-tasks">${emptyState('Loading tasks...')}</div></section>
+        <section class="panel"><div class="panel-head"><div><h2>Available gigs</h2><p class="panel-subtitle">Services recently published by the community.</p></div><a class="button-quiet" href="/gigs" data-route="gigs">View all</a></div><div class="cards-grid overview-cards" id="overview-gigs">${emptyState('Loading gigs...')}</div></section>
         <section class="panel"><div class="panel-head"><div><h2>Vendor store activity</h2><p class="panel-subtitle">Your store reviews and recent incoming orders.</p></div><a class="button-quiet" href="/vendor" data-route="vendor">Open stores</a></div><div class="rows" id="overview-vendor-activity">${emptyState('Loading store activity...')}</div></section>
       </div>
     </div>`);
-  const [listingsResponse, tasksResponse, productsResponse, storeResponse, ordersResponse, ads] = await Promise.all([
+  moveCreateFormToDialog('quick-task-form', 'create-quick-task-dialog', 'Publish a task', 'Publish task');
+  const [listingsResponse, tasksResponse, productsResponse, gigsResponse, storeResponse, ordersResponse, ads] = await Promise.all([
     api('/api/listings').catch(() => ({ listings: [] })),
     api('/api/tasks').catch(() => ({ tasks: [] })),
     api('/api/products').catch(() => ({ products: [] })),
+    api('/api/gigs').catch(() => ({ gigs: [] })),
     api('/api/store/me').catch(() => ({ stores: [] })),
     api('/api/vendor/orders').catch(() => ({ orders: [] })),
     api('/api/ads').catch(() => ({ ads: [] }))
@@ -206,6 +234,7 @@ async function renderOverview() {
   const listings = listingsResponse.listings || [];
   const tasks = tasksResponse.tasks || [];
   const products = productsResponse.products || [];
+  const gigs = gigsResponse.gigs || [];
   const stores = storeResponse.stores || (storeResponse.store ? [storeResponse.store] : []);
   const orders = ordersResponse.orders || [];
   $('#overview-listing-count').textContent = String(listings.length);
@@ -214,6 +243,7 @@ async function renderOverview() {
   $('#overview-store-count').textContent = String(stores.length);
   $('#overview-marketplace').innerHTML = listings.length ? listings.slice(0, 4).map((item) => `<article class="listing-card">${mediaMarkup(item)}<div class="listing-body"><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.category || item.type || 'Marketplace listing')}</p><div class="listing-meta"><span class="badge">${escapeHtml(item.type || 'Listing')}</span><strong>${money(item.priceCents || item.price_cents)}</strong></div></div></article>`).join('') : emptyState('No marketplace listings yet.');
   $('#overview-products').innerHTML = products.length ? products.slice(0, 4).map((item) => `<article class="listing-card product-card">${mediaMarkup(item)}<div class="listing-body"><span class="badge">${escapeHtml(item.category || 'Product')}</span><h3>${escapeHtml(item.title)}</h3><div class="listing-meta"><span class="product-rating">${item.store_name ? escapeHtml(item.store_name) : 'New arrival'}</span><strong>${money(item.price_cents || item.priceCents)}</strong></div></div></article>`).join('') : emptyState('No products listed yet.');
+  $('#overview-gigs').innerHTML = gigs.length ? gigs.slice(0, 4).map((gig) => `<article class="listing-card"><div class="listing-body"><h3>${escapeHtml(gig.title)}</h3><p>${escapeHtml(gig.description || '')}</p><div class="listing-meta"><span class="badge">${escapeHtml(gig.category || 'Service')}</span><strong>${money(gig.price_cents || gig.priceCents)}</strong></div></div></article>`).join('') : emptyState('No gigs are available yet.');
   $('#overview-tasks').innerHTML = tasks.length ? tasks.slice(0, 6).map((task) => `<div class="data-row"><div><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(task.category || 'General')}</small></div><span>${money(task.payoutCents || task.payout_cents)}</span></div>`).join('') : emptyState('No active tasks right now.');
   const activity = [
     ...stores.map((store) => `<div class="data-row"><div><strong>${escapeHtml(store.businessName)}</strong><small>Store review · ${escapeHtml(store.reviewNote || store.status)}</small></div><span class="badge">${escapeHtml(store.status)}</span></div>`),
@@ -227,6 +257,7 @@ async function renderOverview() {
 async function renderTasks() {
   const categories = await loadCategories();
   pageFrame('tasks', `<div class="dashboard-columns"><section class="panel"><div class="panel-head"><div><h2>Publish a task</h2><p class="panel-subtitle">Describe the work, budget, and proof needed to complete it.</p></div><span class="badge">New task</span></div><form id="task-form"><div class="field"><label for="task-title">Task title</label><input id="task-title" required minlength="3" maxlength="160" placeholder="Create a product demo video"></div><div class="form-grid"><div class="field"><label for="task-video">Video URL</label><input id="task-video" type="url" required placeholder="https://example.com/video"></div><div class="field"><label for="task-budget">Amount (USD)</label><input id="task-budget" type="number" min="1" step="0.01" value="50" required></div></div><div class="field"><label for="task-category">Category</label><select id="task-category" required>${categoryOptions(categories)}</select></div><div class="field"><label for="task-description">Description</label><textarea id="task-description" rows="4" required placeholder="Describe the task and success criteria."></textarea></div><div class="field"><label for="task-instructions">Proof requirements</label><textarea id="task-instructions" rows="3" placeholder="What evidence should the worker submit?"></textarea></div><button class="button button-primary" type="submit">Publish task</button></form></section><section class="panel"><div class="panel-head"><div><h2>Task overview</h2><p class="panel-subtitle">Active tasks and their budgets.</p></div><span class="badge" id="task-count">0 tasks</span></div><div id="task-table">${emptyState('Loading tasks...')}</div></section></div>`);
+  moveCreateFormToDialog('task-form', 'create-task-dialog', 'Publish a task', 'Create task');
   const response = await api('/api/tasks').catch(() => ({ tasks: [] }));
   const tasks = response.tasks || [];
   $('#task-count').textContent = `${tasks.length} tasks`;
@@ -262,6 +293,7 @@ function renderMarketplaceCards(items) {
 async function renderMarketplace() {
   const categories = await loadCategories();
   pageFrame('marketplace', `<div class="dashboard-columns"><section class="panel"><div class="panel-head"><div><h2>Create a listing</h2><p class="panel-subtitle">Add a marketplace item with a clear price and image.</p></div><span class="badge">Buy & sell</span></div><form id="listing-form"><div class="field"><label for="listing-title">Listing title</label><input id="listing-title" required minlength="3" maxlength="160" placeholder="Camera, service, or digital item"></div><div class="form-grid"><div class="field"><label for="listing-type">Type</label><select id="listing-type"><option value="physical">Physical</option><option value="digital">Digital</option><option value="service">Service</option><option value="software">Software</option></select></div><div class="field"><label for="listing-price">Price (USD)</label><input id="listing-price" type="number" min="0.01" step="0.01" value="50" required></div></div><div class="field"><label for="listing-category">Category</label><select id="listing-category" required>${categoryOptions(categories)}</select></div><div class="field"><label for="listing-media">Photos or video</label><input id="listing-media" type="file" accept="image/*,video/*" multiple required></div><button class="button button-primary" type="submit">Publish listing</button></form></section><section class="panel"><div class="panel-head"><div><h2>Marketplace</h2><p class="panel-subtitle">Browse active listings and contact their owners.</p></div><span class="badge" id="market-count">0 listings</span></div><div class="form-grid"><div class="field"><label for="market-search">Search listings</label><input id="market-search" type="search" class="filter-input" placeholder="Search by title or type"></div><div class="field"><label for="market-category">Category</label><select id="market-category" class="filter-input">${categoryOptions(categories, true)}</select></div></div><div class="cards-grid" id="marketplace-cards"></div></section></div>`);
+  moveCreateFormToDialog('listing-form', 'create-listing-dialog', 'Create a marketplace listing', 'Create listing');
   marketplaceItems = (await api('/api/listings').catch(() => ({ listings: [] }))).listings || [];
   $('#market-count').textContent = `${marketplaceItems.length} listings`;
   $('#market-search').value = new URLSearchParams(location.search).get('q') || '';
@@ -354,6 +386,7 @@ async function renderProducts() {
 async function renderGigs() {
   const categories = await loadCategories();
   pageFrame('gigs', `<div class="dashboard-columns"><section class="panel"><div class="panel-head"><div><h2>Create a gig</h2><p class="panel-subtitle">Offer a service with clear delivery expectations.</p></div></div><form id="gig-form"><div class="field"><label for="gig-title">Gig title</label><input id="gig-title" required minlength="3" maxlength="120" placeholder="Short-form video editing"></div><div class="field"><label for="gig-category">Category</label><select id="gig-category" required>${categoryOptions(categories)}</select></div><div class="form-grid"><div class="field"><label for="gig-price">Price (USD)</label><input id="gig-price" type="number" min="0.01" step="0.01" value="120" required></div><div class="field"><label for="gig-days">Delivery (days)</label><input id="gig-days" type="number" min="1" max="30" value="3" required></div></div><div class="field"><label for="gig-description">Description</label><textarea id="gig-description" required minlength="10"></textarea></div><button class="button button-primary" type="submit">Publish gig</button></form></section><section class="panel"><div class="panel-head"><h2>Available gigs</h2><span class="badge" id="gig-count">0 gigs</span></div><div class="cards-grid" id="gig-cards">${emptyState('Loading gigs...')}</div></section></div>`);
+  moveCreateFormToDialog('gig-form', 'create-gig-dialog', 'Create a gig', 'Create gig');
   const gigs = (await api('/api/gigs').catch(() => ({ gigs: [] }))).gigs || [];
   $('#gig-count').textContent = `${gigs.length} gigs`;
   $('#gig-cards').innerHTML = gigs.length ? gigs.map((gig) => `<article class="listing-card"><div class="listing-body"><h3>${escapeHtml(gig.title)}</h3><p>${escapeHtml(gig.description || '')}</p><div class="listing-meta"><span class="badge">${escapeHtml(gig.category || 'Service')}</span><strong>${money(gig.price_cents || gig.priceCents)}</strong></div><span class="badge">${Number(gig.delivery_days || gig.deliveryDays || 3)} day delivery</span></div></article>`).join('') : emptyState('No gigs are available yet.');
@@ -703,6 +736,44 @@ function adminTable(title, rows, emptyMessage = 'Nothing to review.') {
   return `<section class="panel"><div class="panel-head"><h2>${escapeHtml(title)}</h2><span class="badge">${rows.length} records</span></div><div class="table-wrap"><table><thead><tr><th>Record</th><th>Owner / details</th><th>Status</th><th>Action</th></tr></thead><tbody>${rows.length ? rows.map((row) => `<tr><td><strong>${escapeHtml(row.title || row.name || row.businessName || row.subject || row.kind || row.id)}</strong><br><small>${escapeHtml(row.id || '')}</small>${mediaUrl(row.avatarUrl) ? `<img class="admin-user-avatar" src="${escapeHtml(mediaUrl(row.avatarUrl))}" alt="Profile picture">` : ''}${row.coverUrl ? `<img class="admin-review-media" src="${escapeHtml(row.coverUrl)}" alt="Store cover">` : ''}${row.logoUrl ? `<img class="admin-review-media" src="${escapeHtml(row.logoUrl)}" alt="Store profile picture">` : ''}</td><td>${escapeHtml(row.owner_name || row.ownerName || row.ownerEmail || row.email || row.category || '')}${row.details ? `<details class="admin-review-details"><summary>Inspect full details</summary><p>${escapeHtml(row.details)}</p>${row.media?.length ? mediaMarkup({ title: row.title, media: row.media }) : ''}</details>` : row.description ? `<details class="admin-review-details"><summary>Inspect full details</summary><p>${escapeHtml(row.description)}</p>${row.media?.length ? mediaMarkup({ title: row.title, media: row.media }) : ''}</details>` : row.media?.length ? mediaMarkup({ title: row.title, media: row.media }) : ''}</td><td><span class="badge">${escapeHtml(row.status || row.accountStatus || 'active')}</span></td><td>${row.action || '<span class="badge">View</span>'}</td></tr>`).join('') : `<tr><td colspan="4">${escapeHtml(emptyMessage)}</td></tr>`}</tbody></table></div></section>`;
 }
 
+function openAdminContentEdit(type, id) {
+  const item = adminContentItems.get(`${type}:${id}`);
+  if (!item) return notify('This content item is no longer in the review list.');
+  const fieldsByType = {
+    task: [['title', 'Title', 'text'], ['description', 'Description', 'textarea'], ['category', 'Category', 'text'], ['payoutDollars', 'Payout (USD)', 'number'], ['videoUrl', 'Video URL', 'url'], ['seconds', 'Watch seconds', 'number'], ['status', 'Status', 'status']],
+    product: [['title', 'Title', 'text'], ['description', 'Description', 'textarea'], ['category', 'Category', 'text'], ['priceDollars', 'Price (USD)', 'number'], ['stock', 'Stock', 'number'], ['status', 'Status', 'status']],
+    listing: [['title', 'Title', 'text'], ['description', 'Description', 'textarea'], ['category', 'Category', 'text'], ['type', 'Type', 'listing-type'], ['priceDollars', 'Price (USD)', 'number'], ['status', 'Status', 'status']],
+    gig: [['title', 'Title', 'text'], ['description', 'Description', 'textarea'], ['category', 'Category', 'text'], ['priceDollars', 'Price (USD)', 'number'], ['deliveryDays', 'Delivery days', 'number'], ['status', 'Status', 'status']],
+  };
+  const fields = fieldsByType[type];
+  if (!fields) return notify('This content type cannot be edited here.');
+  const dialog = document.createElement('dialog');
+  dialog.className = 'modal-dialog';
+  dialog.innerHTML = `<form class="panel modal-panel" data-admin-content-form data-content-type="${type}" data-content-id="${escapeHtml(id)}"><div class="panel-head"><div><h2>Edit ${escapeHtml(type)}</h2><p class="panel-subtitle">Changes apply only to this record.</p></div><button class="button icon-button" type="button" data-close-dialog aria-label="Close"><i data-lucide="x"></i></button></div>${fields.map(([key, label, kind]) => {
+    const raw = key === 'priceDollars' ? Number(item.price_cents || 0) / 100
+      : key === 'payoutDollars' ? Number(item.payout_cents || 0) / 100
+        : key === 'videoUrl' ? item.video_url || ''
+          : key === 'deliveryDays' ? item.delivery_days || 3
+            : item[key] ?? '';
+    const value = escapeHtml(raw);
+    if (kind === 'textarea') return `<div class="field"><label for="admin-edit-${key}">${label}</label><textarea id="admin-edit-${key}" data-edit-field="${key}" rows="4">${value}</textarea></div>`;
+    if (kind === 'status') {
+      const statuses = [...new Set([String(raw || 'active'), 'active', 'paused', 'sold', 'completed', 'removed'])];
+      return `<div class="field"><label for="admin-edit-${key}">${label}</label><select id="admin-edit-${key}" data-edit-field="${key}">${statuses.map((status) => `<option value="${escapeHtml(status)}" ${status === raw ? 'selected' : ''}>${escapeHtml(status)}</option>`).join('')}</select></div>`;
+    }
+    if (kind === 'listing-type') {
+      const types = ['physical', 'digital', 'service', 'software'];
+      return `<div class="field"><label for="admin-edit-${key}">${label}</label><select id="admin-edit-${key}" data-edit-field="${key}">${types.map((option) => `<option value="${option}" ${option === raw ? 'selected' : ''}>${option}</option>`).join('')}</select></div>`;
+    }
+    const numeric = kind === 'number';
+    const min = ['priceDollars', 'payoutDollars'].includes(key) ? '0.01' : key === 'deliveryDays' ? '1' : '0';
+    return `<div class="field"><label for="admin-edit-${key}">${label}</label><input id="admin-edit-${key}" data-edit-field="${key}" type="${kind}" value="${value}" ${numeric ? `min="${min}" step="any"` : ''} required></div>`;
+  }).join('')}<div class="form-actions"><button class="button" type="button" data-close-dialog>Cancel</button><button class="button button-primary" type="submit">Save changes</button></div></form>`;
+  pageContent.append(dialog);
+  dialog.showModal();
+  window.lucide?.createIcons();
+}
+
 async function renderAdmin() {
   if (!currentUser?.isAdmin && currentUser?.role !== 'admin') {
     navigate('overview');
@@ -717,11 +788,16 @@ async function renderAdmin() {
   const metrics = [stats.activeUsers || 0, stats.activeProducts || 0, content.listings?.length || 0, stats.activeGigs || 0];
   document.querySelectorAll('#admin-metrics .metric strong').forEach((element, index) => { element.textContent = String(metrics[index]); });
   const action = (type, id, label = 'Delete') => `<button class="button" type="button" data-admin-delete="${type}" data-id="${escapeHtml(id)}">${label}</button>`;
+  adminContentItems = new Map();
+  const contentAction = (type, deleteType, item) => {
+    adminContentItems.set(`${type}:${item.id}`, item);
+    return `<button class="button" type="button" data-admin-content-edit="${type}" data-id="${escapeHtml(item.id)}">Edit</button> ${action(deleteType, item.id)}`;
+  };
   const userRows = (users.users || []).map((user) => ({ ...user, action: user.role === 'admin' ? '<span class="badge">Protected owner</span>' : `<button class="button" type="button" data-premium-user="${escapeHtml(user.id)}" data-enabled="${user.subscriptionTier === 'premium'}">${user.subscriptionTier === 'premium' ? 'Revoke Premium' : 'Grant Premium'}</button> ${action('users', user.id, 'Remove')}` }));
-  const taskRows = (content.tasks || []).map((task) => ({ ...task, action: action('tasks', task.id) }));
-  const productRows = (content.products || []).map((product) => ({ ...product, action: action('products', product.id) }));
-  const listingRows = (content.listings || []).map((listing) => ({ ...listing, action: action('listings', listing.id) }));
-  const gigRows = (content.gigs || []).map((gig) => ({ ...gig, action: action('gigs', gig.id) }));
+  const taskRows = (content.tasks || []).map((task) => ({ ...task, action: contentAction('task', 'tasks', task) }));
+  const productRows = (content.products || []).map((product) => ({ ...product, action: contentAction('product', 'products', product) }));
+  const listingRows = (content.listings || []).map((listing) => ({ ...listing, action: contentAction('listing', 'listings', listing) }));
+  const gigRows = (content.gigs || []).map((gig) => ({ ...gig, action: contentAction('gig', 'gigs', gig) }));
   const storeRows = (stores.requests || []).map((store) => ({ ...store, owner_name: store.ownerName || store.ownerEmail, details: `${store.category || 'Store'}\n${store.description || ''}`, action: store.status === 'pending' ? `<button class="button" type="button" data-store-review="${escapeHtml(store.id)}" data-decision="verified">Verify</button> <button class="button" type="button" data-store-review="${escapeHtml(store.id)}" data-decision="rejected">Changes</button>` : '<span class="badge">Reviewed</span>' }));
   const adRows = (ads.ads || []).map((ad) => ({ ...ad, details: `${ad.category || ''} · ${ad.placement || ''} · ${Number(ad.duration_days || 7)} days\n${ad.description || ''}`, action: `<button class="button" type="button" data-ad-review="${escapeHtml(ad.id)}" data-decision="approved">Approve</button> <button class="button" type="button" data-ad-review="${escapeHtml(ad.id)}" data-decision="rejected">Reject</button> <button class="button" type="button" data-admin-delete="ads" data-id="${escapeHtml(ad.id)}">Delete</button>` }));
   const adMessageRows = (adMessages.messages || []).map((message) => ({ ...message, title: message.adTitle || 'Advertisement message', owner_name: `${message.senderName || 'User'} · ${message.senderEmail || 'No email'}`, details: message.body, action: `<button class="button" type="button" data-ad-message-review="${escapeHtml(message.id)}" data-decision="approved">Approve</button> <button class="button" type="button" data-ad-message-review="${escapeHtml(message.id)}" data-decision="rejected">Reject</button>` }));
@@ -742,6 +818,7 @@ async function renderRoute(route) {
   const renderers = { overview: renderOverview, tasks: renderTasks, marketplace: renderMarketplace, products: renderProducts, vendor: renderVendor, gigs: renderGigs, wallet: renderWallet, profile: renderProfile, support: renderSupport, settings: renderSettings, premium: renderPremium, admin: renderAdmin };
   const normalized = renderers[route] ? route : 'overview';
   await renderers[normalized]();
+  if (normalized === 'admin') moveCreateFormToDialog('admin-ad-form', 'admin-ad-dialog', 'Create a third-party ad', 'Create ad');
   document.querySelectorAll('a[data-route]').forEach((link) => {
     if (link.dataset.route === normalized && link.classList.contains('nav-link')) link.setAttribute('aria-current', 'page');
     else link.removeAttribute('aria-current');
@@ -815,8 +892,7 @@ async function onSubmit(event) {
       notify('Marketplace listing published.');
     } else if (form.id === 'product-form') {
       const files = await uploadFiles($('#product-media', form).files);
-      await api('/api/products', { method: 'POST', body: JSON.stringify({ title: value('product-title'), storeId: value('product-store') || undefined, category: value('product-category'), description: value('product-description'), priceDollars: Number(value('product-price')), stock: Number(value('product-stock')), media: files.map((file) => file.url) }) });
-        await api('/api/products', { method: 'POST', body: JSON.stringify({ title: value('product-title'), storeId: value('product-store') || undefined, category: value('product-category'), description: value('product-description'), priceDollars: Number(value('product-price')), stock: Number(value('product-stock')), media: files.map((file) => ({ url: file.url, mimeType: file.mimeType })) }) });
+      await api('/api/products', { method: 'POST', body: JSON.stringify({ title: value('product-title'), storeId: value('product-store') || undefined, category: value('product-category'), description: value('product-description'), priceDollars: Number(value('product-price')), stock: Number(value('product-stock')), media: files.map((file) => ({ url: file.url, mimeType: file.mimeType })) }) });
       notify('Product listed successfully.');
     } else if (form.id === 'gig-form') {
       await api('/api/gigs', { method: 'POST', body: JSON.stringify({ title: value('gig-title'), category: value('gig-category'), description: value('gig-description'), priceDollars: Number(value('gig-price')), deliveryDays: Number(value('gig-days')) }) });
@@ -876,7 +952,19 @@ async function onSubmit(event) {
       if (!uploaded[0]?.url) throw new Error('Choose an image or video for the advertisement.');
       await api('/api/ads', { method: 'POST', body: JSON.stringify({ title: value('admin-ad-title'), description: value('admin-ad-description'), category: value('admin-ad-category'), location: value('admin-ad-placement'), priceCents: 1, placement: value('admin-ad-placement'), durationDays: Number(value('admin-ad-duration')), skipAllowed: value('admin-ad-skip') === 'true', media: [uploaded[0].url] }) });
       notify('Third-party ad published.');
+    } else if (form.matches('[data-admin-content-form]')) {
+      const payload = {};
+      form.querySelectorAll('[data-edit-field]').forEach((field) => {
+        const { editField } = field.dataset;
+        if (editField === 'priceDollars') payload.priceCents = Math.round(Number(field.value) * 100);
+        else if (editField === 'payoutDollars') payload.payoutCents = Math.round(Number(field.value) * 100);
+        else if (field.type === 'number') payload[editField] = Number(field.value);
+        else payload[editField] = field.value.trim();
+      });
+      await api(`/api/admin/content/${encodeURIComponent(form.dataset.contentType)}/${encodeURIComponent(form.dataset.contentId)}`, { method: 'PATCH', body: JSON.stringify(payload) });
+      notify('Content updated.');
     }
+    form.closest('dialog')?.close();
     form.reset();
     await renderRoute(location.pathname.slice(1));
   } catch (error) {
@@ -1029,6 +1117,11 @@ document.addEventListener('click', async (event) => {
       await api('/api/content-offers', { method: 'POST', body: JSON.stringify({ contentType: contactButton.dataset.contact, contentId: contactButton.dataset.id, amountCents: Math.round(amount * 100), message: '' }) });
       notify('Your offer was sent.');
     } catch (error) { notify(error.message); }
+    return;
+  }
+  const editContentButton = event.target.closest('[data-admin-content-edit]');
+  if (editContentButton) {
+    openAdminContentEdit(editContentButton.dataset.adminContentEdit, editContentButton.dataset.id);
     return;
   }
   const deleteButton = event.target.closest('[data-admin-delete]');

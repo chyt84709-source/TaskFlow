@@ -70,6 +70,13 @@
     #premium-upgrade-btn:hover { background: #1e293b; }
     #logout { display: none; }
     .user-profile-pill { display: flex; align-items: center; gap: 10px; padding: 5px 10px 5px 5px; border: 1px solid #e2e8f0; border-radius: 999px; background: #fff; }
+    .upload-dialog { width: min(620px, calc(100vw - 28px)); max-height: calc(100vh - 28px); padding: 0; border: 0; background: transparent; }
+    .upload-dialog::backdrop { background: rgba(15, 23, 42, .48); }
+    .upload-dialog-panel { max-height: calc(100vh - 28px); overflow-y: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; box-shadow: 0 18px 44px rgba(15, 23, 42, .2); }
+    .upload-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+    .upload-dialog-head h2 { margin: 0; font-size: 18px; }
+    .upload-dialog-close { width: auto; margin: 0; padding: 7px 10px; }
+    .upload-dialog-trigger { width: auto; margin: 8px 0 0; }
     .topbar-avatar { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: #ccfbf1; color: #0f766e; font-size: 12px; font-weight: 700; }
     .topbar-user-copy { display: grid; gap: 1px; min-width: 0; }
     .topbar-user-copy strong { display: flex; align-items: center; gap: 4px; color: #0f172a; font-size: 12px; }
@@ -1008,7 +1015,7 @@
     <aside class="sidebar">
       <div class="brand"><span class="brand-mark">↗</span>taskflow</div>
       <nav class="nav">
-        <a class="nav-btn active" href="/overview" data-view="overview"><i data-lucide="layout-dashboard"></i>Overview</a>
+        <a class="nav-btn active" href="/overview" data-view="overview"><i data-lucide="layout-dashboard"></i>Dashboard</a>
         <a class="nav-btn" href="/tasks" data-view="tasks"><i data-lucide="list-checks"></i>Tasks</a>
         <a class="nav-btn" href="/marketplace" data-view="marketplace"><i data-lucide="store"></i>Marketplace</a>
         <a class="nav-btn" href="/products" data-view="products"><i data-lucide="package"></i>Products</a>
@@ -1030,7 +1037,7 @@
     </aside>
 
     <main class="main">
-      <div class="page-heading"><p id="page-eyebrow">WORKSPACE</p><h1 id="page-title">Overview</h1></div>
+      <div class="page-heading"><p id="page-eyebrow">WORKSPACE</p><h1 id="page-title">Dashboard</h1></div>
       <header class="topbar">
         <div class="search-box">
           <span style="font-size: 1.1rem; margin-right: 8px;">⌕</span>
@@ -1776,6 +1783,16 @@
     </div>
   </div>
 
+  <dialog id="admin-content-edit-dialog" class="upload-dialog">
+    <form id="admin-content-edit-form" class="upload-dialog-panel">
+      <div class="upload-dialog-head"><h2 id="admin-content-edit-title">Edit content</h2><button type="button" class="ghost-btn upload-dialog-close" data-close-dialog>Close</button></div>
+      <input id="admin-content-edit-type" type="hidden">
+      <input id="admin-content-edit-id" type="hidden">
+      <div id="admin-content-edit-fields"></div>
+      <button type="submit" class="primary-btn full">Save changes</button>
+    </form>
+  </dialog>
+
   <div id="toast" class="toast"></div>
 
   <script>
@@ -1783,6 +1800,7 @@
     const toast = $('toast');
     let toastTimer = null;
     let currentUser = null;
+    let adminEditableContent = new Map();
     let cardVerificationId = null;
     let turnstileWidgetId = null;
     let turnstileToken = '';
@@ -1818,6 +1836,40 @@
       } catch {
         return '';
       }
+    }
+
+    function moveUploadFormToDialog(formId, dialogId, title, buttonLabel) {
+      const form = $(formId);
+      const panel = form?.closest('.section-panel');
+      if (!form || !panel) return;
+
+      const trigger = document.createElement('button');
+      trigger.type = 'button';
+      trigger.className = 'primary-btn upload-dialog-trigger';
+      trigger.textContent = buttonLabel;
+
+      const dialog = document.createElement('dialog');
+      dialog.id = dialogId;
+      dialog.className = 'upload-dialog';
+      const modalPanel = document.createElement('section');
+      modalPanel.className = 'upload-dialog-panel';
+      const heading = document.createElement('div');
+      heading.className = 'upload-dialog-head';
+      heading.innerHTML = `<h2>${escapeHtml(title)}</h2>`;
+      const close = document.createElement('button');
+      close.type = 'button';
+      close.className = 'ghost-btn upload-dialog-close';
+      close.textContent = 'Close';
+      close.addEventListener('click', () => dialog.close());
+      heading.append(close);
+      modalPanel.append(heading, form);
+      dialog.append(modalPanel);
+      document.body.append(dialog);
+      panel.insertBefore(trigger, form);
+      trigger.addEventListener('click', () => dialog.showModal());
+      dialog.addEventListener('click', (event) => {
+        if (event.target === dialog) dialog.close();
+      });
     }
 
     function formatMoney(cents, countryCode = currentUser?.country || 'US') {
@@ -2442,6 +2494,7 @@
         currentStoreCoverUrl = result.store.coverUrl;
         $('store-logo-file').value = '';
         $('store-cover-file').value = '';
+        $('store-profile-form').closest('dialog')?.close();
         notify('Store submitted for review. Your storefront is ready.');
         await loadVendorDashboard();
       } catch (error) {
@@ -2547,7 +2600,7 @@
 
     function setActiveView(viewName) {
       const routePaths = { overview: '/overview', tasks: '/tasks', marketplace: '/marketplace', products: '/products', vendor: '/vendor', gigs: '/gigs', wallet: '/wallet', profile: '/profile', support: '/support', premium: '/premium', settings: '/settings', admin: '/admin' };
-      const pageTitles = { overview: 'Overview', tasks: 'Tasks', marketplace: 'Marketplace', products: 'Products', vendor: 'Vendor dashboard', gigs: 'Gigs', wallet: 'Wallet', profile: 'Profile', support: 'Contact support', premium: 'Premium', settings: 'Settings', admin: 'Admin' };
+      const pageTitles = { overview: 'Dashboard', tasks: 'Tasks', marketplace: 'Marketplace', products: 'Products', vendor: 'Vendor dashboard', gigs: 'Gigs', wallet: 'Wallet', profile: 'Profile', support: 'Contact support', premium: 'Premium', settings: 'Settings', admin: 'Admin' };
       const normalizedView = routePaths[viewName] && document.querySelector(`[data-section="${viewName}"]`) ? viewName : 'overview';
       document.querySelectorAll('.nav-btn').forEach((button) => {
         button.classList.toggle('active', button.dataset.view === normalizedView);
@@ -2761,6 +2814,14 @@
       }
     });
 
+    moveUploadFormToDialog('quick-task-form', 'quick-task-dialog', 'Publish a task', 'Publish task');
+    moveUploadFormToDialog('task-form', 'task-dialog', 'Publish a task', 'Create task');
+    moveUploadFormToDialog('listing-form', 'listing-dialog', 'Create a marketplace listing', 'Create listing');
+    moveUploadFormToDialog('product-form', 'product-dialog', 'Sell a product', 'Sell product');
+    moveUploadFormToDialog('store-profile-form', 'store-profile-dialog', 'Store profile', 'Edit store');
+    moveUploadFormToDialog('gig-form', 'gig-dialog', 'Create a gig', 'Create gig');
+    moveUploadFormToDialog('ads-form', 'ads-dialog', 'Create an advertisement', 'Create ad');
+
     $('task-form').addEventListener('submit', async (event) => {
       event.preventDefault();
       try {
@@ -2776,6 +2837,7 @@
             seconds: 60
           })
         });
+        $('task-form').closest('dialog')?.close();
         notify('Task published successfully.');
         $('task-form').reset();
         await loadDashboard();
@@ -2791,6 +2853,7 @@
           method: 'POST',
           body: JSON.stringify({ title: $('quick-task-title').value.trim(), videoUrl: $('quick-task-video-url').value.trim(), category: $('quick-task-category').value, description: $('quick-task-description').value.trim(), amountDollars: Number($('quick-task-amount').value), seconds: 60 })
         });
+        $('quick-task-form').closest('dialog')?.close();
         $('quick-task-form').reset();
         notify('Task published successfully.');
         await loadDashboard();
@@ -2828,6 +2891,7 @@
             media: mediaUrls
           })
         });
+        $('product-form').closest('dialog')?.close();
         notify('Product listed successfully.');
         $('product-form').reset();
         await loadDashboard();
@@ -2857,6 +2921,7 @@
             media: uploadedMedia
           })
         });
+        $('listing-form').closest('dialog')?.close();
         notify('Listing published successfully.');
         $('listing-form').reset();
         await loadDashboard();
@@ -2894,6 +2959,7 @@
             portfolioMedia
           })
         });
+        $('gig-form').closest('dialog')?.close();
         notify('Gig published successfully.');
         $('gig-form').reset();
         await loadDashboard();
@@ -3097,6 +3163,9 @@
           const adminProductItems = moderation.products || [];
           const adminListingItems = moderation.listings || [];
           const adminGigItems = moderation.gigs || [];
+          const adminTaskItems = moderation.tasks || [];
+          adminEditableContent = new Map();
+          [['products', adminProductItems], ['listings', adminListingItems], ['gigs', adminGigItems], ['tasks', adminTaskItems]].forEach(([type, items]) => items.forEach((item) => adminEditableContent.set(`${type}:${item.id}`, item)));
           const ads = promotionAds;
           $('ads-tag').textContent = `${ads.length} active`;
           $('admin-users-count').textContent = String(adminUsers.length);
@@ -3144,7 +3213,7 @@
               <p>${escapeHtml(item.owner_name || 'Unknown user')} · ${escapeHtml(item.category || 'Product')} · ${formatMoney(item.price_cents || item.priceCents || 0)}</p>
               <p>${escapeHtml(item.description || 'No description supplied.')}</p>
               ${renderListingMedia({ ...item, media: item.media })}
-              <div class="row-actions"><button type="button" class="mini-btn danger" data-delete-content="products" data-delete-id="${item.id}">Delete</button></div>
+              <div class="row-actions"><button type="button" class="mini-btn" data-edit-admin-content="products" data-edit-id="${escapeHtml(item.id)}">Edit</button><button type="button" class="mini-btn danger" data-delete-content="products" data-delete-id="${item.id}">Delete</button></div>
             </div>
           `).join('') : '<p class="muted">No products available.</p>';
 
@@ -3155,7 +3224,7 @@
               <p>${escapeHtml(item.owner_name || 'Unknown user')} · ${escapeHtml(item.type || 'Marketing listing')} · ${formatMoney(item.price_cents || item.priceCents || 0)}</p>
               <p>${escapeHtml(item.description || 'No description supplied.')}</p>
               ${renderListingMedia(item)}
-              <div class="row-actions"><button type="button" class="mini-btn danger" data-delete-content="listings" data-delete-id="${item.id}">Delete</button></div>
+              <div class="row-actions"><button type="button" class="mini-btn" data-edit-admin-content="listings" data-edit-id="${escapeHtml(item.id)}">Edit</button><button type="button" class="mini-btn danger" data-delete-content="listings" data-delete-id="${item.id}">Delete</button></div>
             </div>
           `).join('') : '<p class="muted">No marketing listings available.</p>';
 
@@ -3166,20 +3235,20 @@
               <p>${escapeHtml(item.owner_name || 'Unknown user')} · ${escapeHtml(item.category || 'Gig')} · ${formatMoney(item.price_cents || item.priceCents || 0)}</p>
               <p>${escapeHtml(item.description || 'No description supplied.')}</p>
               ${renderListingMedia({ ...item, media: (() => { try { return typeof item.portfolio === 'string' ? JSON.parse(item.portfolio) : item.portfolio || []; } catch { return []; } })() })}
-              <div class="row-actions"><button type="button" class="mini-btn danger" data-delete-content="gigs" data-delete-id="${item.id}">Delete</button></div>
+              <div class="row-actions"><button type="button" class="mini-btn" data-edit-admin-content="gigs" data-edit-id="${escapeHtml(item.id)}">Edit</button><button type="button" class="mini-btn danger" data-delete-content="gigs" data-delete-id="${item.id}">Delete</button></div>
             </div>
           `).join('') : '<p class="muted">No gigs available.</p>';
-          const adminTaskItems = moderation.tasks || [];
           const adminMediaItems = moderation.media || [];
           $('admin-tasks-count').textContent = String(adminTaskItems.length);
           $('admin-tasks-list').innerHTML = adminTaskItems.length ? adminTaskItems.slice(0, 20).map((item) => `
-            <div class="item-card"><h4>${escapeHtml(item.title)}</h4><p>${escapeHtml(item.owner_name || 'Unknown user')} · ${escapeHtml(item.category || 'Task')} · ${escapeHtml(item.status || 'Task')} · ${Number(item.seconds || 0)} sec</p><p>${escapeHtml(item.description || 'No description supplied.')}</p>${/^https?:\/\/.+\.(mp4|webm|mov)(?:[?#].*)?$/i.test(String(item.video_url || '')) ? `<video class="marketplace-media" src="${escapeHtml(item.video_url)}" controls preload="metadata"></video>` : /^https?:\/\//i.test(String(item.video_url || '')) ? `<p><a href="${escapeHtml(item.video_url)}" target="_blank" rel="noopener noreferrer">Open submitted video</a></p>` : '<p class="muted">No valid video URL supplied.</p>'}<div class="row-actions"><button type="button" class="mini-btn danger" data-delete-content="tasks" data-delete-id="${item.id}">Delete</button></div></div>
+            <div class="item-card"><h4>${escapeHtml(item.title)}</h4><p>${escapeHtml(item.owner_name || 'Unknown user')} · ${escapeHtml(item.category || 'Task')} · ${escapeHtml(item.status || 'Task')} · ${Number(item.seconds || 0)} sec</p><p>${escapeHtml(item.description || 'No description supplied.')}</p>${/^https?:\/\/.+\.(mp4|webm|mov)(?:[?#].*)?$/i.test(String(item.video_url || '')) ? `<video class="marketplace-media" src="${escapeHtml(item.video_url)}" controls preload="metadata"></video>` : /^https?:\/\//i.test(String(item.video_url || '')) ? `<p><a href="${escapeHtml(item.video_url)}" target="_blank" rel="noopener noreferrer">Open submitted video</a></p>` : '<p class="muted">No valid video URL supplied.</p>'}<div class="row-actions"><button type="button" class="mini-btn" data-edit-admin-content="tasks" data-edit-id="${escapeHtml(item.id)}">Edit</button><button type="button" class="mini-btn danger" data-delete-content="tasks" data-delete-id="${item.id}">Delete</button></div></div>
           `).join('') : '<p class="muted">No tasks available.</p>';
           $('admin-media-count').textContent = String(adminMediaItems.length);
           $('admin-media-list').innerHTML = adminMediaItems.length ? adminMediaItems.slice(0, 20).map((item) => `
             <div class="item-card"><h4>${escapeHtml(item.userName || item.userEmail || 'Unknown user')}</h4><p>${escapeHtml(item.filename)} · ${escapeHtml(item.purpose || 'User upload')} · ${escapeHtml(item.mimeType || '')}</p>${item.mimeType?.startsWith('video/') ? `<video class="marketplace-media" src="${escapeHtml(item.url)}" controls preload="metadata"></video>` : item.mimeType?.startsWith('image/') ? `<img class="marketplace-media" src="${escapeHtml(item.url)}" alt="Upload by ${escapeHtml(item.userName || 'user')}" loading="lazy">` : ''}<div class="row-actions"><button type="button" class="mini-btn danger" data-delete-content="media" data-delete-id="${item.id}">Delete</button></div></div>
           `).join('') : '<p class="muted">No user uploads available.</p>';
           bindAdminContentDeleteButtons();
+          bindAdminContentEditButtons();
           await loadAdminSupportThreads();
           await loadAdminStoreRequests();
         }
@@ -3300,6 +3369,73 @@
       });
     }
 
+    function bindAdminContentEditButtons() {
+      document.querySelectorAll('[data-edit-admin-content]').forEach((button) => {
+        button.onclick = () => {
+          const type = button.dataset.editAdminContent;
+          const id = button.dataset.editId;
+          const item = adminEditableContent.get(`${type}:${id}`);
+          if (!item) return notify('This content item is no longer available.');
+          const fieldsByType = {
+            tasks: [['title', 'Title', 'text'], ['description', 'Description', 'textarea'], ['category', 'Category', 'text'], ['payoutDollars', 'Payout (USD)', 'number'], ['videoUrl', 'Video URL', 'url'], ['seconds', 'Watch seconds', 'number'], ['status', 'Status', 'status']],
+            products: [['title', 'Title', 'text'], ['description', 'Description', 'textarea'], ['category', 'Category', 'text'], ['priceDollars', 'Price (USD)', 'number'], ['stock', 'Stock', 'number'], ['status', 'Status', 'status']],
+            listings: [['title', 'Title', 'text'], ['description', 'Description', 'textarea'], ['category', 'Category', 'text'], ['type', 'Type', 'listing-type'], ['priceDollars', 'Price (USD)', 'number'], ['status', 'Status', 'status']],
+            gigs: [['title', 'Title', 'text'], ['description', 'Description', 'textarea'], ['category', 'Category', 'text'], ['priceDollars', 'Price (USD)', 'number'], ['deliveryDays', 'Delivery days', 'number'], ['status', 'Status', 'status']]
+          };
+          const definitions = fieldsByType[type];
+          if (!definitions) return notify('This content type cannot be edited here.');
+          const fields = definitions.map(([key, label, kind]) => {
+            const raw = key === 'priceDollars' ? Number(item.price_cents || item.priceCents || 0) / 100
+              : key === 'payoutDollars' ? Number(item.payout_cents || item.payoutCents || 0) / 100
+                : key === 'videoUrl' ? item.video_url || ''
+                  : key === 'deliveryDays' ? item.delivery_days || item.deliveryDays || 3
+                    : item[key] ?? '';
+            const value = escapeHtml(raw);
+            if (kind === 'textarea') return `<div class="field"><label>${label}</label><textarea data-admin-edit-field="${key}" rows="4">${value}</textarea></div>`;
+            if (kind === 'status') {
+              const statuses = [...new Set([String(raw || 'active'), 'active', 'paused', 'sold', 'completed', 'removed'])];
+              return `<div class="field"><label>${label}</label><select data-admin-edit-field="${key}">${statuses.map((status) => `<option value="${escapeHtml(status)}" ${status === raw ? 'selected' : ''}>${escapeHtml(status)}</option>`).join('')}</select></div>`;
+            }
+            if (kind === 'listing-type') {
+              return `<div class="field"><label>${label}</label><select data-admin-edit-field="${key}">${['physical', 'digital', 'service', 'software'].map((option) => `<option value="${option}" ${option === raw ? 'selected' : ''}>${option}</option>`).join('')}</select></div>`;
+            }
+            const min = ['priceDollars', 'payoutDollars'].includes(key) ? '0.01' : key === 'deliveryDays' ? '1' : '0';
+            return `<div class="field"><label>${label}</label><input data-admin-edit-field="${key}" type="${kind}" value="${value}" ${kind === 'number' ? `min="${min}" step="any"` : ''} required></div>`;
+          }).join('');
+          $('admin-content-edit-title').textContent = `Edit ${type.slice(0, -1)}`;
+          $('admin-content-edit-type').value = type;
+          $('admin-content-edit-id').value = id;
+          $('admin-content-edit-fields').innerHTML = fields;
+          $('admin-content-edit-dialog').showModal();
+        };
+      });
+
+      const form = $('admin-content-edit-form');
+      if (form.dataset.bound) return;
+      form.dataset.bound = 'true';
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const type = $('admin-content-edit-type').value;
+        const id = $('admin-content-edit-id').value;
+        const payload = {};
+        form.querySelectorAll('[data-admin-edit-field]').forEach((field) => {
+          const key = field.dataset.adminEditField;
+          if (key === 'priceDollars') payload.priceCents = Math.round(Number(field.value) * 100);
+          else if (key === 'payoutDollars') payload.payoutCents = Math.round(Number(field.value) * 100);
+          else if (field.type === 'number') payload[key] = Number(field.value);
+          else payload[key] = field.value.trim();
+        });
+        try {
+          await api(`/api/admin/content/${encodeURIComponent(type)}/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(payload) });
+          $('admin-content-edit-dialog').close();
+          notify('Content updated.');
+          await loadDashboard();
+        } catch (error) {
+          notify(error.message);
+        }
+      });
+    }
+
     $('ads-form').addEventListener('submit', async (event) => {
       event.preventDefault();
       try {
@@ -3338,6 +3474,7 @@
             destinationUrl: $('ad-destination-url').value.trim() || undefined
           })
         });
+        $('ads-form').closest('dialog')?.close();
         notify('Advertisement slot created.');
         $('ads-form').reset();
         await loadDashboard();
