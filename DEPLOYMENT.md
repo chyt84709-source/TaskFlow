@@ -8,8 +8,7 @@ Copy `.env.example` to `.env` for local development and replace every placeholde
 
 Set `APP_BASE_URL`, `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, and `STRIPE_WEBHOOK_SECRET` for Premium Checkout and hosted card verification. Register `POST /api/payments/stripe/webhook` in Stripe and enable the `checkout.session.completed` event. Set a separate random `UPLOAD_ENCRYPTION_KEY`; changing it later makes existing encrypted media unreadable.
 
-Set `UPLOAD_DIR` to the exact mount path of persistent upload storage. For example, if the Railway volume is mounted at `/app/upload`, set `UPLOAD_DIR=/app/upload` (not `/app/uploads`). The server creates this directory at startup; all instances reading media must use the same persistent storage.
-Production startup rejects relative `UPLOAD_DIR` values so uploads cannot silently land on an ephemeral container filesystem. If the volume is missing or mounted at a different path on another instance, avatar and marketplace media URLs can return 404 even though the upload request succeeded.
+Railway production stores every encrypted upload under `/app/upload`; mount the persistent volume at exactly that path and share it with every app instance. The production code pins this path so a stale `UPLOAD_DIR` value cannot route new uploads to the container filesystem. Local development uses `UPLOAD_DIR=./data/uploads`.
 
 ## Custom domain: taskflow.monster
 
