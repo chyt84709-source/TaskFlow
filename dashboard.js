@@ -451,8 +451,8 @@ function openStoreForm(store = null) {
   $('#store-cover-preview').classList.toggle('hidden', !store?.coverUrl);
   $('#store-logo-file').required = !store?.logoUrl;
   $('#store-cover-file').required = !store?.coverUrl;
-  $('#store-dialog-title').textContent = store ? 'Update store request' : 'Create a new store';
-  $('#store-form-submit').textContent = store ? 'Resubmit for review' : 'Submit storefront for review';
+  $('#store-dialog-title').textContent = store ? 'Store settings' : 'Create a new store';
+  $('#store-form-submit').textContent = store ? 'Save changes and resubmit' : 'Submit storefront for review';
   $('#store-dialog').showModal();
 }
 
@@ -595,13 +595,15 @@ async function renderVendor() {
     api('/api/ads/mine').catch(() => ({ ads: [] }))
   ]);
   const stores = storeResponse.stores || (storeResponse.store ? [storeResponse.store] : []);
-  $('#vendor-stores').innerHTML = stores.length ? stores.map((store) => `<article class="listing-card store-card"><img class="store-card-cover" src="${escapeHtml(store.coverUrl || '')}" alt="${escapeHtml(store.businessName)} cover"><div class="store-card-body">${store.logoUrl ? `<img class="store-card-logo" src="${escapeHtml(store.logoUrl)}" alt="">` : ''}<div class="panel-head"><h3>${escapeHtml(store.businessName)}</h3><span class="badge">${escapeHtml(store.status)}</span></div><p>${escapeHtml(store.category || 'Store')}</p>${store.status === 'verified' ? `<button class="button button-primary" type="button" data-open-store="${escapeHtml(store.id)}"><i data-lucide="external-link"></i>Open store</button>` : `<div><small>${escapeHtml(store.reviewNote || (store.status === 'pending' ? 'Waiting for admin review.' : 'Update details and resubmit.'))}</small><button class="button" type="button" data-edit-store="${escapeHtml(store.id)}"><i data-lucide="pencil"></i>Update request</button></div>`}</div></article>`).join('') : emptyState('You have not created a store yet.');
+  $('#vendor-stores').innerHTML = stores.length ? stores.map((store) => `<article class="listing-card store-card"><img class="store-card-cover" src="${escapeHtml(store.coverUrl || '')}" alt="${escapeHtml(store.businessName)} cover"><div class="store-card-body">${store.logoUrl ? `<img class="store-card-logo" src="${escapeHtml(store.logoUrl)}" alt="">` : ''}<div class="panel-head"><h3>${escapeHtml(store.businessName)}</h3><span class="badge">${escapeHtml(store.status)}</span></div><p>${escapeHtml(store.category || 'Store')}</p>${store.status === 'verified' ? `<button class="button button-primary" type="button" data-open-store="${escapeHtml(store.id)}"><i data-lucide="external-link"></i>Open store</button>` : `<div><small>${escapeHtml(store.reviewNote || (store.status === 'pending' ? 'Waiting for admin review.' : 'Update details and resubmit.'))}</small><button class="button" type="button" data-edit-store="${escapeHtml(store.id)}"><i data-lucide="settings-2"></i>Store settings</button></div>`}</div></article>`).join('') : emptyState('You have not created a store yet.');
   $('#vendor-stores').querySelectorAll('.store-card').forEach((card, index) => {
     const button = document.createElement('button');
     button.className = 'button store-media-action';
     button.type = 'button';
     button.dataset.changeStoreMedia = stores[index].id;
-    button.innerHTML = '<i data-lucide="image"></i>Change pictures';
+    button.innerHTML = stores[index].status === 'verified'
+      ? '<i data-lucide="settings-2"></i>Store settings'
+      : '<i data-lucide="image"></i>Change pictures';
     card.querySelector('.store-card-body').append(button);
   });
   $('#vendor-stores').querySelectorAll('.store-card .panel-head').forEach((heading) => heading.append(storePlanBadge(currentUser?.subscriptionTier || currentUser?.subscription_tier, currentUser?.greenTick || currentUser?.green_tick)));
