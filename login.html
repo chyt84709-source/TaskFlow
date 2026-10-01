@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -1339,7 +1339,7 @@
               <div class="field">
                 <label>Product media</label>
                 <div class="upload-box">
-                  <input id="product-media-upload" type="file" accept="image/*" multiple>
+                  <input id="product-media-upload" type="file" accept="image/*,video/*" multiple required>
                 </div>
               </div>
               <button type="submit" class="primary-btn full">List product</button>
@@ -1985,11 +1985,11 @@
     function renderListingMedia(item) {
       const media = Array.isArray(item?.media) ? item.media : [];
       return media.map((entry) => {
-        const url = typeof entry === 'string' ? entry : entry?.url;
+        const url = mediaUrl(typeof entry === 'string' ? entry : entry?.url);
         const mimeType = typeof entry === 'string' ? '' : entry?.mimeType || '';
         if (!url) return '';
         const safeUrl = escapeHtml(url);
-        return /^video\//i.test(mimeType)
+        return /^video\//i.test(mimeType) || /\.(mp4|webm|mov|avi|mkv)(?:$|\?)/i.test(url)
           ? `<video class="marketplace-media" src="${safeUrl}" controls preload="metadata"></video>`
           : `<img class="marketplace-media" src="${safeUrl}" alt="${escapeHtml(item.title)}" loading="lazy">`;
       }).join('');
@@ -2814,7 +2814,7 @@
             credentials: 'include'
           });
           const uploadData = await upload.json();
-          mediaUrls = uploadData.files?.map((file) => file.url) || [];
+          mediaUrls = uploadData.files?.map((file) => ({ url: file.url, mimeType: file.mimeType })) || [];
           if (!upload.ok) throw new Error(uploadData.error || 'Media upload failed');
         }
         await api('/api/products', {

@@ -19,6 +19,13 @@ A headless Node.js platform for freelancing, micro-tasking, and e-commerce.
 
 The `login.html` file remains the browser client, while `server.js` provides the deployment-shaped API, session boundary, PostgreSQL persistence, Google OAuth, Resend email delivery, uploads, WebSocket chat, task verification, wallet ledger, disputes, notifications, and admin controls. See [DEPLOYMENT.md](DEPLOYMENT.md) for setup and production requirements.
 
+## Project layout
+
+- `routes/authRoutes.js` owns authentication endpoints.
+- `routes/userRoutes.js` composes the focused routers under `routes/user/` for account, conversations, media, Premium, profiles, and wallet verification.
+- `routes/commerceRoutes.js` composes the focused routers under `routes/commerce/` for stores, products, support, checkout, ads, and marketplace content.
+- `config/`, `services/`, and `utils/` contain persistence, media processing, and shared server helpers.
+
 ## Notes
 
 - The application has no graphical desktop entry point and is safe to run on a headless server.
