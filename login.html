@@ -3258,6 +3258,8 @@
           } catch {
             throw new Error('The image was saved but could not be displayed. Check that UPLOAD_DIR points to the mounted Railway volume.');
           }
+          currentUser = { ...currentUser, avatarUrl: uploadedUrl, avatar_url: uploadedUrl };
+          applyProfileToUi(currentUser, currentUser.profile || null);
           notify('Profile picture updated successfully.');
           await hydrateProfile();
         }
