@@ -2900,10 +2900,19 @@
     $('product-form').addEventListener('submit', async (event) => {
       event.preventDefault();
       const productFiles = $('product-media-upload').files;
-      const pdfFiles = $('product-pdf-upload').files;
+      const pdfFiles = Array.from($('product-pdf-upload').files || []);
+      const submitButton = event.submitter;
+      const buttonLabel = submitButton?.textContent;
       let mediaUrls = [];
       try {
         if (pdfFiles.length > 12) throw new Error('A book can contain up to 12 PDF files.');
+        if (pdfFiles.some((file) => !file.name.toLowerCase().endsWith('.pdf'))) throw new Error('Only PDF files can be added as book files.');
+        if (pdfFiles.some((file) => file.size > 16 * 1024 * 1024)) throw new Error('Each PDF must be 16 MB or smaller.');
+        if (!productFiles.length && !pdfFiles.length) throw new Error('Add at least one product photo, video, or PDF file.');
+        if (submitButton) {
+          submitButton.disabled = true;
+          submitButton.textContent = 'Uploading book...';
+        }
         if (productFiles && productFiles.length) {
           const formData = new FormData();
           Array.from(productFiles).forEach((file) => formData.append('files', file));
@@ -2918,14 +2927,17 @@
           if (!upload.ok) throw new Error(uploadData.error || 'Media upload failed');
         }
         if (pdfFiles && pdfFiles.length) {
-          const formData = new FormData();
-          Array.from(pdfFiles).forEach((file) => formData.append('files', file));
-          const upload = await fetch('/api/uploads/product-pdfs', { method: 'POST', body: formData, credentials: 'include' });
-          const uploadData = await upload.json();
-          if (!upload.ok) throw new Error(uploadData.error || 'PDF upload failed');
-          mediaUrls.push(...(uploadData.files || []).map((file) => ({ url: file.url, mimeType: file.mimeType, name: file.name })));
+          for (const [index, file] of pdfFiles.entries()) {
+            if (submitButton) submitButton.textContent = `Uploading PDF ${index + 1} of ${pdfFiles.length}...`;
+            $('product-pdf-count').textContent = `Uploading PDF ${index + 1} of ${pdfFiles.length}...`;
+            const formData = new FormData();
+            formData.append('files', file);
+            const upload = await fetch('/api/uploads/product-pdfs', { method: 'POST', body: formData, credentials: 'include' });
+            const uploadData = await upload.json().catch(() => ({}));
+            if (!upload.ok) throw new Error(uploadData.error || `PDF upload failed (${upload.status}).`);
+            mediaUrls.push(...(uploadData.files || []).map((uploadedFile) => ({ url: uploadedFile.url, mimeType: uploadedFile.mimeType, name: uploadedFile.name })));
+          }
         }
-        if (!mediaUrls.length) throw new Error('Add at least one product photo, video, or PDF file.');
         await api('/api/products', {
           method: 'POST',
           body: JSON.stringify({
@@ -2944,6 +2956,11 @@
         await loadDashboard();
       } catch (error) {
         notify(error.message);
+      } finally {
+        if (submitButton?.isConnected) {
+          submitButton.disabled = false;
+          submitButton.textContent = buttonLabel;
+        }
       }
     });
 

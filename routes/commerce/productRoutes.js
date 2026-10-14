@@ -94,7 +94,7 @@ router.post('/api/products', requireUser, async (req, res, next) => {
         if (pdfFiles.some((file) => !file.name || !productMediaId(file.url))) context.addIssue({ code: z.ZodIssueCode.custom, message: 'Each PDF must have a name and a valid uploaded file.' });
       })
       .safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: 'Invalid product payload' });
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Enter valid product details.' });
 
     const pdfFiles = parsed.data.media.filter((file) => typeof file !== 'string' && file.mimeType === 'application/pdf');
     const priceCents = Number(parsed.data.priceCents ?? Math.round((parsed.data.priceDollars ?? 0) * 100));

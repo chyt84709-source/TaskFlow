@@ -10,7 +10,7 @@ Set `APP_BASE_URL`, `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, and `STRIPE_W
 
 Railway production stores every encrypted upload under `/app/upload`; mount the persistent volume at exactly that path and share it with every app instance. The production code pins this path so a stale `UPLOAD_DIR` value cannot route new uploads to the container filesystem. Local development uses `UPLOAD_DIR=./data/uploads`.
 
-PDF book uploads are encrypted alongside other media, with up to 12 PDF files per book and a 16 MB limit per file. Free-book downloads are public; paid-book files are served only to the seller or a buyer with a completed product order.
+PDF book uploads are encrypted alongside other media, with up to 12 PDF files per book and a 16 MB limit per file. PDF files are uploaded individually to keep multi-file book uploads reliable. Free-book downloads are public; paid-book files are served only to the seller or a buyer with a completed product order.
 
 ## Custom domain: taskflow.monster
 

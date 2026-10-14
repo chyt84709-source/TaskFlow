@@ -26,7 +26,7 @@ router.post('/api/uploads/product-pdfs', requireUser, uploadPdfFiles, async (req
     const files = Array.isArray(req.files) ? req.files : [];
     if (!files.length) return res.status(400).json({ error: 'Choose at least one PDF file to upload.' });
 
-    if (files.some((file) => file.mimetype !== 'application/pdf' || !file.buffer.subarray(0, 1024).includes(Buffer.from('%PDF-')))) {
+    if (files.some((file) => !file.originalname.toLowerCase().endsWith('.pdf') || !file.buffer.subarray(0, 1024).includes(Buffer.from('%PDF-')))) {
       return res.status(400).json({ error: 'Only valid PDF files can be uploaded.' });
     }
     const namedFiles = files.map((file) => {

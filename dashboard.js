@@ -377,7 +377,7 @@ async function renderProducts() {
       <div class="form-grid"><div class="field"><label for="product-price">Price (USD)</label><input id="product-price" type="number" min="0" step="0.01" value="25" required><small>Set the price to 0 to offer a PDF book for free.</small></div><div class="field"><label for="product-stock">Physical stock (not used for PDF books)</label><input id="product-stock" type="number" min="0" value="10" required></div></div>
       <div class="field"><label for="product-description">Description</label><textarea id="product-description" required></textarea></div>
       <div class="field"><label for="product-media">Product photos or videos (optional for PDF books)</label><input id="product-media" type="file" accept="image/*,video/*" multiple></div>
-      <div class="field"><label for="product-pdfs">Book PDF files</label><input id="product-pdfs" type="file" accept="application/pdf,.pdf" multiple><small id="product-pdf-count">Choose up to 12 PDFs. You can select multiple files.</small></div>
+      <div class="field"><label for="product-pdfs">Book PDF files</label><input id="product-pdfs" type="file" accept="application/pdf,.pdf" multiple><small id="product-pdf-count">Choose up to 12 PDFs (16 MB per file). You can select multiple files.</small></div>
       <div class="form-actions"><button class="button" type="button" data-close-dialog>Cancel</button><button class="button button-primary" type="submit">List product</button></div>
     </form></dialog>`);
   const [productResponse, promotionResponse] = await Promise.all([
@@ -422,7 +422,7 @@ async function renderProducts() {
   $('#product-category-filter').addEventListener('change', renderCards);
   $('#product-pdfs').addEventListener('change', () => {
     const count = $('#product-pdfs').files.length;
-    $('#product-pdf-count').textContent = `${count} ${count === 1 ? 'PDF selected' : 'PDFs selected'} (maximum 12).`;
+    $('#product-pdf-count').textContent = `${count} ${count === 1 ? 'PDF selected' : 'PDFs selected'} (maximum 12, 16 MB per file).`;
   });
   renderCards();
 }
@@ -932,12 +932,19 @@ async function uploadFiles(files) {
   return result.files || [];
 }
 
-async function uploadFilesTo(url, files) {
+async function uploadFilesTo(url, files, onProgress) {
   if (!files?.length) return [];
-  const form = new FormData();
-  Array.from(files).forEach((file) => form.append('files', file));
-  const result = await api(url, { method: 'POST', body: form });
-  return result.files || [];
+  const uploadedFiles = [];
+  const selectedFiles = Array.from(files);
+  for (const [index, file] of selectedFiles.entries()) {
+    onProgress?.(index + 1, selectedFiles.length, file.name);
+    const form = new FormData();
+    form.append('files', file);
+    const result = await api(url, { method: 'POST', body: form });
+    if (!result.files?.[0]) throw new Error(`The PDF "${file.name}" was not uploaded.`);
+    uploadedFiles.push(result.files[0]);
+  }
+  return uploadedFiles;
 }
 
 async function onSubmit(event) {
@@ -998,13 +1005,34 @@ async function onSubmit(event) {
       await api('/api/listings', { method: 'POST', body: JSON.stringify({ title: value('listing-title'), type: value('listing-type'), category: value('listing-category'), priceCents: Math.round(Number(value('listing-price')) * 100), media: files.map((file) => ({ url: file.url, mimeType: file.mimeType })) }) });
       notify('Marketplace listing published.');
     } else if (form.id === 'product-form') {
-      if ($('#product-pdfs', form).files.length > 12) throw new Error('A book can contain up to 12 PDF files.');
-      const files = await uploadFiles($('#product-media', form).files);
-      const pdfs = await uploadFilesTo('/api/uploads/product-pdfs', $('#product-pdfs', form).files);
-      const media = [...files.map((file) => ({ url: file.url, mimeType: file.mimeType })), ...pdfs.map((file) => ({ url: file.url, mimeType: file.mimeType, name: file.name }))];
-      if (!media.length) throw new Error('Add at least one product photo, video, or PDF file.');
-      await api('/api/products', { method: 'POST', body: JSON.stringify({ title: value('product-title'), storeId: value('product-store') || undefined, category: value('product-category'), description: value('product-description'), priceDollars: Number(value('product-price')), stock: Number(value('product-stock')), media }) });
-      notify('Product listed successfully.');
+      const pdfInput = $('#product-pdfs', form);
+      const pdfFiles = Array.from(pdfInput.files || []);
+      if (pdfFiles.length > 12) throw new Error('A book can contain up to 12 PDF files.');
+      if (pdfFiles.some((file) => !file.name.toLowerCase().endsWith('.pdf'))) throw new Error('Only PDF files can be added as book files.');
+      if (pdfFiles.some((file) => file.size > 16 * 1024 * 1024)) throw new Error('Each PDF must be 16 MB or smaller.');
+      if (!$('#product-media', form).files.length && !pdfFiles.length) throw new Error('Add at least one product photo, video, or PDF file.');
+
+      const submitButton = event.submitter;
+      const buttonLabel = submitButton?.textContent;
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = 'Uploading book...';
+      }
+      try {
+        const files = await uploadFiles($('#product-media', form).files);
+        const pdfs = await uploadFilesTo('/api/uploads/product-pdfs', pdfFiles, (index, total) => {
+          if (submitButton) submitButton.textContent = `Uploading PDF ${index} of ${total}...`;
+          $('#product-pdf-count').textContent = `Uploading PDF ${index} of ${total}...`;
+        });
+        const media = [...files.map((file) => ({ url: file.url, mimeType: file.mimeType })), ...pdfs.map((file) => ({ url: file.url, mimeType: file.mimeType, name: file.name }))];
+        await api('/api/products', { method: 'POST', body: JSON.stringify({ title: value('product-title'), storeId: value('product-store') || undefined, category: value('product-category'), description: value('product-description'), priceDollars: Number(value('product-price')), stock: Number(value('product-stock')), media }) });
+        notify('Product listed successfully.');
+      } finally {
+        if (submitButton?.isConnected) {
+          submitButton.disabled = false;
+          submitButton.textContent = buttonLabel;
+        }
+      }
     } else if (form.id === 'gig-form') {
       await api('/api/gigs', { method: 'POST', body: JSON.stringify({ title: value('gig-title'), category: value('gig-category'), description: value('gig-description'), priceDollars: Number(value('gig-price')), deliveryDays: Number(value('gig-days')) }) });
       notify('Gig published successfully.');
