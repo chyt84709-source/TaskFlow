@@ -1020,6 +1020,7 @@
         <a class="nav-btn" href="/tasks" data-view="tasks"><i data-lucide="list-checks"></i>Tasks</a>
         <a class="nav-btn" href="/marketplace" data-view="marketplace"><i data-lucide="store"></i>Marketplace</a>
         <a class="nav-btn" href="/products" data-view="products"><i data-lucide="package"></i>Products</a>
+        <a class="nav-btn" href="/books"><i data-lucide="book-open"></i>Books</a>
         <a class="nav-btn" href="/vendor" data-view="vendor"><i data-lucide="building-2"></i>Vendor dashboard</a>
         <a class="nav-btn" href="/gigs" data-view="gigs"><i data-lucide="briefcase-business"></i>Gigs</a>
         <a class="nav-btn" href="/wallet" data-view="wallet"><i data-lucide="wallet"></i>Wallet</a>
@@ -1338,11 +1339,10 @@
               </div>
               <div class="field">
                 <label>Price in dollars</label>
-                <input id="product-price" type="number" min="0" step="0.01" value="25" required>
-                <small>Set the price to 0 to offer a PDF book for free.</small>
+                <input id="product-price" type="number" min="0.01" step="0.01" value="25" required>
               </div>
               <div class="field">
-                <label>Physical stock (not used for PDF books)</label>
+                <label>Stock</label>
                 <input id="product-stock" type="number" min="1" value="10" required>
               </div>
               <div class="field">
@@ -1350,16 +1350,9 @@
                 <textarea id="product-description" rows="3" required placeholder="Describe the product quality, use case, and included features."></textarea>
               </div>
               <div class="field">
-                <label>Product photos or videos (optional for PDF books)</label>
+                <label>Product photos or videos</label>
                 <div class="upload-box">
                   <input id="product-media-upload" type="file" accept="image/*,video/*" multiple>
-                </div>
-              </div>
-              <div class="field">
-                <label>Book PDF files</label>
-                <div class="upload-box">
-                  <input id="product-pdf-upload" type="file" accept="application/pdf,.pdf" multiple>
-                  <small id="product-pdf-count">Choose up to 12 PDFs. You can select multiple files.</small>
                 </div>
               </div>
               <button type="submit" class="primary-btn full">List product</button>
@@ -2060,22 +2053,6 @@
       }).join('');
     }
 
-    function renderProductDownloads(product) {
-      const files = (Array.isArray(product.media) ? product.media : []).filter((file) => file && typeof file === 'object' && file.mimeType === 'application/pdf');
-      if (!files.length) return '';
-      const canDownload = Number(product.price_cents ?? product.priceCents ?? 0) === 0
-        || (product.vendor_id || product.vendorId) === currentUser?.id
-        || product.hasPurchased;
-      const links = files.map((file) => {
-        const fileId = /^\/api\/media\/([A-Za-z0-9_-]+)$/.exec(file.url || '')?.[1];
-        if (!fileId) return '';
-        return canDownload
-          ? `<a class="mini-btn" href="/api/products/${encodeURIComponent(product.id)}/files/${encodeURIComponent(fileId)}/download" download>⬇ ${escapeHtml(file.name || 'Download PDF')}</a>`
-          : `<span class="tag">${escapeHtml(file.name || 'PDF file')}</span>`;
-      }).filter(Boolean).join('');
-      return `<div class="row-actions">${files.length} ${files.length === 1 ? 'PDF' : 'PDFs'} in this book ${links}${canDownload ? '' : '<small>Purchase this book to download its PDFs.</small>'}</div>`;
-    }
-
     function renderPromotionAds(ads) {
       const activeAds = Array.isArray(ads) ? ads : [];
       $('promotion-banner').classList.toggle('hidden', activeAds.length === 0);
@@ -2532,10 +2509,6 @@
       }
     });
 
-    $('product-pdf-upload').addEventListener('change', () => {
-      const count = $('product-pdf-upload').files.length;
-      $('product-pdf-count').textContent = `${count} ${count === 1 ? 'PDF selected' : 'PDFs selected'} (maximum 12).`;
-    });
     $('vendor-mark-all-read').addEventListener('click', async () => {
       try {
         const result = await api('/api/notifications/read-all', { method: 'POST' });
@@ -2900,18 +2873,14 @@
     $('product-form').addEventListener('submit', async (event) => {
       event.preventDefault();
       const productFiles = $('product-media-upload').files;
-      const pdfFiles = Array.from($('product-pdf-upload').files || []);
       const submitButton = event.submitter;
       const buttonLabel = submitButton?.textContent;
       let mediaUrls = [];
       try {
-        if (pdfFiles.length > 12) throw new Error('A book can contain up to 12 PDF files.');
-        if (pdfFiles.some((file) => !file.name.toLowerCase().endsWith('.pdf'))) throw new Error('Only PDF files can be added as book files.');
-        if (pdfFiles.some((file) => file.size > 16 * 1024 * 1024)) throw new Error('Each PDF must be 16 MB or smaller.');
-        if (!productFiles.length && !pdfFiles.length) throw new Error('Add at least one product photo, video, or PDF file.');
+        if (!productFiles.length) throw new Error('Add at least one product photo or video.');
         if (submitButton) {
           submitButton.disabled = true;
-          submitButton.textContent = 'Uploading book...';
+          submitButton.textContent = 'Uploading product...';
         }
         if (productFiles && productFiles.length) {
           const formData = new FormData();
@@ -2925,18 +2894,6 @@
           const uploadData = await upload.json();
           mediaUrls = uploadData.files?.map((file) => ({ url: file.url, mimeType: file.mimeType })) || [];
           if (!upload.ok) throw new Error(uploadData.error || 'Media upload failed');
-        }
-        if (pdfFiles && pdfFiles.length) {
-          for (const [index, file] of pdfFiles.entries()) {
-            if (submitButton) submitButton.textContent = `Uploading PDF ${index + 1} of ${pdfFiles.length}...`;
-            $('product-pdf-count').textContent = `Uploading PDF ${index + 1} of ${pdfFiles.length}...`;
-            const formData = new FormData();
-            formData.append('files', file);
-            const upload = await fetch('/api/uploads/product-pdfs', { method: 'POST', body: formData, credentials: 'include' });
-            const uploadData = await upload.json().catch(() => ({}));
-            if (!upload.ok) throw new Error(uploadData.error || `PDF upload failed (${upload.status}).`);
-            mediaUrls.push(...(uploadData.files || []).map((uploadedFile) => ({ url: uploadedFile.url, mimeType: uploadedFile.mimeType, name: uploadedFile.name })));
-          }
         }
         await api('/api/products', {
           method: 'POST',
@@ -3159,7 +3116,7 @@
         `).join('') : '<p class="muted">No listings currently active.</p>';
 
         $('product-page-list').innerHTML = productItems.length ? productItems.slice(0, 6).map((item) => `
-          <div class="item-card"><h4>${escapeHtml(item.title)}</h4><p>${item.store_name ? `<strong>${escapeHtml(item.store_name)}</strong> · ` : ''}${escapeHtml(item.category || 'General')}</p><div class="item-row"><span>${Number(item.stock || 0)} in stock</span><span class="tag">${Number(item.price_cents || item.priceCents || 0) === 0 ? 'Free' : formatMoney(item.price_cents || item.priceCents)}</span></div>${renderProductDownloads(item)}</div>
+          <div class="item-card"><h4>${escapeHtml(item.title)}</h4><p>${item.store_name ? `<strong>${escapeHtml(item.store_name)}</strong> · ` : ''}${escapeHtml(item.category || 'General')}</p><div class="item-row"><span>${Number(item.stock || 0)} in stock</span><span class="tag">${formatMoney(item.price_cents || item.priceCents)}</span></div></div>
         `).join('') : '<p class="muted">No products yet.</p>';
 
         $('products-list').innerHTML = productItems.length ? productItems.slice(0, 6).map((item) => `
@@ -3168,9 +3125,8 @@
             <p>${item.store_name ? `<strong>${escapeHtml(item.store_name)}</strong> • ` : ''}${escapeHtml(item.category || 'General')} • ${Number(item.stock || 0)} in stock</p>
             <div class="item-row">
               <span>${escapeHtml(item.category)}</span>
-              <span class="tag">${Number(item.price_cents || item.priceCents || 0) === 0 ? 'Free' : formatMoney(item.price_cents || item.priceCents)}</span>
+              <span class="tag">${formatMoney(item.price_cents || item.priceCents)}</span>
             </div>
-            ${renderProductDownloads(item)}
             <div class="row-actions">
               <button type="button" class="mini-btn primary" data-offer-type="product" data-offer-id="${item.id}" data-offer-title="${escapeHtml(item.title)}">Chat / Make offer</button>
               ${item.vendor_id === currentUser?.id || item.vendorId === currentUser?.id ? `<button type="button" class="mini-btn" data-mark-sold="product" data-sold-id="${item.id}">Mark sold</button>` : ''}

@@ -108,6 +108,9 @@ async function initializeSchema() {
     CREATE TABLE IF NOT EXISTS support_messages (id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, sender_id TEXT NOT NULL, body TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
     CREATE TABLE IF NOT EXISTS notifications (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, kind TEXT NOT NULL, body TEXT NOT NULL, read_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL);
     CREATE TABLE IF NOT EXISTS products (id TEXT PRIMARY KEY, vendor_id TEXT NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL, category TEXT NOT NULL, price_cents INTEGER NOT NULL, stock INTEGER NOT NULL DEFAULT 0, media JSONB NOT NULL DEFAULT '[]'::jsonb, status TEXT NOT NULL DEFAULT 'active', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
+    CREATE TABLE IF NOT EXISTS books (id TEXT PRIMARY KEY, seller_id TEXT NOT NULL, store_id TEXT, content_type TEXT NOT NULL DEFAULT 'book', title TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', price_cents INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'draft', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), published_at TIMESTAMPTZ);
+    CREATE TABLE IF NOT EXISTS book_files (id TEXT PRIMARY KEY, book_id TEXT NOT NULL, media_id TEXT NOT NULL UNIQUE, name TEXT NOT NULL, size_bytes BIGINT NOT NULL, position INTEGER NOT NULL DEFAULT 0, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
+    CREATE TABLE IF NOT EXISTS book_orders (id TEXT PRIMARY KEY, book_id TEXT NOT NULL, buyer_id TEXT NOT NULL, seller_id TEXT NOT NULL, amount_cents INTEGER NOT NULL, fee_cents INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'paid', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE (book_id,buyer_id));
     CREATE TABLE IF NOT EXISTS reviews (id TEXT PRIMARY KEY, product_id TEXT NOT NULL, user_id TEXT NOT NULL, rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5), comment TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
     CREATE TABLE IF NOT EXISTS cart_items (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, product_id TEXT NOT NULL, quantity INTEGER NOT NULL DEFAULT 1, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE (user_id, product_id));
     CREATE TABLE IF NOT EXISTS ads (id TEXT PRIMARY KEY, seller_id TEXT NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL, category TEXT NOT NULL, price_cents INTEGER NOT NULL, location TEXT NOT NULL, media JSONB NOT NULL DEFAULT '[]'::jsonb, destination_url TEXT, status TEXT NOT NULL DEFAULT 'active', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
@@ -132,12 +135,16 @@ async function initializeSchema() {
     CREATE TABLE IF NOT EXISTS task_orders (id TEXT PRIMARY KEY, task_id TEXT NOT NULL, buyer_id TEXT NOT NULL, seller_id TEXT NOT NULL, quantity INTEGER NOT NULL DEFAULT 1, amount_cents INTEGER NOT NULL, fee_cents INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'pending', target_url TEXT, notes TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
     CREATE TABLE IF NOT EXISTS product_orders (id TEXT PRIMARY KEY, product_id TEXT NOT NULL, buyer_id TEXT NOT NULL, seller_id TEXT NOT NULL, quantity INTEGER NOT NULL DEFAULT 1, amount_cents INTEGER NOT NULL, fee_cents INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'pending', notes TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
     CREATE TABLE IF NOT EXISTS gig_orders (id TEXT PRIMARY KEY, gig_id TEXT NOT NULL, buyer_id TEXT NOT NULL, seller_id TEXT NOT NULL, package_name TEXT NOT NULL, amount_cents INTEGER NOT NULL, fee_cents INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'pending', notes TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
-    CREATE UNIQUE INDEX IF NOT EXISTS reviews_user_product_idx ON reviews (product_id, user_id);`);
+    CREATE UNIQUE INDEX IF NOT EXISTS reviews_user_product_idx ON reviews (product_id, user_id);
+    CREATE INDEX IF NOT EXISTS books_status_created_idx ON books (status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS book_files_book_position_idx ON book_files (book_id, position);
+    CREATE INDEX IF NOT EXISTS book_orders_buyer_status_idx ON book_orders (buyer_id, status);`);
   await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT; ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT; ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT; ALTER TABLE users ADD COLUMN IF NOT EXISTS location TEXT; ALTER TABLE users ADD COLUMN IF NOT EXISTS country TEXT; ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT; ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_tier TEXT DEFAULT 'standard'; ALTER TABLE users ADD COLUMN IF NOT EXISTS trust_score DOUBLE PRECISION; ALTER TABLE users ALTER COLUMN trust_score DROP NOT NULL; ALTER TABLE users ALTER COLUMN trust_score SET DEFAULT NULL; ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_count INTEGER NOT NULL DEFAULT 0; ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_code TEXT UNIQUE; ALTER TABLE users ADD COLUMN IF NOT EXISTS premium_source TEXT; ALTER TABLE users ADD COLUMN IF NOT EXISTS premium_activated_at TIMESTAMPTZ; ALTER TABLE tasks ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT ''; ALTER TABLE tasks ADD COLUMN IF NOT EXISTS instructions TEXT; ALTER TABLE tasks ADD COLUMN IF NOT EXISTS deadline_at TIMESTAMPTZ; ALTER TABLE tasks ADD COLUMN IF NOT EXISTS accepted_by TEXT; ALTER TABLE tasks ADD COLUMN IF NOT EXISTS proof_url TEXT; ALTER TABLE tasks ADD COLUMN IF NOT EXISTS qualification TEXT; ALTER TABLE listings ADD COLUMN IF NOT EXISTS description TEXT; ALTER TABLE listings ADD COLUMN IF NOT EXISTS category TEXT; ALTER TABLE listings ADD COLUMN IF NOT EXISTS location TEXT; ALTER TABLE ads ADD COLUMN IF NOT EXISTS placement TEXT DEFAULT 'homepage-top'; ALTER TABLE ads ADD COLUMN IF NOT EXISTS duration_days INTEGER DEFAULT 7; ALTER TABLE ads ADD COLUMN IF NOT EXISTS skip_allowed BOOLEAN DEFAULT TRUE; ALTER TABLE gigs ADD COLUMN IF NOT EXISTS portfolio TEXT; ALTER TABLE gigs ADD COLUMN IF NOT EXISTS seller_level TEXT; ALTER TABLE gigs ADD COLUMN IF NOT EXISTS basic_price_cents INTEGER; ALTER TABLE gigs ADD COLUMN IF NOT EXISTS standard_price_cents INTEGER; ALTER TABLE gigs ADD COLUMN IF NOT EXISTS premium_price_cents INTEGER;`);
   await db.query("ALTER TABLE stores ADD COLUMN IF NOT EXISTS category TEXT; ALTER TABLE stores ADD COLUMN IF NOT EXISTS cover_url TEXT;");
   await db.query("ALTER TABLE stores DROP CONSTRAINT IF EXISTS stores_owner_id_key; ALTER TABLE products ADD COLUMN IF NOT EXISTS store_id TEXT;");
   await db.query("UPDATE products p SET store_id=s.id FROM stores s WHERE p.store_id IS NULL AND s.id=(SELECT id FROM stores WHERE owner_id=p.vendor_id ORDER BY submitted_at,id LIMIT 1);");
   await db.query('CREATE INDEX IF NOT EXISTS products_store_id_idx ON products (store_id);');
+  await migrateProductBooks();
   await db.query("ALTER TABLE ad_messages ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'approved'; ALTER TABLE ad_messages ALTER COLUMN status SET DEFAULT 'pending';");
   await db.query(`CREATE TABLE IF NOT EXISTS promotion_requests (
     id TEXT PRIMARY KEY,
@@ -161,6 +168,64 @@ async function initializeSchema() {
   await db.query("ALTER TABLE wallet_card_verifications ADD COLUMN IF NOT EXISTS setup_intent_id TEXT;");
   await db.query("ALTER TABLE content_offers ADD COLUMN IF NOT EXISTS conversation_id TEXT;");
   await db.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';");
+}
+
+async function migrateProductBooks() {
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(`INSERT INTO books (id,seller_id,store_id,content_type,title,description,price_cents,status,created_at,published_at)
+      SELECT 'legacy-book-' || p.id,p.vendor_id,p.store_id,'book',p.title,p.description,p.price_cents,
+        CASE WHEN p.status='active' THEN 'active' ELSE 'archived' END,p.created_at,
+        CASE WHEN p.status='active' THEN p.created_at ELSE NULL END
+      FROM products p
+      WHERE EXISTS (SELECT 1 FROM jsonb_array_elements(p.media) AS entry(item)
+        JOIN media_files m ON m.id=substring(entry.item->>'url' from '^/api/media/([A-Za-z0-9_-]+)$')
+          AND m.purpose IN ('product-download','book-download')
+          AND m.mime_type='application/pdf'
+        WHERE entry.item->>'mimeType'='application/pdf')
+      ON CONFLICT (id) DO NOTHING`);
+    await client.query(`INSERT INTO book_files (id,book_id,media_id,name,size_bytes,position,created_at)
+      SELECT 'legacy-file-' || m.id,'legacy-book-' || p.id,m.id,
+        COALESCE(NULLIF(entry.item->>'name',''), 'book.pdf'),0,(entry.ordinality - 1)::int,p.created_at
+      FROM products p
+      CROSS JOIN LATERAL jsonb_array_elements(p.media) WITH ORDINALITY AS entry(item,ordinality)
+      JOIN media_files m ON m.id=substring(entry.item->>'url' from '^/api/media/([A-Za-z0-9_-]+)$')
+        AND m.purpose IN ('product-download','book-download')
+        AND m.mime_type='application/pdf'
+      WHERE entry.item->>'mimeType'='application/pdf'
+      ON CONFLICT (media_id) DO NOTHING`);
+    await client.query(`INSERT INTO book_orders (id,book_id,buyer_id,seller_id,amount_cents,fee_cents,status,created_at)
+      SELECT 'legacy-order-' || o.id,'legacy-book-' || o.product_id,o.buyer_id,o.seller_id,o.amount_cents,o.fee_cents,o.status,o.created_at
+      FROM product_orders o
+      JOIN books b ON b.id='legacy-book-' || o.product_id
+      WHERE o.status IN ('paid','processing','shipped','completed')
+      ON CONFLICT (book_id,buyer_id) DO NOTHING`);
+    await client.query(`UPDATE media_files m SET purpose='book-download'
+      WHERE m.purpose='product-download'
+        AND EXISTS (SELECT 1 FROM book_files bf WHERE bf.media_id=m.id)`);
+    await client.query(`UPDATE products p SET media=COALESCE((
+        SELECT jsonb_agg(entry.item ORDER BY entry.ordinality)
+        FROM jsonb_array_elements(p.media) WITH ORDINALITY AS entry(item,ordinality)
+        WHERE entry.item->>'mimeType' IS DISTINCT FROM 'application/pdf'
+          OR NOT EXISTS (SELECT 1 FROM book_files bf
+            JOIN media_files m ON m.id=bf.media_id
+            WHERE bf.book_id='legacy-book-' || p.id
+              AND m.id=substring(entry.item->>'url' from '^/api/media/([A-Za-z0-9_-]+)$'))
+      ),'[]'::jsonb)
+      WHERE EXISTS (SELECT 1 FROM jsonb_array_elements(p.media) AS entry(item)
+        WHERE entry.item->>'mimeType'='application/pdf'
+          AND EXISTS (SELECT 1 FROM book_files bf
+            JOIN media_files m ON m.id=bf.media_id
+            WHERE bf.book_id='legacy-book-' || p.id
+              AND m.id=substring(entry.item->>'url' from '^/api/media/([A-Za-z0-9_-]+)$'))))`);
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 async function seedDemoData() {
@@ -306,7 +371,7 @@ function isValidDestinationUrl(value) {
 async function ensureWalletReady(userId, amountCents) {
   const [cardResult, balanceResult] = await Promise.all([
     db.query('SELECT COUNT(*)::int AS count FROM wallet_cards WHERE user_id = $1', [userId]),
-    db.query("SELECT COALESCE(SUM(CASE WHEN kind IN ('payout', 'product_purchase', 'gig_purchase', 'task_purchase', 'marketplace_purchase', 'premium_upgrade') THEN -amount_cents ELSE amount_cents END), 0)::int AS balance FROM transactions WHERE user_id = $1 AND status IN ('paid', 'completed', 'approved', 'success')", [userId])
+    db.query("SELECT COALESCE(SUM(CASE WHEN kind IN ('payout', 'product_purchase', 'book_purchase', 'gig_purchase', 'task_purchase', 'marketplace_purchase', 'premium_upgrade') THEN -amount_cents ELSE amount_cents END), 0)::int AS balance FROM transactions WHERE user_id = $1 AND status IN ('paid', 'completed', 'approved', 'success')", [userId])
   ]);
   const hasCard = Number(cardResult.rows[0]?.count || 0) > 0;
   const balanceCents = Number(balanceResult.rows[0]?.balance || 0);
@@ -450,7 +515,7 @@ app.post('/api/tasks/:id/purchase', requireUser, async (req, res, next) => { try
 app.get('/api/listings', async (_req, res, next) => { try { const result = await db.query("SELECT id,title,type,category,price_cents AS \"priceCents\",media,status,created_at AS \"createdAt\" FROM listings WHERE status='active' ORDER BY created_at DESC"); res.json({ listings: result.rows }); } catch (error) { next(error); } });
 app.post('/api/listings', requireUser, async (req, res, next) => { try { const parsed = z.object({ title: z.string().min(3).max(160), type: z.enum(['physical', 'digital', 'service', 'software']), category: z.string().max(120).optional(), priceCents: z.number().int().min(1).max(100000000), media: z.array(z.object({ url: z.string().min(1), mimeType: z.string().min(1).max(100) })).min(1).max(10) }).safeParse(req.body); if (!parsed.success) return res.status(400).json({ error: 'A title, price, and at least one photo or video are required' }); const listing = { id: nanoid(), sellerId: req.session.user.id, ...parsed.data, createdAt: now() }; await db.query('INSERT INTO listings (id,seller_id,title,type,category,price_cents,media,status,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)', [listing.id, listing.sellerId, listing.title, listing.type, listing.category || null, listing.priceCents, JSON.stringify(listing.media), 'active', listing.createdAt]); res.status(201).json({ listing }); } catch (error) { next(error); } });
 app.post('/api/checkout/commission-split', requireUser, (req, res) => { const parsed = z.object({ grossCents: z.number().int().positive(), creatorPercent: z.number().min(0).max(100), platformPercent: z.number().min(0).max(100) }).safeParse(req.body); if (!parsed.success || parsed.data.creatorPercent + parsed.data.platformPercent > 100) return res.status(400).json({ error: 'Invalid commission split' }); const reservePercent = 100 - parsed.data.creatorPercent - parsed.data.platformPercent; res.json({ creatorCents: Math.round(parsed.data.grossCents * parsed.data.creatorPercent / 100), platformCents: Math.round(parsed.data.grossCents * parsed.data.platformPercent / 100), reserveCents: Math.round(parsed.data.grossCents * reservePercent / 100), reservePercent }); });
-app.get('/api/wallet', requireUser, async (req, res, next) => { try { const settledStatuses = ['paid', 'completed', 'approved', 'success']; const debitKinds = ['payout', 'product_purchase', 'gig_purchase', 'task_purchase', 'marketplace_purchase', 'premium_upgrade']; const [balanceResult, transactionsResult] = await Promise.all([
+app.get('/api/wallet', requireUser, async (req, res, next) => { try { const settledStatuses = ['paid', 'completed', 'approved', 'success']; const debitKinds = ['payout', 'product_purchase', 'book_purchase', 'gig_purchase', 'task_purchase', 'marketplace_purchase', 'premium_upgrade']; const [balanceResult, transactionsResult] = await Promise.all([
   db.query("SELECT COALESCE(SUM(CASE WHEN kind = ANY($2::text[]) THEN -amount_cents ELSE amount_cents END),0)::int AS balance FROM transactions WHERE user_id=$1 AND status = ANY($3::text[])", [req.session.user.id, debitKinds, settledStatuses]),
   db.query('SELECT * FROM transactions WHERE user_id=$1 AND status = ANY($2::text[]) ORDER BY created_at DESC LIMIT 100', [req.session.user.id, settledStatuses])
 ]); res.json({ balanceCents: Number(balanceResult.rows[0]?.balance || 0), transactions: transactionsResult.rows }); } catch (error) { next(error); } });
@@ -602,7 +667,7 @@ app.post('/api/admin/listings/:id/pause', requireAdmin, async (req, res, next) =
 app.get('/', (_req, res) => res.sendFile(path.resolve(__dirname, 'login.html')));
 app.get('/favicon.svg', (_req, res) => res.sendFile(path.resolve(__dirname, 'favicon.svg')));
 app.get('/dashboard.js', (_req, res) => res.sendFile(path.resolve(__dirname, 'dashboard.js')));
-app.get(['/overview', '/dashboard', '/tasks', '/marketplace', '/products', '/vendor', '/gigs', '/wallet', '/profile', '/support', '/premium', '/settings', '/admin'], (_req, res) => res.sendFile(path.resolve(__dirname, 'dashboard.html')));
+app.get(['/overview', '/dashboard', '/tasks', '/marketplace', '/products', '/books', '/vendor', '/gigs', '/wallet', '/profile', '/support', '/premium', '/settings', '/admin'], (_req, res) => res.sendFile(path.resolve(__dirname, 'dashboard.html')));
 app.use((_req, res) => res.status(404).json({ error: 'Not found' }));
 app.use((error, _req, res, _next) => { console.error(error); res.status(Number(error.statusCode) || 500).json({ error: error.message || 'Internal server error' }); });
 

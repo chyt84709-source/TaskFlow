@@ -2,7 +2,7 @@ const $ = (selector, root = document) => root.querySelector(selector);
 const pageContent = $('#page-content');
 const toastElement = $('#toast');
 const routeTitles = {
-  overview: 'Dashboard', tasks: 'Tasks', marketplace: 'Marketplace', products: 'Products',
+  overview: 'Dashboard', tasks: 'Tasks', marketplace: 'Marketplace', products: 'Products', books: 'Books',
   vendor: 'Vendor dashboard', gigs: 'Gigs', wallet: 'Wallet', profile: 'Profile',
   support: 'Contact support', premium: 'Premium', settings: 'Settings', admin: 'Admin'
 };
@@ -224,6 +224,7 @@ async function renderOverview() {
       <div class="column">
         <section class="panel"><div class="panel-head"><div><h2>Marketplace</h2><p class="panel-subtitle">Recently added listings.</p></div><a class="button-quiet" href="/marketplace" data-route="marketplace">View all</a></div><div class="cards-grid overview-cards" id="overview-marketplace">${emptyState('Loading marketplace items...')}</div></section>
         <section class="panel"><div class="panel-head"><div><h2>Products</h2><p class="panel-subtitle">New products from the community.</p></div><a class="button-quiet" href="/products" data-route="products">View all</a></div><div class="cards-grid overview-cards" id="overview-products">${emptyState('Loading products...')}</div></section>
+        <section class="panel"><div class="panel-head"><div><h2>Books & publications</h2><p class="panel-subtitle">Downloadable books, articles, and newspapers.</p></div><a class="button-quiet" href="/books" data-route="books">Explore books</a></div><div class="cards-grid overview-cards" id="overview-books">${emptyState('Loading publications...')}</div></section>
       </div>
       <div class="column">
         <section class="panel"><div class="panel-head"><div><h2>Active tasks</h2><p class="panel-subtitle">Tasks currently open on TaskFlow.</p></div><a class="button-quiet" href="/tasks" data-route="tasks">View all</a></div><div class="rows" id="overview-tasks">${emptyState('Loading tasks...')}</div></section>
@@ -232,10 +233,11 @@ async function renderOverview() {
       </div>
     </div>`);
   moveCreateFormToDialog('quick-task-form', 'create-quick-task-dialog', 'Publish a task', 'Publish task');
-  const [listingsResponse, tasksResponse, productsResponse, gigsResponse, storeResponse, ordersResponse, ads] = await Promise.all([
+  const [listingsResponse, tasksResponse, productsResponse, booksResponse, gigsResponse, storeResponse, ordersResponse, ads] = await Promise.all([
     api('/api/listings').catch(() => ({ listings: [] })),
     api('/api/tasks').catch(() => ({ tasks: [] })),
     api('/api/products').catch(() => ({ products: [] })),
+    api('/api/books').catch(() => ({ books: [] })),
     api('/api/gigs').catch(() => ({ gigs: [] })),
     api('/api/store/me').catch(() => ({ stores: [] })),
     api('/api/vendor/orders').catch(() => ({ orders: [] })),
@@ -244,6 +246,7 @@ async function renderOverview() {
   const listings = listingsResponse.listings || [];
   const tasks = tasksResponse.tasks || [];
   const products = productsResponse.products || [];
+  const books = booksResponse.books || [];
   const gigs = gigsResponse.gigs || [];
   const stores = storeResponse.stores || (storeResponse.store ? [storeResponse.store] : []);
   const orders = ordersResponse.orders || [];
@@ -253,6 +256,7 @@ async function renderOverview() {
   $('#overview-store-count').textContent = String(stores.length);
   $('#overview-marketplace').innerHTML = listings.length ? listings.slice(0, 4).map((item) => `<article class="listing-card">${mediaMarkup(item)}<div class="listing-body"><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.category || item.type || 'Marketplace listing')}</p><div class="listing-meta"><span class="badge">${escapeHtml(item.type || 'Listing')}</span><strong>${money(item.priceCents || item.price_cents)}</strong></div></div></article>`).join('') : emptyState('No marketplace listings yet.');
   $('#overview-products').innerHTML = products.length ? products.slice(0, 4).map((item) => `<article class="listing-card product-card">${mediaMarkup(item)}<div class="listing-body"><span class="badge">${escapeHtml(item.category || 'Product')}</span><h3>${escapeHtml(item.title)}</h3><div class="listing-meta"><span class="product-rating">${item.store_name ? escapeHtml(item.store_name) : 'New arrival'}</span><strong>${money(item.price_cents || item.priceCents)}</strong></div></div></article>`).join('') : emptyState('No products listed yet.');
+  $('#overview-books').innerHTML = books.length ? books.slice(0, 4).map((book) => publicationCard(book)).join('') : emptyState('No publications listed yet.');
   $('#overview-gigs').innerHTML = gigs.length ? gigs.slice(0, 4).map((gig) => `<article class="listing-card"><div class="listing-body"><h3>${escapeHtml(gig.title)}</h3><p>${escapeHtml(gig.description || '')}</p><div class="listing-meta"><span class="badge">${escapeHtml(gig.category || 'Service')}</span><strong>${money(gig.price_cents || gig.priceCents)}</strong></div></div></article>`).join('') : emptyState('No gigs are available yet.');
   $('#overview-tasks').innerHTML = tasks.length ? tasks.slice(0, 6).map((task) => `<div class="data-row"><div><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(task.category || 'General')}</small></div><span>${money(task.payoutCents || task.payout_cents)}</span></div>`).join('') : emptyState('No active tasks right now.');
   const activity = [
@@ -277,7 +281,6 @@ async function renderTasks() {
 function mediaMarkup(item) {
   const entries = Array.isArray(item.media) ? item.media : [];
   const rendered = entries.map((entry) => {
-    if (typeof entry !== 'string' && entry?.mimeType === 'application/pdf') return '';
     const url = mediaUrl(typeof entry === 'string' ? entry : entry?.url);
     if (!url) return '';
     const mimeType = typeof entry === 'string' ? '' : entry?.mimeType || '';
@@ -289,26 +292,6 @@ function mediaMarkup(item) {
   }).filter(Boolean);
   if (!rendered.length) return '<div class="listing-placeholder"><i data-lucide="image"></i></div>';
   return rendered.length === 1 ? rendered[0] : `<div class="media-gallery">${rendered.join('')}</div>`;
-}
-
-function productPdfFiles(product) {
-  return (Array.isArray(product.media) ? product.media : []).filter((entry) =>
-    typeof entry !== 'string' && entry?.mimeType === 'application/pdf');
-}
-
-function productPdfMarkup(product, isOwner) {
-  const files = productPdfFiles(product);
-  if (!files.length) return '';
-  const productId = encodeURIComponent(product.id);
-  const canDownload = Number(product.price_cents ?? product.priceCents) === 0 || isOwner || product.hasPurchased;
-  const links = files.map((file) => {
-    const fileId = /^\/api\/media\/([A-Za-z0-9_-]+)$/.exec(file.url || '')?.[1];
-    if (!fileId) return '';
-    return canDownload
-      ? `<a class="button" href="/api/products/${productId}/files/${encodeURIComponent(fileId)}/download" download><i data-lucide="download"></i>${escapeHtml(file.name || 'Download PDF')}</a>`
-      : `<span class="badge">${escapeHtml(file.name || 'PDF file')}</span>`;
-  }).filter(Boolean);
-  return `<div class="product-pdf-files"><strong>${files.length} ${files.length === 1 ? 'PDF' : 'PDFs'} in this book</strong><div class="form-actions">${links.join('')}</div>${!canDownload ? '<small>Buy this book to download its PDFs.</small>' : ''}</div>`;
 }
 
 function renderMarketplaceCards(items) {
@@ -355,6 +338,75 @@ async function renderProductsLegacy() {
   }).join('') : emptyState('No products are listed yet.');
 }
 
+function publicationFilesMarkup(book, canDownload) {
+  const files = Array.isArray(book.files) ? book.files : [];
+  if (!files.length) return '<p class="book-empty-files">No PDFs uploaded yet.</p>';
+  return `<div class="book-file-list">${files.map((file) => canDownload
+    ? `<a class="book-file" href="/api/books/${encodeURIComponent(book.id)}/files/${encodeURIComponent(file.id)}/download"><i data-lucide="file-down"></i><span>${escapeHtml(file.name)}</span><small>${Number(file.sizeBytes || 0) ? `${(Number(file.sizeBytes) / 1048576).toFixed(1)} MB` : 'PDF'}</small></a>`
+    : `<div class="book-file"><i data-lucide="file-text"></i><span>${escapeHtml(file.name)}</span><small>${Number(file.sizeBytes || 0) ? `${(Number(file.sizeBytes) / 1048576).toFixed(1)} MB` : 'PDF'}</small></div>`
+  ).join('')}</div>`;
+}
+
+function publicationCard(book, owner = false) {
+  const price = Number(book.priceCents ?? book.price_cents ?? 0);
+  const canDownload = owner || (book.status === 'active' && (price === 0 || book.hasPurchased));
+  const files = Array.isArray(book.files) ? book.files : [];
+  let action = '';
+  if (owner && book.status === 'draft') {
+    action = `<button class="button button-primary" type="button" data-resume-book="${escapeHtml(book.id)}">Continue publishing</button>`;
+  } else if (owner && book.status === 'archived') {
+    action = '<span class="book-free-download">Private archive</span>';
+  } else if (canDownload) {
+    action = '<span class="book-free-download"><i data-lucide="circle-check"></i>Ready to download</span>';
+  } else if (currentUser) {
+    action = `<button class="button button-primary" type="button" data-book-purchase="${escapeHtml(book.id)}"><i data-lucide="shopping-bag"></i>Buy publication</button>`;
+  } else {
+    action = '<a class="button button-primary" href="/"><i data-lucide="log-in"></i>Sign in to buy</a>';
+  }
+  return `<article class="listing-card book-card"><div class="book-cover"><i data-lucide="${book.contentType === 'newspaper' ? 'newspaper' : book.contentType === 'article' ? 'file-text' : 'book-open'}"></i><span>${escapeHtml(book.contentType || 'book')}</span></div><div class="listing-body"><div class="book-card-heading"><div><span class="badge">${escapeHtml(book.storeName || book.contentType || 'Publication')}</span><h3>${escapeHtml(book.title)}</h3></div><strong class="book-price">${price === 0 ? 'Free' : money(price)}</strong></div><p class="listing-description">${escapeHtml(book.description || '')}</p><div class="book-meta"><span>${escapeHtml(book.sellerName || 'TaskFlow seller')}</span><span>${files.length} ${files.length === 1 ? 'PDF' : 'PDFs'}</span>${book.status === 'draft' ? '<span class="badge">Draft</span>' : ''}</div>${publicationFilesMarkup(book, canDownload)}<div class="book-card-actions">${action}</div></div></article>`;
+}
+
+async function renderBooks() {
+  const signedIn = Boolean(currentUser);
+  let stores = [];
+  if (signedIn) {
+    const storeResult = await api('/api/store/me').catch(() => ({ stores: [] }));
+    stores = (storeResult.stores || []).filter((store) => store.status === 'verified');
+  }
+  pageFrame('books', `<section class="panel books-hero"><div><span class="eyebrow">Digital library</span><h2>Books, articles & newspapers</h2><p class="panel-subtitle">Discover downloadable publications from independent creators. Free PDFs are ready to download; paid publications are securely unlocked after purchase.</p></div>${signedIn ? '<button class="button button-primary" type="button" data-open-dialog="publish-book-dialog"><i data-lucide="plus"></i>Publish a PDF</button>' : '<a class="button button-primary" href="/"><i data-lucide="log-in"></i>Sign in to publish</a>'}</section><section class="panel book-catalog-panel"><div class="panel-head"><div><h2>Explore publications</h2><p class="panel-subtitle">Browse individual PDFs or collections of any number of files.</p></div><span class="badge" id="book-count">Loading...</span></div><div class="book-filters"><label class="field"><span>Search publications</span><input id="book-search" type="search" placeholder="Title, description, or store"></label><label class="field"><span>Publication type</span><select id="book-type-filter"><option value="">All types</option><option value="book">Books</option><option value="article">Articles</option><option value="newspaper">Newspapers</option></select></label></div><div class="cards-grid book-grid" id="book-cards">${emptyState('Loading publications...')}</div></section>${signedIn ? `<section class="panel book-catalog-panel"><div class="panel-head"><div><h2>Your publications</h2><p class="panel-subtitle">Published PDFs and drafts awaiting completion.</p></div></div><div class="cards-grid book-grid" id="my-book-cards">${emptyState('Loading your publications...')}</div></section><dialog class="modal-dialog" id="publish-book-dialog"><form id="book-form" class="panel modal-panel"><div class="panel-head"><div><h2>Publish a PDF</h2><p class="panel-subtitle">Create a book, article, or newspaper and attach as many PDF files as you need.</p></div><button class="button icon-button" type="button" data-close-dialog aria-label="Close"><i data-lucide="x"></i></button></div><input id="book-draft-id" type="hidden"><div class="field"><label for="book-type">Publication type</label><select id="book-type" required><option value="book">Book</option><option value="article">Article</option><option value="newspaper">Newspaper</option></select></div><div class="field"><label for="book-title">Title</label><input id="book-title" required minlength="3" maxlength="160" placeholder="Publication title"></div><div class="field"><label for="book-store">Store (optional)</label><select id="book-store"><option value="">Independent publication</option>${stores.map((store) => `<option value="${escapeHtml(store.id)}">${escapeHtml(store.businessName)}</option>`).join('')}</select></div><div class="field"><label for="book-description">Description</label><textarea id="book-description" required minlength="5" maxlength="4000" placeholder="Tell readers what this publication is about"></textarea></div><fieldset class="book-price-options"><legend>Price</legend><label><input type="radio" name="book-price-mode" value="free" checked> Free</label><label><input type="radio" name="book-price-mode" value="paid"> Paid</label></fieldset><div class="field hidden" id="book-price-field"><label for="book-price">Price (USD)</label><input id="book-price" type="number" min="0.01" max="1000000" step="0.01" value="5"></div><div class="field"><label for="book-files">PDF files</label><input id="book-files" type="file" accept="application/pdf,.pdf" multiple><small>No app-imposed file-count or file-size limit. Files upload one at a time; keep this page open until publishing completes.</small></div><div id="book-existing-files" class="book-existing-files"></div><p id="book-upload-status" class="panel-subtitle" aria-live="polite"></p><div class="form-actions"><button class="button" type="button" data-close-dialog>Cancel</button><button class="button button-primary" type="submit">Publish publication</button></div></form></dialog>` : ''}`);
+
+  const typeFilter = $('#book-type-filter');
+  const searchInput = $('#book-search');
+  let books = [];
+  let myBooks = [];
+  try {
+    const [catalog, mine] = await Promise.all([
+      api('/api/books'),
+      signedIn ? api('/api/books/mine') : Promise.resolve({ books: [] })
+    ]);
+    books = catalog.books || [];
+    myBooks = mine.books || [];
+  } catch (error) {
+    $('#book-cards').innerHTML = emptyState(error.message);
+  }
+  const renderCatalog = () => {
+    const search = searchInput.value.trim().toLocaleLowerCase();
+    const type = typeFilter.value;
+    const filtered = books.filter((book) => (!type || book.contentType === type) &&
+      (!search || `${book.title} ${book.description} ${book.storeName || ''} ${book.sellerName || ''}`.toLocaleLowerCase().includes(search)));
+    $('#book-count').textContent = `${filtered.length} ${filtered.length === 1 ? 'publication' : 'publications'}`;
+    $('#book-cards').innerHTML = filtered.length ? filtered.map((book) => publicationCard(book)).join('') : emptyState('No publications match your search yet.');
+    window.lucide?.createIcons();
+  };
+  renderCatalog();
+  searchInput.addEventListener('input', renderCatalog);
+  typeFilter.addEventListener('change', renderCatalog);
+  if (signedIn) {
+    $('#my-book-cards').innerHTML = myBooks.length ? myBooks.map((book) => publicationCard(book, true)).join('') : emptyState('You have not published a PDF yet.');
+    window.lucide?.createIcons();
+  }
+}
+
 async function renderProducts() {
   const categories = await loadCategories();
   const storeResponse = await api('/api/store/me').catch(() => ({ stores: [] }));
@@ -374,10 +426,9 @@ async function renderProducts() {
       <div class="field"><label for="product-title">Product title</label><input id="product-title" required minlength="3" maxlength="120"></div>
       <div class="field"><label for="product-store">Store</label><select id="product-store"><option value="">Independent listing</option>${approvedStores.map((store) => `<option value="${escapeHtml(store.id)}">${escapeHtml(store.businessName)}</option>`).join('')}</select></div>
       <div class="field"><label for="product-category">Category</label><select id="product-category" required>${categoryOptions(categories)}</select></div>
-      <div class="form-grid"><div class="field"><label for="product-price">Price (USD)</label><input id="product-price" type="number" min="0" step="0.01" value="25" required><small>Set the price to 0 to offer a PDF book for free.</small></div><div class="field"><label for="product-stock">Physical stock (not used for PDF books)</label><input id="product-stock" type="number" min="0" value="10" required></div></div>
+      <div class="form-grid"><div class="field"><label for="product-price">Price (USD)</label><input id="product-price" type="number" min="0.01" step="0.01" value="25" required></div><div class="field"><label for="product-stock">Stock</label><input id="product-stock" type="number" min="0" value="10" required></div></div>
       <div class="field"><label for="product-description">Description</label><textarea id="product-description" required></textarea></div>
-      <div class="field"><label for="product-media">Product photos or videos (optional for PDF books)</label><input id="product-media" type="file" accept="image/*,video/*" multiple></div>
-      <div class="field"><label for="product-pdfs">Book PDF files</label><input id="product-pdfs" type="file" accept="application/pdf,.pdf" multiple><small id="product-pdf-count">Choose up to 12 PDFs (16 MB per file). You can select multiple files.</small></div>
+      <div class="field"><label for="product-media">Product photos or videos</label><input id="product-media" type="file" accept="image/*,video/*" multiple></div>
       <div class="form-actions"><button class="button" type="button" data-close-dialog>Cancel</button><button class="button button-primary" type="submit">List product</button></div>
     </form></dialog>`);
   const [productResponse, promotionResponse] = await Promise.all([
@@ -401,15 +452,8 @@ async function renderProducts() {
       } else if (isOwner) {
         promotionMarkup = `<button class="button product-feature-action" type="button" data-product-promotion="${escapeHtml(product.id)}">Request 7-day homepage feature</button>`;
       }
-      const pdfFiles = productPdfFiles(product);
       const priceCents = Number(product.price_cents ?? product.priceCents ?? 0);
-      const purchaseButton = !isOwner && !product.hasPurchased && priceCents > 0
-        ? `<button class="button button-primary" type="button" data-buy-product="${escapeHtml(product.id)}" ${pdfFiles.length ? 'data-buy-digital="true"' : ''} ${!pdfFiles.length && Number(product.stock || 0) < 1 ? 'disabled' : ''}><i data-lucide="shopping-bag"></i>${pdfFiles.length ? 'Buy book' : 'Buy product'}</button>`
-        : '';
-      const inventoryMarkup = pdfFiles.length
-        ? `${productPdfMarkup(product, isOwner)}${purchaseButton ? `<div class="product-stock-row">${purchaseButton}</div>` : ''}`
-        : `<div class="product-stock-row"><span class="badge">${Number(product.stock || 0)} in stock</span><button class="button button-primary" type="button" data-buy-product="${escapeHtml(product.id)}" ${Number(product.stock || 0) < 1 || isOwner ? 'disabled' : ''}><i data-lucide="shopping-bag"></i>Buy product</button></div>`;
-      return `<article class="listing-card product-card">${mediaMarkup({ ...product, media: product.media || [] })}<div class="listing-body"><span class="badge">${escapeHtml(product.category || 'Product')}</span><h3>${escapeHtml(product.title)}</h3>${product.store_name ? `<div class="product-brand">${product.store_logo_url ? `<img src="${escapeHtml(product.store_logo_url)}" alt="">` : ''}<span>${escapeHtml(product.store_name)}</span></div>` : ''}<p class="listing-description">${escapeHtml(product.description || '')}</p><div class="listing-meta"><span class="product-rating">${Number(product.review_count || 0) ? `${Number(product.avg_rating || 0).toFixed(1)} ★ · ${Number(product.review_count)} reviews` : 'New arrival'}</span><strong>${priceCents === 0 ? 'Free' : money(priceCents)}</strong></div>${inventoryMarkup}<button class="button product-contact" type="button" data-contact="product" data-id="${escapeHtml(product.id)}" data-title="${escapeHtml(product.title)}">Contact seller</button>${promotionMarkup}</div></article>`;
+      return `<article class="listing-card product-card">${mediaMarkup({ ...product, media: product.media || [] })}<div class="listing-body"><span class="badge">${escapeHtml(product.category || 'Product')}</span><h3>${escapeHtml(product.title)}</h3>${product.store_name ? `<div class="product-brand">${product.store_logo_url ? `<img src="${escapeHtml(product.store_logo_url)}" alt="">` : ''}<span>${escapeHtml(product.store_name)}</span></div>` : ''}<p class="listing-description">${escapeHtml(product.description || '')}</p><div class="listing-meta"><span class="product-rating">${Number(product.review_count || 0) ? `${Number(product.avg_rating || 0).toFixed(1)} ★ · ${Number(product.review_count)} reviews` : 'New arrival'}</span><strong>${money(priceCents)}</strong></div><div class="product-stock-row"><span class="badge">${Number(product.stock || 0)} in stock</span><button class="button button-primary" type="button" data-buy-product="${escapeHtml(product.id)}" ${Number(product.stock || 0) < 1 || isOwner ? 'disabled' : ''}><i data-lucide="shopping-bag"></i>Buy product</button></div><button class="button product-contact" type="button" data-contact="product" data-id="${escapeHtml(product.id)}" data-title="${escapeHtml(product.title)}">Contact seller</button>${promotionMarkup}</div></article>`;
     }).join('') : emptyState('No products match these filters.');
     $('#product-cards').querySelectorAll('[data-buy-product]').forEach((button) => {
       const product = filtered.find((item) => String(item.id) === button.dataset.buyProduct);
@@ -420,10 +464,6 @@ async function renderProducts() {
   };
   $('#product-search').addEventListener('input', renderCards);
   $('#product-category-filter').addEventListener('change', renderCards);
-  $('#product-pdfs').addEventListener('change', () => {
-    const count = $('#product-pdfs').files.length;
-    $('#product-pdf-count').textContent = `${count} ${count === 1 ? 'PDF selected' : 'PDFs selected'} (maximum 12, 16 MB per file).`;
-  });
   renderCards();
 }
 
@@ -514,7 +554,6 @@ function openVendorProductEdit(product) {
   $('#vendor-product-price').value = Number(product.priceCents || product.price_cents || 0) / 100;
   $('#vendor-product-stock').value = Number(product.stock || 0);
   $('#vendor-product-media-preview').innerHTML = product.media?.length ? mediaMarkup({ title: product.title, media: product.media }) : emptyState('No product image.');
-  $('#vendor-product-existing-pdfs').value = JSON.stringify(productPdfFiles(product));
   $('#vendor-product-edit-dialog').showModal();
 }
 
@@ -574,7 +613,7 @@ async function renderVendorStore(storeId) {
     menu.innerHTML = `<summary aria-label="Product actions" title="Product actions"><i data-lucide="more-horizontal"></i></summary><div class="product-menu-items"><button type="button" data-edit-product="${escapeHtml(product.id)}"><i data-lucide="pencil"></i>Edit product</button><button type="button" data-delete-product="${escapeHtml(product.id)}"><i data-lucide="trash-2"></i>Delete product</button></div>`;
     card.append(menu);
   });
-  target.insertAdjacentHTML('beforeend', `<dialog class="modal-dialog" id="vendor-product-edit-dialog"><form id="vendor-product-edit-form" class="panel modal-panel"><div class="panel-head"><div><h2>Edit product</h2><p class="panel-subtitle">Changes apply only to this product.</p></div><button class="button icon-button" type="button" data-close-dialog aria-label="Close"><i data-lucide="x"></i></button></div><input id="vendor-product-id" type="hidden"><input id="vendor-product-existing-pdfs" type="hidden"><div class="field"><label for="vendor-product-title">Product title</label><input id="vendor-product-title" required minlength="3" maxlength="120"></div><div class="field"><label for="vendor-product-category">Category</label><input id="vendor-product-category" required minlength="2" maxlength="60"></div><div class="field"><label for="vendor-product-description">Description</label><textarea id="vendor-product-description" required minlength="5" maxlength="2000"></textarea></div><div class="form-grid"><div class="field"><label for="vendor-product-price">Price (USD)</label><input id="vendor-product-price" type="number" min="0.01" step="0.01" required></div><div class="field"><label for="vendor-product-stock">Stock</label><input id="vendor-product-stock" type="number" min="0" max="1000000" required></div></div><div class="field"><label for="vendor-product-media">Replace product images (optional)</label><div id="vendor-product-media-preview"></div><input id="vendor-product-media" type="file" accept="image/*,video/*" multiple></div><div class="form-actions"><button class="button" type="button" data-close-dialog>Cancel</button><button class="button button-primary" type="submit">Save product</button></div></form></dialog>`);
+  target.insertAdjacentHTML('beforeend', `<dialog class="modal-dialog" id="vendor-product-edit-dialog"><form id="vendor-product-edit-form" class="panel modal-panel"><div class="panel-head"><div><h2>Edit product</h2><p class="panel-subtitle">Changes apply only to this product.</p></div><button class="button icon-button" type="button" data-close-dialog aria-label="Close"><i data-lucide="x"></i></button></div><input id="vendor-product-id" type="hidden"><div class="field"><label for="vendor-product-title">Product title</label><input id="vendor-product-title" required minlength="3" maxlength="120"></div><div class="field"><label for="vendor-product-category">Category</label><input id="vendor-product-category" required minlength="2" maxlength="60"></div><div class="field"><label for="vendor-product-description">Description</label><textarea id="vendor-product-description" required minlength="5" maxlength="2000"></textarea></div><div class="form-grid"><div class="field"><label for="vendor-product-price">Price (USD)</label><input id="vendor-product-price" type="number" min="0.01" step="0.01" required></div><div class="field"><label for="vendor-product-stock">Stock</label><input id="vendor-product-stock" type="number" min="0" max="1000000" required></div></div><div class="field"><label for="vendor-product-media">Replace product images (optional)</label><div id="vendor-product-media-preview"></div><input id="vendor-product-media" type="file" accept="image/*,video/*" multiple></div><div class="form-actions"><button class="button" type="button" data-close-dialog>Cancel</button><button class="button button-primary" type="submit">Save product</button></div></form></dialog>`);
   const profileDetails = target.querySelector('.store-profile > div');
   const orders = detail.orders || [];
   target.insertAdjacentHTML('beforeend', `<section class="panel store-orders-panel"><div class="panel-head"><div><h2>Recent orders</h2><p class="panel-subtitle">Latest orders for this store.</p></div><span class="badge">${orders.length} shown</span></div><div class="rows">${orders.length ? orders.map((order) => `<div class="data-row"><div><strong>${escapeHtml(order.productTitle || 'Product')}</strong><small>${Number(order.quantity || 0)} units · ${escapeHtml(order.status)} · ${new Date(order.createdAt).toLocaleDateString()}</small></div><span>${money(order.amountCents)}</span></div>`).join('') : emptyState('No orders for this store yet.')}</div></section>`);
@@ -906,7 +945,7 @@ async function renderAdmin() {
 }
 
 async function renderRoute(route) {
-  const renderers = { overview: renderOverview, tasks: renderTasks, marketplace: renderMarketplace, products: renderProducts, vendor: renderVendor, gigs: renderGigs, wallet: renderWallet, profile: renderProfile, support: renderSupport, settings: renderSettings, premium: renderPremium, admin: renderAdmin };
+  const renderers = { overview: renderOverview, tasks: renderTasks, marketplace: renderMarketplace, products: renderProducts, books: renderBooks, vendor: renderVendor, gigs: renderGigs, wallet: renderWallet, profile: renderProfile, support: renderSupport, settings: renderSettings, premium: renderPremium, admin: renderAdmin };
   const normalized = renderers[route] ? route : 'overview';
   await renderers[normalized]();
   if (normalized === 'admin') moveCreateFormToDialog('admin-ad-form', 'admin-ad-dialog', 'Create a third-party ad', 'Create ad');
@@ -930,21 +969,6 @@ async function uploadFiles(files) {
   Array.from(files).forEach((file) => form.append('files', file));
   const result = await api('/api/uploads', { method: 'POST', body: form });
   return result.files || [];
-}
-
-async function uploadFilesTo(url, files, onProgress) {
-  if (!files?.length) return [];
-  const uploadedFiles = [];
-  const selectedFiles = Array.from(files);
-  for (const [index, file] of selectedFiles.entries()) {
-    onProgress?.(index + 1, selectedFiles.length, file.name);
-    const form = new FormData();
-    form.append('files', file);
-    const result = await api(url, { method: 'POST', body: form });
-    if (!result.files?.[0]) throw new Error(`The PDF "${file.name}" was not uploaded.`);
-    uploadedFiles.push(result.files[0]);
-  }
-  return uploadedFiles;
 }
 
 async function onSubmit(event) {
@@ -988,8 +1012,7 @@ async function onSubmit(event) {
         stock: Number(value('vendor-product-stock'))
       };
       if (files.length) {
-        const existingPdfs = JSON.parse($('#vendor-product-existing-pdfs', form).value || '[]');
-        payload.media = [...files.map((file) => ({ url: file.url, mimeType: file.mimeType })), ...existingPdfs];
+        payload.media = files.map((file) => ({ url: file.url, mimeType: file.mimeType }));
       }
       await api(`/api/vendor/products/${encodeURIComponent(value('vendor-product-id'))}`, { method: 'PATCH', body: JSON.stringify(payload) });
       const storeId = $('#vendor-store-detail').dataset.storeId;
@@ -1005,32 +1028,58 @@ async function onSubmit(event) {
       await api('/api/listings', { method: 'POST', body: JSON.stringify({ title: value('listing-title'), type: value('listing-type'), category: value('listing-category'), priceCents: Math.round(Number(value('listing-price')) * 100), media: files.map((file) => ({ url: file.url, mimeType: file.mimeType })) }) });
       notify('Marketplace listing published.');
     } else if (form.id === 'product-form') {
-      const pdfInput = $('#product-pdfs', form);
-      const pdfFiles = Array.from(pdfInput.files || []);
-      if (pdfFiles.length > 12) throw new Error('A book can contain up to 12 PDF files.');
-      if (pdfFiles.some((file) => !file.name.toLowerCase().endsWith('.pdf'))) throw new Error('Only PDF files can be added as book files.');
-      if (pdfFiles.some((file) => file.size > 16 * 1024 * 1024)) throw new Error('Each PDF must be 16 MB or smaller.');
-      if (!$('#product-media', form).files.length && !pdfFiles.length) throw new Error('Add at least one product photo, video, or PDF file.');
-
+      const selectedFiles = $('#product-media', form).files;
+      if (!selectedFiles.length) throw new Error('Add at least one product photo or video.');
+      const files = await uploadFiles(selectedFiles);
+      await api('/api/products', { method: 'POST', body: JSON.stringify({ title: value('product-title'), storeId: value('product-store') || undefined, category: value('product-category'), description: value('product-description'), priceDollars: Number(value('product-price')), stock: Number(value('product-stock')), media: files.map((file) => ({ url: file.url, mimeType: file.mimeType })) }) });
+      notify('Product listed successfully.');
+    } else if (form.id === 'book-form') {
       const submitButton = event.submitter;
-      const buttonLabel = submitButton?.textContent;
+      const originalLabel = submitButton?.textContent || 'Publish publication';
+      const selectedFiles = Array.from($('#book-files', form).files || []);
+      const priceMode = $('input[name="book-price-mode"]:checked', form)?.value || 'free';
+      const details = {
+        contentType: value('book-type'),
+        title: value('book-title'),
+        storeId: value('book-store') || undefined,
+        description: value('book-description'),
+        priceCents: priceMode === 'free' ? 0 : Math.round(Number(value('book-price')) * 100)
+      };
       if (submitButton) {
         submitButton.disabled = true;
-        submitButton.textContent = 'Uploading book...';
+        submitButton.textContent = 'Saving publication...';
       }
       try {
-        const files = await uploadFiles($('#product-media', form).files);
-        const pdfs = await uploadFilesTo('/api/uploads/product-pdfs', pdfFiles, (index, total) => {
-          if (submitButton) submitButton.textContent = `Uploading PDF ${index} of ${total}...`;
-          $('#product-pdf-count').textContent = `Uploading PDF ${index} of ${total}...`;
+        let bookId = value('book-draft-id');
+        const draft = await api(bookId ? `/api/books/${encodeURIComponent(bookId)}/draft` : '/api/books/drafts', {
+          method: bookId ? 'PATCH' : 'POST',
+          body: JSON.stringify(details)
         });
-        const media = [...files.map((file) => ({ url: file.url, mimeType: file.mimeType })), ...pdfs.map((file) => ({ url: file.url, mimeType: file.mimeType, name: file.name }))];
-        await api('/api/products', { method: 'POST', body: JSON.stringify({ title: value('product-title'), storeId: value('product-store') || undefined, category: value('product-category'), description: value('product-description'), priceDollars: Number(value('product-price')), stock: Number(value('product-stock')), media }) });
-        notify('Product listed successfully.');
+        bookId = bookId || draft.book.id;
+        $('#book-draft-id', form).value = bookId;
+        for (const [index, file] of selectedFiles.entries()) {
+          $('#book-upload-status').textContent = `Uploading PDF ${index + 1} of ${selectedFiles.length}: ${file.name}`;
+          if (submitButton) submitButton.textContent = `Uploading PDF ${index + 1} of ${selectedFiles.length}...`;
+          const uploadForm = new FormData();
+          uploadForm.append('file', file);
+          await api(`/api/books/${encodeURIComponent(bookId)}/files`, { method: 'POST', body: uploadForm });
+          const existingFiles = $('#book-existing-files');
+          if (!existingFiles.querySelector('.book-file-list')) existingFiles.innerHTML = '<div class="book-file-list"></div>';
+          existingFiles.querySelector('.book-file-list').insertAdjacentHTML('beforeend', `<div class="book-file"><i data-lucide="file-text"></i><span>${escapeHtml(file.name)}</span><small>${(file.size / 1048576).toFixed(1)} MB</small></div>`);
+          window.lucide?.createIcons();
+          const remainingFiles = new DataTransfer();
+          selectedFiles.slice(index + 1).forEach((remainingFile) => remainingFiles.items.add(remainingFile));
+          $('#book-files').files = remainingFiles.files;
+        }
+        $('#book-upload-status').textContent = 'Publishing...';
+        await api(`/api/books/${encodeURIComponent(bookId)}/publish`, { method: 'POST' });
+        form.closest('dialog')?.close();
+        notify('Publication published successfully.');
+        await renderBooks();
       } finally {
         if (submitButton?.isConnected) {
           submitButton.disabled = false;
-          submitButton.textContent = buttonLabel;
+          submitButton.textContent = originalLabel;
         }
       }
     } else if (form.id === 'gig-form') {
@@ -1119,6 +1168,44 @@ document.addEventListener('click', async (event) => {
     navigate(routeLink.dataset.route);
     return;
   }
+  const resumeBook = event.target.closest('[data-resume-book]');
+  if (resumeBook) {
+    try {
+      const response = await api('/api/books/mine');
+      const book = (response.books || []).find((item) => item.id === resumeBook.dataset.resumeBook);
+      if (!book) throw new Error('Your publication draft could not be found.');
+      const form = $('#book-form');
+      form.reset();
+      $('#book-draft-id').value = book.id;
+      $('#book-type').value = book.contentType;
+      $('#book-title').value = book.title;
+      $('#book-store').value = book.storeId || '';
+      $('#book-description').value = book.description;
+      const price = Number(book.priceCents || 0);
+      $('input[name="book-price-mode"][value="paid"]').checked = price > 0;
+      $('input[name="book-price-mode"][value="free"]').checked = price === 0;
+      $('#book-price').value = price > 0 ? (price / 100).toFixed(2) : '5';
+      $('#book-price').required = price > 0;
+      $('#book-price-field').classList.toggle('hidden', price === 0);
+      $('#book-existing-files').innerHTML = publicationFilesMarkup(book, false);
+      $('#book-upload-status').textContent = `${Number(book.fileCount || 0)} PDF${Number(book.fileCount || 0) === 1 ? '' : 's'} already uploaded. Add more files or publish this draft.`;
+      $('#publish-book-dialog').showModal();
+    } catch (error) { notify(error.message); }
+    return;
+  }
+  const bookPurchase = event.target.closest('[data-book-purchase]');
+  if (bookPurchase) {
+    bookPurchase.disabled = true;
+    try {
+      await api(`/api/books/${encodeURIComponent(bookPurchase.dataset.bookPurchase)}/purchase`, { method: 'POST', body: JSON.stringify({}) });
+      notify('Publication purchased. Your PDFs are now available to download.');
+      await renderBooks();
+    } catch (error) {
+      notify(error.message);
+      bookPurchase.disabled = false;
+    }
+    return;
+  }
   const supportModeButton = event.target.closest('[data-support-mode]');
   if (supportModeButton) {
     supportMode = supportModeButton.dataset.supportMode;
@@ -1143,7 +1230,19 @@ document.addEventListener('click', async (event) => {
   }
   if (event.target.closest('[data-refresh-overview]')) { await renderOverview(); return; }
   const dialogTrigger = event.target.closest('[data-open-dialog]');
-  if (dialogTrigger) { $(`#${dialogTrigger.dataset.openDialog}`).showModal(); return; }
+  if (dialogTrigger) {
+    if (dialogTrigger.dataset.openDialog === 'publish-book-dialog') {
+      const form = $('#book-form');
+      form.reset();
+      $('#book-draft-id').value = '';
+      $('#book-price').required = false;
+      $('#book-price-field').classList.add('hidden');
+      $('#book-existing-files').replaceChildren();
+      $('#book-upload-status').textContent = '';
+    }
+    $(`#${dialogTrigger.dataset.openDialog}`).showModal();
+    return;
+  }
   if (event.target.closest('[data-close-dialog]')) { event.target.closest('dialog')?.close(); return; }
   if (event.target.closest('[data-save-profile-avatar]')) {
     const [file] = $('#profile-avatar-file').files || [];
@@ -1367,6 +1466,11 @@ document.addEventListener('invalid', (event) => {
 document.addEventListener('submit', onSubmit);
 document.addEventListener('input', (event) => { if (event.target.id === 'market-search') renderMarketplaceCards(marketplaceItems); });
 document.addEventListener('change', (event) => {
+  if (event.target.name === 'book-price-mode') {
+    const paid = event.target.value === 'paid';
+    $('#book-price-field')?.classList.toggle('hidden', !paid);
+    $('#book-price').required = paid;
+  }
   if (event.target.id === 'market-category') renderMarketplaceCards(marketplaceItems);
   const preference = event.target.closest('[data-notification-preference]');
   if (preference) {
@@ -1388,6 +1492,22 @@ document.addEventListener('keydown', async (event) => {
 window.addEventListener('popstate', () => renderRoute(location.pathname.slice(1)).catch((error) => notify(error.message)));
 
 async function initialize() {
+  if (location.pathname === '/books') {
+    try {
+      const result = await api('/api/me');
+      if (result.user) {
+        const profile = await api('/api/profile').catch(() => ({ user: result.user }));
+        setShellUser({ ...result.user, ...(profile.user || {}), subscriptionTier: result.user.subscriptionTier || profile.user?.subscriptionTier || 'standard' });
+      } else {
+        document.body.classList.add('public-books');
+      }
+    } catch (error) {
+      document.body.classList.add('public-books');
+      notify(error.message);
+    }
+    await renderRoute('books');
+    return;
+  }
   try {
     const result = await api('/api/me');
     if (!result.user) { location.replace('/'); return; }

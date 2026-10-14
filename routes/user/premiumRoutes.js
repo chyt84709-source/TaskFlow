@@ -75,7 +75,7 @@ router.post('/api/premium/upgrade', requireUser, async (req, res, next) => {
     if (parsed.data.method === 'referrals') {
       if (Number(user.referral_count || 0) < 10) return res.status(400).json({ error: 'Complete 10 verified referrals to unlock Premium.' });
     } else {
-      const balanceResult = await db.query("SELECT COALESCE(SUM(CASE WHEN kind IN ('payout', 'product_purchase', 'gig_purchase', 'task_purchase', 'marketplace_purchase', 'premium_upgrade') THEN -amount_cents ELSE amount_cents END), 0)::int AS balance FROM transactions WHERE user_id = $1 AND status IN ('paid', 'completed', 'approved', 'success')", [req.session.user.id]);
+      const balanceResult = await db.query("SELECT COALESCE(SUM(CASE WHEN kind IN ('payout', 'product_purchase', 'book_purchase', 'gig_purchase', 'task_purchase', 'marketplace_purchase', 'premium_upgrade') THEN -amount_cents ELSE amount_cents END), 0)::int AS balance FROM transactions WHERE user_id = $1 AND status IN ('paid', 'completed', 'approved', 'success')", [req.session.user.id]);
       if (Number(balanceResult.rows[0]?.balance || 0) < premiumFeeCents) return res.status(400).json({ error: `Add ${meta.symbol}${(premiumFeeCents / 100).toLocaleString()} to your wallet before upgrading.` });
       await db.query('INSERT INTO transactions (id,user_id,kind,amount_cents,status,metadata,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)', [nanoid(), req.session.user.id, 'premium_upgrade', premiumFeeCents, 'paid', { baseUsdCents: 500, currency: meta.code, rate: meta.rate, taxCents: premiumTax.taxCents, internationalTax: premiumTax.isInternational }, new Date().toISOString()]);
     }

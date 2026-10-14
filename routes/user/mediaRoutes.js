@@ -6,50 +6,7 @@ import { requireUser } from '../../utils/helpers.js';
 import { decryptImage, processAndEncryptImage, readEncryptedImage, saveEncryptedImage } from '../../services/media.js';
 
 const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 }, fileFilter: (_req, file, callback) => callback(null, /^image\/(jpeg|png|webp|gif|avif|heic)$/.test(file.mimetype)) });
-const pdfUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024 } });
 const router = express.Router();
-
-function uploadPdfFiles(req, res, next) {
-  pdfUpload.array('files', 12)(req, res, (error) => {
-    if (!error) return next();
-    const message = error.code === 'LIMIT_FILE_SIZE'
-      ? 'Each PDF must be 16 MB or smaller.'
-      : error.code === 'LIMIT_FILE_COUNT'
-        ? 'A book can contain up to 12 PDF files.'
-        : error.message;
-    res.status(400).json({ error: message });
-  });
-}
-
-router.post('/api/uploads/product-pdfs', requireUser, uploadPdfFiles, async (req, res, next) => {
-  try {
-    const files = Array.isArray(req.files) ? req.files : [];
-    if (!files.length) return res.status(400).json({ error: 'Choose at least one PDF file to upload.' });
-
-    if (files.some((file) => !file.originalname.toLowerCase().endsWith('.pdf') || !file.buffer.subarray(0, 1024).includes(Buffer.from('%PDF-')))) {
-      return res.status(400).json({ error: 'Only valid PDF files can be uploaded.' });
-    }
-    const namedFiles = files.map((file) => {
-      const name = file.originalname.split(/[\\/]/).pop().replace(/[\u0000-\u001f\u007f]/g, '').trim();
-      return { file, name };
-    });
-    if (namedFiles.some(({ name }) => !name || name.length > 255)) {
-      return res.status(400).json({ error: 'PDF file names must be between 1 and 255 characters.' });
-    }
-
-    const savedFiles = [];
-    for (const { file, name } of namedFiles) {
-      const pdf = await processAndEncryptImage(file.buffer, 'application/pdf');
-      const id = nanoid();
-      const filename = await saveEncryptedImage(pdf.payload, id);
-      await db.query('INSERT INTO media_files (id,user_id,filename,mime_type,purpose) VALUES ($1,$2,$3,$4,$5)', [id, req.session.user.id, filename, pdf.mimeType, 'product-download']);
-      savedFiles.push({ name, url: `/api/media/${id}`, size: file.size, mimeType: pdf.mimeType });
-    }
-    res.status(201).json({ files: savedFiles });
-  } catch (error) {
-    next(error);
-  }
-});
 
 router.post('/api/profile/avatar', requireUser, imageUpload.single('file'), async (req, res, next) => {
   try {

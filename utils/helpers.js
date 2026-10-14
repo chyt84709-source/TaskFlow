@@ -44,7 +44,7 @@ export function requireAdmin(req, res, next) {
 }
 
 export async function ensureWalletReady(userId, amountCents) {
-  const result = await db.query("SELECT COALESCE(SUM(CASE WHEN kind IN ('payout', 'product_purchase', 'gig_purchase', 'task_purchase', 'marketplace_purchase', 'premium_upgrade') THEN -amount_cents ELSE amount_cents END), 0)::int AS balance FROM transactions WHERE user_id = $1 AND status IN ('paid', 'completed', 'approved', 'success')", [userId]);
+  const result = await db.query("SELECT COALESCE(SUM(CASE WHEN kind IN ('payout', 'product_purchase', 'book_purchase', 'gig_purchase', 'task_purchase', 'marketplace_purchase', 'premium_upgrade') THEN -amount_cents ELSE amount_cents END), 0)::int AS balance FROM transactions WHERE user_id = $1 AND status IN ('paid', 'completed', 'approved', 'success')", [userId]);
   if (Number(result.rows[0]?.balance || 0) < amountCents) {
     const error = new Error('Insufficient wallet balance. Add funds in the Wallet section before purchasing.');
     error.statusCode = 402;

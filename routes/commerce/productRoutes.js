@@ -6,22 +6,16 @@ import { ensureWalletReady, requireAdmin, requireUser, updateTrustScoreOnSuccess
 
 const router = express.Router();
 const productMediaSchema = z.union([
-  z.string().min(1),
-  z.object({ url: z.string().min(1), mimeType: z.string().min(1).max(100), name: z.string().trim().min(1).max(255).optional() }),
+  z.string().min(1).refine((url) => !/\.pdf(?:$|[?#])/i.test(url), 'PDFs belong in Books.'),
+  z.object({ url: z.string().min(1), mimeType: z.string().regex(/^(image|video)\//i, 'Products support image and video media only.') }),
 ]);
-
-function productMediaId(url) {
-  return /^\/api\/media\/([A-Za-z0-9_-]+)$/.exec(url)?.[1] || null;
-}
 
 router.get('/api/products', async (req, res, next) => {
   try {
     const search = String(req.query.search || '').trim();
     const category = String(req.query.category || '').trim();
-    let query = `SELECT p.*, COALESCE(AVG(r.rating), 0)::float AS avg_rating, COUNT(r.id)::int AS review_count,s.business_name AS store_name,s.logo_url AS store_logo_url,s.cover_url AS store_cover_url,u.subscription_tier AS store_tier,u.green_tick AS store_green_tick,
-      EXISTS (SELECT 1 FROM product_orders o WHERE o.product_id=p.id AND o.buyer_id=$1 AND o.status IN ('paid','processing','shipped','completed')) AS "hasPurchased"
-      FROM products p LEFT JOIN reviews r ON r.product_id = p.id LEFT JOIN stores s ON s.id=p.store_id LEFT JOIN users u ON u.id=p.vendor_id WHERE p.status = 'active'`;
-    const params = [req.session?.user?.id || null];
+    let query = `SELECT p.*, COALESCE(AVG(r.rating), 0)::float AS avg_rating, COUNT(r.id)::int AS review_count,s.business_name AS store_name,s.logo_url AS store_logo_url,s.cover_url AS store_cover_url,u.subscription_tier AS store_tier,u.green_tick AS store_green_tick FROM products p LEFT JOIN reviews r ON r.product_id = p.id LEFT JOIN stores s ON s.id=p.store_id LEFT JOIN users u ON u.id=p.vendor_id WHERE p.status = 'active'`;
+    const params = [];
 
     if (search) {
       params.push(`%${search}%`);
@@ -41,72 +35,12 @@ router.get('/api/products', async (req, res, next) => {
   }
 });
 
-router.get('/api/products/:id/files/:fileId/download', async (req, res, next) => {
-  try {
-    const result = await db.query(`SELECT p.vendor_id AS "vendorId",p.price_cents AS "priceCents",p.media,
-        m.filename,m.mime_type AS "mimeType",m.purpose
-      FROM products p JOIN media_files m ON m.id=$2
-      WHERE p.id=$1 AND p.status='active'`, [req.params.id, req.params.fileId]);
-    const product = result.rows[0];
-    if (!product || product.purpose !== 'product-download' || product.mimeType !== 'application/pdf') return res.status(404).end();
-
-    const file = (Array.isArray(product.media) ? product.media : []).find((entry) =>
-      typeof entry === 'object' && entry?.mimeType === 'application/pdf' && productMediaId(entry.url) === req.params.fileId);
-    if (!file) return res.status(404).end();
-
-    const viewer = req.session?.user;
-    const ownerAccess = viewer?.id === product.vendorId;
-    const adminAccess = viewer?.isAdmin || viewer?.role === 'admin';
-    if (Number(product.priceCents) > 0 && !ownerAccess && !adminAccess) {
-      if (!viewer) return res.status(401).json({ error: 'Purchase this book before downloading its PDFs.' });
-      const access = await db.query(`SELECT 1 FROM product_orders o
-        JOIN users u ON u.id=o.buyer_id
-        WHERE o.product_id=$1 AND o.buyer_id=$2 AND o.status IN ('paid','processing','shipped','completed')
-          AND u.account_status='active' LIMIT 1`, [req.params.id, viewer.id]);
-      if (!access.rows[0]) return res.status(403).json({ error: 'Purchase this book before downloading its PDFs.' });
-    }
-
-    const encrypted = await readEncryptedImage(product.filename);
-    const payload = decryptImage(encrypted);
-    const filename = String(file.name || 'book.pdf').replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 255) || 'book.pdf';
-    const fallbackName = filename.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_');
-    const encodedName = encodeURIComponent(filename).replace(/['()*]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
-    res.set({
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="${fallbackName}"; filename*=UTF-8''${encodedName}`,
-      'Content-Length': String(payload.length),
-      'Cache-Control': 'private, no-store',
-      'X-Content-Type-Options': 'nosniff'
-    }).send(payload);
-  } catch (error) {
-    if (error.code === 'ENOENT') return res.status(404).end();
-    next(error);
-  }
-});
-
 router.post('/api/products', requireUser, async (req, res, next) => {
   try {
-    const parsed = z.object({ title: z.string().min(3).max(120), description: z.string().min(5).max(2000), category: z.string().min(2).max(60), priceCents: z.number().int().nonnegative().optional(), priceDollars: z.number().min(0).max(1000000).optional(), stock: z.number().int().min(0).default(1), media: z.array(productMediaSchema).min(1).max(22), storeId: z.string().min(1).optional() })
-      .superRefine((data, context) => {
-        const pdfFiles = data.media.filter((file) => typeof file !== 'string' && file.mimeType === 'application/pdf');
-        if (pdfFiles.length > 12) context.addIssue({ code: z.ZodIssueCode.custom, message: 'A book can contain up to 12 PDF files.' });
-        if (data.media.length - pdfFiles.length > 10) context.addIssue({ code: z.ZodIssueCode.custom, message: 'A product can contain up to 10 photos or videos.' });
-        if (pdfFiles.some((file) => !file.name || !productMediaId(file.url))) context.addIssue({ code: z.ZodIssueCode.custom, message: 'Each PDF must have a name and a valid uploaded file.' });
-      })
-      .safeParse(req.body);
+    const parsed = z.object({ title: z.string().min(3).max(120), description: z.string().min(5).max(2000), category: z.string().min(2).max(60), priceCents: z.number().int().positive().optional(), priceDollars: z.number().min(0.01).max(1000000).optional(), stock: z.number().int().min(0).default(1), media: z.array(productMediaSchema).min(1).max(10), storeId: z.string().min(1).optional() }).safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Enter valid product details.' });
 
-    const pdfFiles = parsed.data.media.filter((file) => typeof file !== 'string' && file.mimeType === 'application/pdf');
     const priceCents = Number(parsed.data.priceCents ?? Math.round((parsed.data.priceDollars ?? 0) * 100));
-    if (priceCents === 0 && !pdfFiles.length) return res.status(400).json({ error: 'Free products must include at least one PDF book file.' });
-
-    if (pdfFiles.length) {
-      const fileIds = pdfFiles.map((file) => productMediaId(file.url));
-      if (new Set(fileIds).size !== fileIds.length) return res.status(400).json({ error: 'Each PDF file must be unique.' });
-      const ownedFiles = await db.query(`SELECT id FROM media_files
-        WHERE id=ANY($1::text[]) AND user_id=$2 AND purpose='product-download' AND mime_type='application/pdf'`, [fileIds, req.session.user.id]);
-      if (ownedFiles.rows.length !== fileIds.length) return res.status(400).json({ error: 'Upload each PDF from this account before listing the book.' });
-    }
 
     if (parsed.data.storeId) {
       const store = await db.query("SELECT id FROM stores WHERE id=$1 AND owner_id=$2 AND status='verified'", [parsed.data.storeId, req.session.user.id]);
@@ -181,20 +115,9 @@ router.patch('/api/vendor/products/:id', requireUser, async (req, res, next) => 
       category: z.string().trim().min(2).max(60),
       priceCents: z.number().int().positive(),
       stock: z.number().int().min(0).max(1000000),
-      media: z.array(productMediaSchema).min(1).max(22).optional()
+      media: z.array(productMediaSchema).min(1).max(10).optional()
     }).safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Enter valid product details.' });
-    const pdfFiles = (parsed.data.media || []).filter((file) => typeof file !== 'string' && file.mimeType === 'application/pdf');
-    if (pdfFiles.length > 12 || (parsed.data.media && parsed.data.media.length - pdfFiles.length > 10)) {
-      return res.status(400).json({ error: 'A product can contain up to 10 photos or videos and 12 PDFs.' });
-    }
-    if (pdfFiles.length) {
-      const fileIds = pdfFiles.map((file) => productMediaId(file.url));
-      if (fileIds.some((id) => !id) || new Set(fileIds).size !== fileIds.length) return res.status(400).json({ error: 'Each PDF must be a unique uploaded file.' });
-      const ownedFiles = await db.query(`SELECT id FROM media_files
-        WHERE id=ANY($1::text[]) AND user_id=$2 AND purpose='product-download' AND mime_type='application/pdf'`, [fileIds, req.session.user.id]);
-      if (ownedFiles.rows.length !== fileIds.length) return res.status(400).json({ error: 'Upload each PDF from this account before attaching it.' });
-    }
     const result = await db.query(`UPDATE products SET title=$1,description=$2,category=$3,price_cents=$4,stock=$5,media=COALESCE($6::jsonb,media)
       WHERE id=$7 AND vendor_id=$8 AND status='active'
       RETURNING id,title,description,category,price_cents AS "priceCents",stock,media,status`,
