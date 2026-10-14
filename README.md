@@ -13,7 +13,7 @@ A headless Node.js platform for freelancing, micro-tasking, and e-commerce.
 
 - Dashboard with earnings, task, store, and trust metrics.
 - Video task browser with a watch-time verification timer and reward credit.
-- Marketplace for browsing product listings and opening a seller listing flow.
+- Marketplace for browsing products, selling free or paid PDF books, and downloading entitled files.
 - Wallet with balance, activity history, and payout request state.
 - Profile with identity verification, two-factor status, and seller reputation.
 

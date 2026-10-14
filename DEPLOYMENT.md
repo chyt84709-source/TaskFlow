@@ -10,6 +10,8 @@ Set `APP_BASE_URL`, `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, and `STRIPE_W
 
 Railway production stores every encrypted upload under `/app/upload`; mount the persistent volume at exactly that path and share it with every app instance. The production code pins this path so a stale `UPLOAD_DIR` value cannot route new uploads to the container filesystem. Local development uses `UPLOAD_DIR=./data/uploads`.
 
+PDF book uploads are encrypted alongside other media, with up to 12 PDF files per book and a 16 MB limit per file. Free-book downloads are public; paid-book files are served only to the seller or a buyer with a completed product order.
+
 ## Custom domain: taskflow.monster
 
 In Railway, add `taskflow.monster` to the TaskFlow web service's custom domains and copy the DNS target Railway displays. Add the requested DNS record at your domain provider and wait for Railway to issue HTTPS. Then set these TaskFlow service variables:

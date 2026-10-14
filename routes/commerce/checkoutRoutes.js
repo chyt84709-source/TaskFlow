@@ -16,7 +16,8 @@ router.post('/api/products/:id/purchase', requireUser, async (req, res, next) =>
     const product = productResult.rows[0];
     if (!product) return res.status(404).json({ error: 'Product not found' });
     const quantity = parsed.data.quantity;
-    if (Number(product.stock) < quantity) return res.status(409).json({ error: 'Not enough stock is available.' });
+    const isDigitalBook = Array.isArray(product.media) && product.media.some((file) => file?.mimeType === 'application/pdf');
+    if (!isDigitalBook && Number(product.stock) < quantity) return res.status(409).json({ error: 'Not enough stock is available.' });
 
     const subtotalCents = Number(product.price_cents) * quantity;
     const countryResult = await db.query('SELECT country FROM users WHERE id=$1', [req.session.user.id]);
@@ -28,10 +29,12 @@ router.post('/api/products/:id/purchase', requireUser, async (req, res, next) =>
 
     client = await db.connect();
     await client.query('BEGIN');
-    const stockUpdate = await client.query("UPDATE products SET stock=stock-$1 WHERE id=$2 AND status='active' AND stock >= $1 RETURNING id", [quantity, order.productId]);
-    if (!stockUpdate.rows[0]) {
-      await client.query('ROLLBACK');
-      return res.status(409).json({ error: 'Not enough stock is available.' });
+    if (!isDigitalBook) {
+      const stockUpdate = await client.query("UPDATE products SET stock=stock-$1 WHERE id=$2 AND status='active' AND stock >= $1 RETURNING id", [quantity, order.productId]);
+      if (!stockUpdate.rows[0]) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ error: 'Not enough stock is available.' });
+      }
     }
     await client.query('INSERT INTO product_orders (id,product_id,buyer_id,seller_id,quantity,amount_cents,fee_cents,status,notes,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [order.id, order.productId, order.buyerId, order.sellerId, order.quantity, order.amountCents, order.feeCents, 'paid', order.notes, order.createdAt]);
     await client.query('INSERT INTO transactions (id,user_id,kind,amount_cents,status,metadata,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)', [nanoid(), order.buyerId, 'product_purchase', order.amountCents, 'paid', { productId: order.productId, quantity, subtotalCents, taxCents: tax.taxCents, internationalTax: tax.isInternational, feeCents: order.feeCents }, order.createdAt]);

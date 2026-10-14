@@ -277,6 +277,7 @@ async function renderTasks() {
 function mediaMarkup(item) {
   const entries = Array.isArray(item.media) ? item.media : [];
   const rendered = entries.map((entry) => {
+    if (typeof entry !== 'string' && entry?.mimeType === 'application/pdf') return '';
     const url = mediaUrl(typeof entry === 'string' ? entry : entry?.url);
     if (!url) return '';
     const mimeType = typeof entry === 'string' ? '' : entry?.mimeType || '';
@@ -288,6 +289,26 @@ function mediaMarkup(item) {
   }).filter(Boolean);
   if (!rendered.length) return '<div class="listing-placeholder"><i data-lucide="image"></i></div>';
   return rendered.length === 1 ? rendered[0] : `<div class="media-gallery">${rendered.join('')}</div>`;
+}
+
+function productPdfFiles(product) {
+  return (Array.isArray(product.media) ? product.media : []).filter((entry) =>
+    typeof entry !== 'string' && entry?.mimeType === 'application/pdf');
+}
+
+function productPdfMarkup(product, isOwner) {
+  const files = productPdfFiles(product);
+  if (!files.length) return '';
+  const productId = encodeURIComponent(product.id);
+  const canDownload = Number(product.price_cents ?? product.priceCents) === 0 || isOwner || product.hasPurchased;
+  const links = files.map((file) => {
+    const fileId = /^\/api\/media\/([A-Za-z0-9_-]+)$/.exec(file.url || '')?.[1];
+    if (!fileId) return '';
+    return canDownload
+      ? `<a class="button" href="/api/products/${productId}/files/${encodeURIComponent(fileId)}/download" download><i data-lucide="download"></i>${escapeHtml(file.name || 'Download PDF')}</a>`
+      : `<span class="badge">${escapeHtml(file.name || 'PDF file')}</span>`;
+  }).filter(Boolean);
+  return `<div class="product-pdf-files"><strong>${files.length} ${files.length === 1 ? 'PDF' : 'PDFs'} in this book</strong><div class="form-actions">${links.join('')}</div>${!canDownload ? '<small>Buy this book to download its PDFs.</small>' : ''}</div>`;
 }
 
 function renderMarketplaceCards(items) {
@@ -353,9 +374,10 @@ async function renderProducts() {
       <div class="field"><label for="product-title">Product title</label><input id="product-title" required minlength="3" maxlength="120"></div>
       <div class="field"><label for="product-store">Store</label><select id="product-store"><option value="">Independent listing</option>${approvedStores.map((store) => `<option value="${escapeHtml(store.id)}">${escapeHtml(store.businessName)}</option>`).join('')}</select></div>
       <div class="field"><label for="product-category">Category</label><select id="product-category" required>${categoryOptions(categories)}</select></div>
-      <div class="form-grid"><div class="field"><label for="product-price">Price (USD)</label><input id="product-price" type="number" min="0.01" step="0.01" value="25" required></div><div class="field"><label for="product-stock">Stock</label><input id="product-stock" type="number" min="0" value="10" required></div></div>
+      <div class="form-grid"><div class="field"><label for="product-price">Price (USD)</label><input id="product-price" type="number" min="0" step="0.01" value="25" required><small>Set the price to 0 to offer a PDF book for free.</small></div><div class="field"><label for="product-stock">Physical stock (not used for PDF books)</label><input id="product-stock" type="number" min="0" value="10" required></div></div>
       <div class="field"><label for="product-description">Description</label><textarea id="product-description" required></textarea></div>
-      <div class="field"><label for="product-media">Product images</label><input id="product-media" type="file" accept="image/*,video/*" multiple required></div>
+      <div class="field"><label for="product-media">Product photos or videos (optional for PDF books)</label><input id="product-media" type="file" accept="image/*,video/*" multiple></div>
+      <div class="field"><label for="product-pdfs">Book PDF files</label><input id="product-pdfs" type="file" accept="application/pdf,.pdf" multiple><small id="product-pdf-count">Choose up to 12 PDFs. You can select multiple files.</small></div>
       <div class="form-actions"><button class="button" type="button" data-close-dialog>Cancel</button><button class="button button-primary" type="submit">List product</button></div>
     </form></dialog>`);
   const [productResponse, promotionResponse] = await Promise.all([
@@ -379,7 +401,15 @@ async function renderProducts() {
       } else if (isOwner) {
         promotionMarkup = `<button class="button product-feature-action" type="button" data-product-promotion="${escapeHtml(product.id)}">Request 7-day homepage feature</button>`;
       }
-      return `<article class="listing-card product-card">${mediaMarkup({ ...product, media: product.media || [] })}<div class="listing-body"><span class="badge">${escapeHtml(product.category || 'Product')}</span><h3>${escapeHtml(product.title)}</h3>${product.store_name ? `<div class="product-brand">${product.store_logo_url ? `<img src="${escapeHtml(product.store_logo_url)}" alt="">` : ''}<span>${escapeHtml(product.store_name)}</span></div>` : ''}<p class="listing-description">${escapeHtml(product.description || '')}</p><div class="listing-meta"><span class="product-rating">${Number(product.review_count || 0) ? `${Number(product.avg_rating || 0).toFixed(1)} ★ · ${Number(product.review_count)} reviews` : 'New arrival'}</span><strong>${money(product.price_cents || product.priceCents)}</strong></div><div class="product-stock-row"><span class="badge">${Number(product.stock || 0)} in stock</span><button class="button button-primary" type="button" data-buy-product="${escapeHtml(product.id)}" ${Number(product.stock || 0) < 1 || isOwner ? 'disabled' : ''}><i data-lucide="shopping-bag"></i>Buy product</button></div><button class="button product-contact" type="button" data-contact="product" data-id="${escapeHtml(product.id)}" data-title="${escapeHtml(product.title)}">Contact seller</button>${promotionMarkup}</div></article>`;
+      const pdfFiles = productPdfFiles(product);
+      const priceCents = Number(product.price_cents ?? product.priceCents ?? 0);
+      const purchaseButton = !isOwner && !product.hasPurchased && priceCents > 0
+        ? `<button class="button button-primary" type="button" data-buy-product="${escapeHtml(product.id)}" ${pdfFiles.length ? 'data-buy-digital="true"' : ''} ${!pdfFiles.length && Number(product.stock || 0) < 1 ? 'disabled' : ''}><i data-lucide="shopping-bag"></i>${pdfFiles.length ? 'Buy book' : 'Buy product'}</button>`
+        : '';
+      const inventoryMarkup = pdfFiles.length
+        ? `${productPdfMarkup(product, isOwner)}${purchaseButton ? `<div class="product-stock-row">${purchaseButton}</div>` : ''}`
+        : `<div class="product-stock-row"><span class="badge">${Number(product.stock || 0)} in stock</span><button class="button button-primary" type="button" data-buy-product="${escapeHtml(product.id)}" ${Number(product.stock || 0) < 1 || isOwner ? 'disabled' : ''}><i data-lucide="shopping-bag"></i>Buy product</button></div>`;
+      return `<article class="listing-card product-card">${mediaMarkup({ ...product, media: product.media || [] })}<div class="listing-body"><span class="badge">${escapeHtml(product.category || 'Product')}</span><h3>${escapeHtml(product.title)}</h3>${product.store_name ? `<div class="product-brand">${product.store_logo_url ? `<img src="${escapeHtml(product.store_logo_url)}" alt="">` : ''}<span>${escapeHtml(product.store_name)}</span></div>` : ''}<p class="listing-description">${escapeHtml(product.description || '')}</p><div class="listing-meta"><span class="product-rating">${Number(product.review_count || 0) ? `${Number(product.avg_rating || 0).toFixed(1)} ★ · ${Number(product.review_count)} reviews` : 'New arrival'}</span><strong>${priceCents === 0 ? 'Free' : money(priceCents)}</strong></div>${inventoryMarkup}<button class="button product-contact" type="button" data-contact="product" data-id="${escapeHtml(product.id)}" data-title="${escapeHtml(product.title)}">Contact seller</button>${promotionMarkup}</div></article>`;
     }).join('') : emptyState('No products match these filters.');
     $('#product-cards').querySelectorAll('[data-buy-product]').forEach((button) => {
       const product = filtered.find((item) => String(item.id) === button.dataset.buyProduct);
@@ -390,6 +420,10 @@ async function renderProducts() {
   };
   $('#product-search').addEventListener('input', renderCards);
   $('#product-category-filter').addEventListener('change', renderCards);
+  $('#product-pdfs').addEventListener('change', () => {
+    const count = $('#product-pdfs').files.length;
+    $('#product-pdf-count').textContent = `${count} ${count === 1 ? 'PDF selected' : 'PDFs selected'} (maximum 12).`;
+  });
   renderCards();
 }
 
@@ -480,6 +514,7 @@ function openVendorProductEdit(product) {
   $('#vendor-product-price').value = Number(product.priceCents || product.price_cents || 0) / 100;
   $('#vendor-product-stock').value = Number(product.stock || 0);
   $('#vendor-product-media-preview').innerHTML = product.media?.length ? mediaMarkup({ title: product.title, media: product.media }) : emptyState('No product image.');
+  $('#vendor-product-existing-pdfs').value = JSON.stringify(productPdfFiles(product));
   $('#vendor-product-edit-dialog').showModal();
 }
 
@@ -539,7 +574,7 @@ async function renderVendorStore(storeId) {
     menu.innerHTML = `<summary aria-label="Product actions" title="Product actions"><i data-lucide="more-horizontal"></i></summary><div class="product-menu-items"><button type="button" data-edit-product="${escapeHtml(product.id)}"><i data-lucide="pencil"></i>Edit product</button><button type="button" data-delete-product="${escapeHtml(product.id)}"><i data-lucide="trash-2"></i>Delete product</button></div>`;
     card.append(menu);
   });
-  target.insertAdjacentHTML('beforeend', `<dialog class="modal-dialog" id="vendor-product-edit-dialog"><form id="vendor-product-edit-form" class="panel modal-panel"><div class="panel-head"><div><h2>Edit product</h2><p class="panel-subtitle">Changes apply only to this product.</p></div><button class="button icon-button" type="button" data-close-dialog aria-label="Close"><i data-lucide="x"></i></button></div><input id="vendor-product-id" type="hidden"><div class="field"><label for="vendor-product-title">Product title</label><input id="vendor-product-title" required minlength="3" maxlength="120"></div><div class="field"><label for="vendor-product-category">Category</label><input id="vendor-product-category" required minlength="2" maxlength="60"></div><div class="field"><label for="vendor-product-description">Description</label><textarea id="vendor-product-description" required minlength="5" maxlength="2000"></textarea></div><div class="form-grid"><div class="field"><label for="vendor-product-price">Price (USD)</label><input id="vendor-product-price" type="number" min="0.01" step="0.01" required></div><div class="field"><label for="vendor-product-stock">Stock</label><input id="vendor-product-stock" type="number" min="0" max="1000000" required></div></div><div class="field"><label for="vendor-product-media">Replace product images (optional)</label><div id="vendor-product-media-preview"></div><input id="vendor-product-media" type="file" accept="image/*,video/*" multiple></div><div class="form-actions"><button class="button" type="button" data-close-dialog>Cancel</button><button class="button button-primary" type="submit">Save product</button></div></form></dialog>`);
+  target.insertAdjacentHTML('beforeend', `<dialog class="modal-dialog" id="vendor-product-edit-dialog"><form id="vendor-product-edit-form" class="panel modal-panel"><div class="panel-head"><div><h2>Edit product</h2><p class="panel-subtitle">Changes apply only to this product.</p></div><button class="button icon-button" type="button" data-close-dialog aria-label="Close"><i data-lucide="x"></i></button></div><input id="vendor-product-id" type="hidden"><input id="vendor-product-existing-pdfs" type="hidden"><div class="field"><label for="vendor-product-title">Product title</label><input id="vendor-product-title" required minlength="3" maxlength="120"></div><div class="field"><label for="vendor-product-category">Category</label><input id="vendor-product-category" required minlength="2" maxlength="60"></div><div class="field"><label for="vendor-product-description">Description</label><textarea id="vendor-product-description" required minlength="5" maxlength="2000"></textarea></div><div class="form-grid"><div class="field"><label for="vendor-product-price">Price (USD)</label><input id="vendor-product-price" type="number" min="0.01" step="0.01" required></div><div class="field"><label for="vendor-product-stock">Stock</label><input id="vendor-product-stock" type="number" min="0" max="1000000" required></div></div><div class="field"><label for="vendor-product-media">Replace product images (optional)</label><div id="vendor-product-media-preview"></div><input id="vendor-product-media" type="file" accept="image/*,video/*" multiple></div><div class="form-actions"><button class="button" type="button" data-close-dialog>Cancel</button><button class="button button-primary" type="submit">Save product</button></div></form></dialog>`);
   const profileDetails = target.querySelector('.store-profile > div');
   const orders = detail.orders || [];
   target.insertAdjacentHTML('beforeend', `<section class="panel store-orders-panel"><div class="panel-head"><div><h2>Recent orders</h2><p class="panel-subtitle">Latest orders for this store.</p></div><span class="badge">${orders.length} shown</span></div><div class="rows">${orders.length ? orders.map((order) => `<div class="data-row"><div><strong>${escapeHtml(order.productTitle || 'Product')}</strong><small>${Number(order.quantity || 0)} units · ${escapeHtml(order.status)} · ${new Date(order.createdAt).toLocaleDateString()}</small></div><span>${money(order.amountCents)}</span></div>`).join('') : emptyState('No orders for this store yet.')}</div></section>`);
@@ -897,6 +932,14 @@ async function uploadFiles(files) {
   return result.files || [];
 }
 
+async function uploadFilesTo(url, files) {
+  if (!files?.length) return [];
+  const form = new FormData();
+  Array.from(files).forEach((file) => form.append('files', file));
+  const result = await api(url, { method: 'POST', body: form });
+  return result.files || [];
+}
+
 async function onSubmit(event) {
   const form = event.target;
   if (!(form instanceof HTMLFormElement)) return;
@@ -937,7 +980,10 @@ async function onSubmit(event) {
         priceCents: Math.round(Number(value('vendor-product-price')) * 100),
         stock: Number(value('vendor-product-stock'))
       };
-      if (files.length) payload.media = files.map((file) => ({ url: file.url, mimeType: file.mimeType }));
+      if (files.length) {
+        const existingPdfs = JSON.parse($('#vendor-product-existing-pdfs', form).value || '[]');
+        payload.media = [...files.map((file) => ({ url: file.url, mimeType: file.mimeType })), ...existingPdfs];
+      }
       await api(`/api/vendor/products/${encodeURIComponent(value('vendor-product-id'))}`, { method: 'PATCH', body: JSON.stringify(payload) });
       const storeId = $('#vendor-store-detail').dataset.storeId;
       notify('Product updated.');
@@ -952,8 +998,12 @@ async function onSubmit(event) {
       await api('/api/listings', { method: 'POST', body: JSON.stringify({ title: value('listing-title'), type: value('listing-type'), category: value('listing-category'), priceCents: Math.round(Number(value('listing-price')) * 100), media: files.map((file) => ({ url: file.url, mimeType: file.mimeType })) }) });
       notify('Marketplace listing published.');
     } else if (form.id === 'product-form') {
+      if ($('#product-pdfs', form).files.length > 12) throw new Error('A book can contain up to 12 PDF files.');
       const files = await uploadFiles($('#product-media', form).files);
-      await api('/api/products', { method: 'POST', body: JSON.stringify({ title: value('product-title'), storeId: value('product-store') || undefined, category: value('product-category'), description: value('product-description'), priceDollars: Number(value('product-price')), stock: Number(value('product-stock')), media: files.map((file) => ({ url: file.url, mimeType: file.mimeType })) }) });
+      const pdfs = await uploadFilesTo('/api/uploads/product-pdfs', $('#product-pdfs', form).files);
+      const media = [...files.map((file) => ({ url: file.url, mimeType: file.mimeType })), ...pdfs.map((file) => ({ url: file.url, mimeType: file.mimeType, name: file.name }))];
+      if (!media.length) throw new Error('Add at least one product photo, video, or PDF file.');
+      await api('/api/products', { method: 'POST', body: JSON.stringify({ title: value('product-title'), storeId: value('product-store') || undefined, category: value('product-category'), description: value('product-description'), priceDollars: Number(value('product-price')), stock: Number(value('product-stock')), media }) });
       notify('Product listed successfully.');
     } else if (form.id === 'gig-form') {
       await api('/api/gigs', { method: 'POST', body: JSON.stringify({ title: value('gig-title'), category: value('gig-category'), description: value('gig-description'), priceDollars: Number(value('gig-price')), deliveryDays: Number(value('gig-days')) }) });
@@ -1165,7 +1215,7 @@ document.addEventListener('click', async (event) => {
   }
   const buyProductButton = event.target.closest('[data-buy-product]');
   if (buyProductButton) {
-    const quantity = Number(window.prompt('Quantity to buy', '1'));
+    const quantity = buyProductButton.dataset.buyDigital === 'true' ? 1 : Number(window.prompt('Quantity to buy', '1'));
     if (!Number.isInteger(quantity) || quantity < 1 || quantity > 50) return;
     try {
       await api(`/api/products/${encodeURIComponent(buyProductButton.dataset.buyProduct)}/purchase`, { method: 'POST', body: JSON.stringify({ quantity }) });
