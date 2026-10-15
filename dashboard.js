@@ -11,6 +11,7 @@ let currentUser = null;
 let marketplaceItems = [];
 let vendorStoreProducts = new Map();
 let adminContentItems = new Map();
+let booksById = new Map();
 let selectedSupportThreadId = null;
 let supportMode = null;
 let toastTimer;
@@ -342,31 +343,39 @@ function publicationFilesMarkup(book, canDownload) {
   const files = Array.isArray(book.files) ? book.files : [];
   if (!files.length) return '<p class="book-empty-files">No PDFs uploaded yet.</p>';
   return `<div class="book-file-list">${files.map((file) => canDownload
-    ? `<a class="book-file" href="/api/books/${encodeURIComponent(book.id)}/files/${encodeURIComponent(file.id)}/download"><i data-lucide="file-down"></i><span>${escapeHtml(file.name)}</span><small>${Number(file.sizeBytes || 0) ? `${(Number(file.sizeBytes) / 1048576).toFixed(1)} MB` : 'PDF'}</small></a>`
-    : `<div class="book-file"><i data-lucide="file-text"></i><span>${escapeHtml(file.name)}</span><small>${Number(file.sizeBytes || 0) ? `${(Number(file.sizeBytes) / 1048576).toFixed(1)} MB` : 'PDF'}</small></div>`
+    ? `<a class="book-file" dir="auto" download href="/api/books/${encodeURIComponent(book.id)}/files/${encodeURIComponent(file.id)}/download"><i data-lucide="file-down"></i><span>${escapeHtml(file.name)}</span><small>${Number(file.sizeBytes || 0) ? `${(Number(file.sizeBytes) / 1048576).toFixed(1)} MB` : 'PDF'}</small></a>`
+    : `<div class="book-file" dir="auto"><i data-lucide="file-text"></i><span>${escapeHtml(file.name)}</span><small>${Number(file.sizeBytes || 0) ? `${(Number(file.sizeBytes) / 1048576).toFixed(1)} MB` : 'PDF'}</small></div>`
   ).join('')}</div>`;
 }
 
 function publicationCard(book, owner = false) {
   const price = Number(book.priceCents ?? book.price_cents ?? 0);
-  const entitledToDownload = owner || (book.status === 'active' && (price === 0 || book.hasPurchased));
-  const canDownload = Boolean(currentUser) && entitledToDownload;
   const files = Array.isArray(book.files) ? book.files : [];
   let action = '';
   if (owner && book.status === 'draft') {
     action = `<button class="button button-primary" type="button" data-resume-book="${escapeHtml(book.id)}">Continue publishing</button>`;
   } else if (owner && book.status === 'archived') {
     action = '<span class="book-free-download">Private archive</span>';
-  } else if (!currentUser && entitledToDownload) {
-    action = '<a class="button button-primary" href="/"><i data-lucide="log-in"></i>Sign in to download</a>';
-  } else if (canDownload) {
-    action = '<span class="book-free-download"><i data-lucide="circle-check"></i>Ready to download</span>';
-  } else if (currentUser) {
-    action = `<button class="button button-primary" type="button" data-book-purchase="${escapeHtml(book.id)}"><i data-lucide="shopping-bag"></i>Buy publication</button>`;
   } else {
-    action = '<a class="button button-primary" href="/"><i data-lucide="log-in"></i>Sign in to buy</a>';
+    action = `<button class="button button-primary" type="button" data-open-book="${escapeHtml(book.id)}"><i data-lucide="book-open"></i>View publication</button>`;
   }
-  return `<article class="listing-card book-card"><div class="book-cover"><i data-lucide="${book.contentType === 'newspaper' ? 'newspaper' : book.contentType === 'article' ? 'file-text' : 'book-open'}"></i><span>${escapeHtml(book.contentType || 'book')}</span></div><div class="listing-body"><div class="book-card-heading"><div><span class="badge">${escapeHtml(book.storeName || book.contentType || 'Publication')}</span><h3>${escapeHtml(book.title)}</h3></div><strong class="book-price">${price === 0 ? 'Free' : money(price)}</strong></div><p class="listing-description">${escapeHtml(book.description || '')}</p><div class="book-meta"><span>${escapeHtml(book.sellerName || 'TaskFlow seller')}</span><span>${files.length} ${files.length === 1 ? 'PDF' : 'PDFs'}</span>${book.status === 'draft' ? '<span class="badge">Draft</span>' : ''}</div>${publicationFilesMarkup(book, canDownload)}<div class="book-card-actions">${action}</div></div></article>`;
+  const cover = mediaUrl(book.coverUrl);
+  const sellerAvatar = mediaUrl(book.sellerAvatarUrl);
+  const typeIcon = book.contentType === 'newspaper' ? 'newspaper' : book.contentType === 'article' ? 'file-text' : 'book-open';
+  return `<article class="listing-card book-card"><div class="book-cover">${cover ? `<img src="${escapeHtml(cover)}" alt="${escapeHtml(book.title)} cover">` : `<i data-lucide="${typeIcon}"></i><span>${escapeHtml(book.contentType || 'book')}</span>`}</div><div class="listing-body"><div class="book-card-heading"><div><span class="badge">${escapeHtml(book.storeName || book.contentType || 'Publication')}</span><h3 dir="auto">${escapeHtml(book.title)}</h3></div><strong class="book-price">${price === 0 ? 'Free' : money(price)}</strong></div><p class="listing-description" dir="auto">${escapeHtml(book.description || '')}</p><div class="book-meta"><span class="book-seller">${sellerAvatar ? `<img src="${escapeHtml(sellerAvatar)}" alt="">` : `<span class="book-seller-initials">${escapeHtml(initials(book.sellerName))}</span>`}<span dir="auto">${escapeHtml(book.sellerName || 'TaskFlow seller')}</span></span><span>${files.length} ${files.length === 1 ? 'volume' : 'volumes'}</span>${book.status === 'draft' ? '<span class="badge">Draft</span>' : ''}</div><div class="book-card-actions">${action}</div></div></article>`;
+}
+
+function openBookDetail(book) {
+  const price = Number(book.priceCents ?? book.price_cents ?? 0);
+  const owner = Boolean(currentUser && book.sellerId === currentUser.id);
+  const entitled = owner || (currentUser && book.status === 'active' && (price === 0 || book.hasPurchased));
+  const cover = mediaUrl(book.coverUrl);
+  const sellerAvatar = mediaUrl(book.sellerAvatarUrl);
+  const files = Array.isArray(book.files) ? book.files : [];
+  const dialog = $('#book-detail-dialog');
+  dialog.innerHTML = `<div class="panel modal-panel book-detail-panel"><div class="panel-head"><div><span class="eyebrow">${escapeHtml(book.contentType || 'Publication')}</span><h2 dir="auto">${escapeHtml(book.title)}</h2></div><button class="button icon-button" type="button" data-close-dialog aria-label="Close"><i data-lucide="x"></i></button></div><div class="book-detail-main">${cover ? `<img class="book-detail-cover" src="${escapeHtml(cover)}" alt="${escapeHtml(book.title)} cover">` : `<div class="book-detail-cover book-cover-fallback"><i data-lucide="${book.contentType === 'newspaper' ? 'newspaper' : book.contentType === 'article' ? 'file-text' : 'book-open'}"></i></div>`}<div class="book-detail-info"><strong class="book-price">${price === 0 ? 'Free' : money(price)}</strong><p dir="auto">${escapeHtml(book.description || '')}</p><div class="book-seller">${sellerAvatar ? `<img src="${escapeHtml(sellerAvatar)}" alt="">` : `<span class="book-seller-initials">${escapeHtml(initials(book.sellerName))}</span>`}<span dir="auto">${escapeHtml(book.sellerName || 'TaskFlow seller')}</span></div>${owner ? `<label class="button book-cover-update">Change cover<input type="file" accept="image/*" data-book-cover-file="${escapeHtml(book.id)}"></label>` : ''}</div></div><section class="book-volumes"><div class="panel-head"><div><h3>Volumes and files</h3><p class="panel-subtitle">${files.length} ${files.length === 1 ? 'PDF available' : 'PDFs available'}</p></div></div>${files.length ? publicationFilesMarkup(book, Boolean(currentUser && entitled)) : '<p class="book-empty-files">No PDFs have been added yet.</p>'}${!currentUser ? '<a class="button button-primary" href="/">Sign in to download this publication</a>' : !entitled && book.status === 'active' ? `<button class="button button-primary" type="button" data-book-purchase="${escapeHtml(book.id)}"><i data-lucide="shopping-bag"></i>Buy publication</button>` : ''}</section></div>`;
+  window.lucide?.createIcons();
+  dialog.showModal();
 }
 
 async function renderBooks() {
@@ -376,7 +385,7 @@ async function renderBooks() {
     const storeResult = await api('/api/store/me').catch(() => ({ stores: [] }));
     stores = (storeResult.stores || []).filter((store) => store.status === 'verified');
   }
-  pageFrame('books', `<section class="panel books-hero"><div><span class="eyebrow">Digital library</span><h2>Books, articles & newspapers</h2><p class="panel-subtitle">Discover downloadable publications from independent creators. Sign in to download free PDFs; paid publications unlock after purchase.</p></div>${signedIn ? '<button class="button button-primary" type="button" data-open-dialog="publish-book-dialog"><i data-lucide="plus"></i>Publish a PDF</button>' : '<a class="button button-primary" href="/"><i data-lucide="log-in"></i>Sign in to publish</a>'}</section><section class="panel book-catalog-panel"><div class="panel-head"><div><h2>Explore publications</h2><p class="panel-subtitle">Browse individual PDFs or collections of any number of files.</p></div><span class="badge" id="book-count">Loading...</span></div><div class="book-filters"><label class="field"><span>Search publications</span><input id="book-search" type="search" placeholder="Title, description, or store"></label><label class="field"><span>Publication type</span><select id="book-type-filter"><option value="">All types</option><option value="book">Books</option><option value="article">Articles</option><option value="newspaper">Newspapers</option></select></label></div><div class="cards-grid book-grid" id="book-cards">${emptyState('Loading publications...')}</div></section>${signedIn ? `<section class="panel book-catalog-panel"><div class="panel-head"><div><h2>Your publications</h2><p class="panel-subtitle">Published PDFs and drafts awaiting completion.</p></div></div><div class="cards-grid book-grid" id="my-book-cards">${emptyState('Loading your publications...')}</div></section><dialog class="modal-dialog" id="publish-book-dialog"><form id="book-form" class="panel modal-panel"><div class="panel-head"><div><h2>Publish a PDF</h2><p class="panel-subtitle">Create a book, article, or newspaper and attach as many PDF files as you need.</p></div><button class="button icon-button" type="button" data-close-dialog aria-label="Close"><i data-lucide="x"></i></button></div><input id="book-draft-id" type="hidden"><div class="field"><label for="book-type">Publication type</label><select id="book-type" required><option value="book">Book</option><option value="article">Article</option><option value="newspaper">Newspaper</option></select></div><div class="field"><label for="book-title">Title</label><input id="book-title" required minlength="3" maxlength="160" placeholder="Publication title"></div><div class="field"><label for="book-store">Store (optional)</label><select id="book-store"><option value="">Independent publication</option>${stores.map((store) => `<option value="${escapeHtml(store.id)}">${escapeHtml(store.businessName)}</option>`).join('')}</select></div><div class="field"><label for="book-description">Description</label><textarea id="book-description" required minlength="5" maxlength="4000" placeholder="Tell readers what this publication is about"></textarea></div><fieldset class="book-price-options"><legend>Price</legend><label><input type="radio" name="book-price-mode" value="free" checked> Free</label><label><input type="radio" name="book-price-mode" value="paid"> Paid</label></fieldset><div class="field hidden" id="book-price-field"><label for="book-price">Price (USD)</label><input id="book-price" type="number" min="0.01" max="1000000" step="0.01" value="5"></div><div class="field"><label for="book-files">PDF files</label><input id="book-files" type="file" accept="application/pdf,.pdf" multiple><small>No app-imposed file-count or file-size limit. Files upload one at a time; keep this page open until publishing completes.</small></div><div id="book-existing-files" class="book-existing-files"></div><p id="book-upload-status" class="panel-subtitle" aria-live="polite"></p><div class="form-actions"><button class="button" type="button" data-close-dialog>Cancel</button><button class="button button-primary" type="submit">Publish publication</button></div></form></dialog>` : ''}`);
+  pageFrame('books', `<section class="panel books-hero"><div><span class="eyebrow">Digital library</span><h2>Books, articles & newspapers</h2><p class="panel-subtitle">Discover downloadable publications from independent creators. Sign in to download free PDFs; paid publications unlock after purchase.</p></div>${signedIn ? '<button class="button button-primary" type="button" data-open-dialog="publish-book-dialog"><i data-lucide="plus"></i>Publish a PDF</button>' : '<a class="button button-primary" href="/"><i data-lucide="log-in"></i>Sign in to publish</a>'}</section><section class="panel book-catalog-panel"><div class="panel-head"><div><h2>Explore publications</h2><p class="panel-subtitle">Open a publication to see its cover, seller, and downloadable volumes.</p></div><span class="badge" id="book-count">Loading...</span></div><div class="book-filters"><label class="field"><span>Search publications</span><input id="book-search" type="search" placeholder="Title, description, or store"></label><label class="field"><span>Publication type</span><select id="book-type-filter"><option value="">All types</option><option value="book">Books</option><option value="article">Articles</option><option value="newspaper">Newspapers</option></select></label></div><div class="cards-grid book-grid" id="book-cards">${emptyState('Loading publications...')}</div></section>${signedIn ? `<section class="panel book-catalog-panel"><div class="panel-head"><div><h2>Your publications</h2><p class="panel-subtitle">Published PDFs and drafts awaiting completion.</p></div></div><div class="cards-grid book-grid" id="my-book-cards">${emptyState('You have not published a PDF yet.')}</div></section><dialog class="modal-dialog" id="publish-book-dialog"><form id="book-form" class="panel modal-panel"><div class="panel-head"><div><h2>Publish a PDF</h2><p class="panel-subtitle">Create a book, article, or newspaper, add a cover, and upload as many PDF volumes as you need.</p></div><button class="button icon-button" type="button" data-close-dialog aria-label="Close"><i data-lucide="x"></i></button></div><input id="book-draft-id" type="hidden"><input id="book-cover-url" type="hidden"><div class="field"><label for="book-type">Publication type</label><select id="book-type" required><option value="book">Book</option><option value="article">Article</option><option value="newspaper">Newspaper</option></select></div><div class="field"><label for="book-title">Title</label><input id="book-title" dir="auto" required minlength="3" maxlength="160" placeholder="Publication title"></div><div class="field"><label for="book-store">Store (optional)</label><select id="book-store"><option value="">Independent publication</option>${stores.map((store) => `<option value="${escapeHtml(store.id)}">${escapeHtml(store.businessName)}</option>`).join('')}</select></div><div class="field"><label for="book-description">Description</label><textarea id="book-description" dir="auto" required minlength="5" maxlength="4000" placeholder="Tell readers what this publication is about"></textarea></div><div class="field"><label for="book-cover-file">Book cover image</label><input id="book-cover-file" type="file" accept="image/*"><small>A cover image helps readers identify your publication.</small><img id="book-cover-preview" class="book-cover-preview hidden" alt="Publication cover preview"></div><fieldset class="book-price-options"><legend>Price</legend><label><input type="radio" name="book-price-mode" value="free" checked> Free</label><label><input type="radio" name="book-price-mode" value="paid"> Paid</label></fieldset><div class="field hidden" id="book-price-field"><label for="book-price">Price (USD)</label><input id="book-price" type="number" min="0.01" max="1000000" step="0.01" value="5"></div><div class="field"><label for="book-files">PDF files (each PDF becomes a volume)</label><input id="book-files" type="file" accept="application/pdf,.pdf" multiple><small>Files upload one at a time; keep this page open until publishing completes.</small></div><div id="book-existing-files" class="book-existing-files"></div><p id="book-upload-status" class="panel-subtitle" aria-live="polite"></p><div class="form-actions"><button class="button" type="button" data-close-dialog>Cancel</button><button class="button button-primary" type="submit">Publish publication</button></div></form></dialog>` : ''}<dialog class="modal-dialog book-detail-dialog" id="book-detail-dialog"></dialog>`);
 
   const typeFilter = $('#book-type-filter');
   const searchInput = $('#book-search');
@@ -389,6 +398,7 @@ async function renderBooks() {
     ]);
     books = catalog.books || [];
     myBooks = mine.books || [];
+    booksById = new Map([...books, ...myBooks].map((book) => [book.id, book]));
   } catch (error) {
     $('#book-cards').innerHTML = emptyState(error.message);
   }
@@ -1040,12 +1050,24 @@ async function onSubmit(event) {
       const submitButton = event.submitter;
       const originalLabel = submitButton?.textContent || 'Publish publication';
       const selectedFiles = Array.from($('#book-files', form).files || []);
+      const selectedCover = $('#book-cover-file', form).files?.[0];
       const priceMode = $('input[name="book-price-mode"]:checked', form)?.value || 'free';
+      let coverUrl = value('book-cover-url');
+      if (selectedCover) {
+        const uploadedCover = (await uploadFiles([selectedCover]))[0];
+        coverUrl = uploadedCover?.url || '';
+        if (!coverUrl) throw new Error('The cover image could not be uploaded.');
+        $('#book-cover-url', form).value = coverUrl;
+        $('#book-cover-preview').src = mediaUrl(coverUrl);
+        $('#book-cover-preview').classList.remove('hidden');
+      }
+      if (!coverUrl) throw new Error('Add a cover image before publishing.');
       const details = {
         contentType: value('book-type'),
         title: value('book-title'),
         storeId: value('book-store') || undefined,
         description: value('book-description'),
+        coverUrl,
         priceCents: priceMode === 'free' ? 0 : Math.round(Number(value('book-price')) * 100)
       };
       if (submitButton) {
@@ -1184,6 +1206,10 @@ document.addEventListener('click', async (event) => {
       $('#book-title').value = book.title;
       $('#book-store').value = book.storeId || '';
       $('#book-description').value = book.description;
+      $('#book-cover-url').value = book.coverUrl || '';
+      $('#book-cover-file').value = '';
+      $('#book-cover-preview').src = mediaUrl(book.coverUrl);
+      $('#book-cover-preview').classList.toggle('hidden', !mediaUrl(book.coverUrl));
       const price = Number(book.priceCents || 0);
       $('input[name="book-price-mode"][value="paid"]').checked = price > 0;
       $('input[name="book-price-mode"][value="free"]').checked = price === 0;
@@ -1194,6 +1220,13 @@ document.addEventListener('click', async (event) => {
       $('#book-upload-status').textContent = `${Number(book.fileCount || 0)} PDF${Number(book.fileCount || 0) === 1 ? '' : 's'} already uploaded. Add more files or publish this draft.`;
       $('#publish-book-dialog').showModal();
     } catch (error) { notify(error.message); }
+    return;
+  }
+  const openBook = event.target.closest('[data-open-book]');
+  if (openBook) {
+    const book = booksById.get(openBook.dataset.openBook);
+    if (book) openBookDetail(book);
+    else notify('This publication is no longer available.');
     return;
   }
   const bookPurchase = event.target.closest('[data-book-purchase]');
@@ -1242,6 +1275,10 @@ document.addEventListener('click', async (event) => {
       $('#book-price-field').classList.add('hidden');
       $('#book-existing-files').replaceChildren();
       $('#book-upload-status').textContent = '';
+      $('#book-cover-url').value = '';
+      $('#book-cover-file').value = '';
+      $('#book-cover-preview').removeAttribute('src');
+      $('#book-cover-preview').classList.add('hidden');
     }
     $(`#${dialogTrigger.dataset.openDialog}`).showModal();
     return;
@@ -1468,7 +1505,27 @@ document.addEventListener('invalid', (event) => {
 }, true);
 document.addEventListener('submit', onSubmit);
 document.addEventListener('input', (event) => { if (event.target.id === 'market-search') renderMarketplaceCards(marketplaceItems); });
-document.addEventListener('change', (event) => {
+document.addEventListener('change', async (event) => {
+  if (event.target.id === 'book-cover-file') {
+    const cover = event.target.files?.[0];
+    if (cover) {
+      $('#book-cover-preview').src = URL.createObjectURL(cover);
+      $('#book-cover-preview').classList.remove('hidden');
+    }
+  }
+  const bookCoverFile = event.target.closest('[data-book-cover-file]');
+  if (bookCoverFile) {
+    const cover = bookCoverFile.files?.[0];
+    if (!cover) return;
+    try {
+      const uploaded = (await uploadFiles([cover]))[0];
+      if (!uploaded?.url) throw new Error('The cover image could not be uploaded.');
+      await api(`/api/books/${encodeURIComponent(bookCoverFile.dataset.bookCoverFile)}/cover`, { method: 'PATCH', body: JSON.stringify({ coverUrl: uploaded.url }) });
+      notify('Publication cover updated.');
+      await renderBooks();
+    } catch (error) { notify(error.message); }
+    return;
+  }
   if (event.target.name === 'book-price-mode') {
     const paid = event.target.value === 'paid';
     $('#book-price-field')?.classList.toggle('hidden', !paid);

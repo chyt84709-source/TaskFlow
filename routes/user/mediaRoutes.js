@@ -43,6 +43,10 @@ router.get('/api/media/:id', async (req, res, next) => {
         OR EXISTS (SELECT 1 FROM stores s
           WHERE s.status='verified'
             AND (s.logo_url='/api/media/' || m.id OR s.cover_url='/api/media/' || m.id))
+        OR EXISTS (SELECT 1 FROM books b
+          JOIN users book_seller ON book_seller.id=b.seller_id
+          WHERE b.status='active'
+            AND (b.cover_url='/api/media/' || m.id OR book_seller.avatar_url='/api/media/' || m.id))
         OR EXISTS (SELECT 1 FROM ads a
         WHERE a.status='active'
           AND a.created_at + (COALESCE(a.duration_days, 7) * INTERVAL '1 day') >= NOW()
@@ -50,7 +54,7 @@ router.get('/api/media/:id', async (req, res, next) => {
             OR a.media @> jsonb_build_array(jsonb_build_object('url', '/api/media/' || m.id))))) AS "publiclyLinked"
       FROM media_files m LEFT JOIN users u ON u.id=m.user_id WHERE m.id=$1`, [req.params.id]);
     const media = result.rows[0];
-    const sharedMedia = media?.purpose === 'marketplace-media' || media?.purpose === 'ad-media';
+    const sharedMedia = media?.purpose === 'marketplace-media' || media?.purpose === 'ad-media' || media?.purpose === 'profile-avatar';
     const user = req.session?.user;
     const adminAccess = user?.isAdmin || user?.role === 'admin';
     const ownerAccess = user?.id === media?.userId;

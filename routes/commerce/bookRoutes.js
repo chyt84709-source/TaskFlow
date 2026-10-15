@@ -28,9 +28,19 @@ function uploadPdf(req, res, next) {
   });
 }
 
+function decodeUploadFilename(filename) {
+  if ([...filename].some((character) => character.codePointAt(0) > 255)) return filename;
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(Uint8Array.from(filename, (character) => character.charCodeAt(0)));
+  } catch {
+    return filename;
+  }
+}
+
+const coverUrlSchema = z.string().regex(/^\/api\/media\/[A-Za-z0-9_-]+$/, 'Upload a valid publication cover image.').optional();
 const bookSelect = `SELECT b.id,b.seller_id AS "sellerId",b.store_id AS "storeId",b.content_type AS "contentType",
-    b.title,b.description,b.price_cents AS "priceCents",b.status,b.created_at AS "createdAt",
-    b.published_at AS "publishedAt",u.name AS "sellerName",s.business_name AS "storeName",
+    b.title,b.description,b.cover_url AS "coverUrl",b.price_cents AS "priceCents",b.status,b.created_at AS "createdAt",
+    b.published_at AS "publishedAt",u.name AS "sellerName",u.avatar_url AS "sellerAvatarUrl",s.business_name AS "storeName",
     COUNT(bf.id)::int AS "fileCount",
     COALESCE(json_agg(json_build_object('id',bf.id,'name',bf.name,'sizeBytes',bf.size_bytes) ORDER BY bf.position)
       FILTER (WHERE bf.id IS NOT NULL),'[]'::json) AS files,
@@ -62,7 +72,7 @@ router.get('/api/books', async (req, res, next) => {
     }
     const result = await db.query(`${bookSelect}
       WHERE ${conditions.join(' AND ')}
-      GROUP BY b.id,u.name,s.business_name
+      GROUP BY b.id,u.name,u.avatar_url,s.business_name
       ORDER BY b.published_at DESC NULLS LAST,b.created_at DESC`, params);
     res.json({ books: result.rows });
   } catch (error) {
@@ -74,7 +84,7 @@ router.get('/api/books/mine', requireUser, async (req, res, next) => {
   try {
     const result = await db.query(`${bookSelect}
       WHERE b.seller_id=$2
-      GROUP BY b.id,u.name,s.business_name
+      GROUP BY b.id,u.name,u.avatar_url,s.business_name
       ORDER BY b.created_at DESC`, [req.session.user.id, req.session.user.id]);
     res.json({ books: result.rows });
   } catch (error) {
@@ -88,6 +98,7 @@ router.post('/api/books/drafts', requireUser, async (req, res, next) => {
       title: z.string().trim().min(3).max(160),
       contentType: z.enum(['book', 'article', 'newspaper']),
       description: z.string().trim().min(5).max(4000),
+      coverUrl: coverUrlSchema,
       priceCents: z.number().int().min(0).max(100000000),
       storeId: z.string().min(1).optional()
     }).safeParse(req.body);
@@ -97,10 +108,14 @@ router.post('/api/books/drafts', requireUser, async (req, res, next) => {
       const store = await db.query("SELECT id FROM stores WHERE id=$1 AND owner_id=$2 AND status='verified'", [parsed.data.storeId, req.session.user.id]);
       if (!store.rows[0]) return res.status(400).json({ error: 'Choose one of your verified stores.' });
     }
+    if (parsed.data.coverUrl) {
+      const cover = await db.query("SELECT id FROM media_files WHERE id=$1 AND user_id=$2 AND purpose='marketplace-media' AND mime_type LIKE 'image/%'", [parsed.data.coverUrl.split('/').pop(), req.session.user.id]);
+      if (!cover.rows[0]) return res.status(400).json({ error: 'Upload your cover image from this account.' });
+    }
     const id = nanoid();
-    await db.query(`INSERT INTO books (id,seller_id,store_id,content_type,title,description,price_cents,status,created_at)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,'draft',NOW())`,
-    [id, req.session.user.id, parsed.data.storeId || null, parsed.data.contentType, parsed.data.title, parsed.data.description, parsed.data.priceCents]);
+    await db.query(`INSERT INTO books (id,seller_id,store_id,content_type,title,description,cover_url,price_cents,status,created_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'draft',NOW())`,
+    [id, req.session.user.id, parsed.data.storeId || null, parsed.data.contentType, parsed.data.title, parsed.data.description, parsed.data.coverUrl || null, parsed.data.priceCents]);
     res.status(201).json({ book: { id, ...parsed.data, sellerId: req.session.user.id, status: 'draft', fileCount: 0 } });
   } catch (error) {
     next(error);
@@ -113,6 +128,7 @@ router.patch('/api/books/:id/draft', requireUser, async (req, res, next) => {
       title: z.string().trim().min(3).max(160),
       contentType: z.enum(['book', 'article', 'newspaper']),
       description: z.string().trim().min(5).max(4000),
+      coverUrl: coverUrlSchema,
       priceCents: z.number().int().min(0).max(100000000),
       storeId: z.string().min(1).optional()
     }).safeParse(req.body);
@@ -122,10 +138,29 @@ router.patch('/api/books/:id/draft', requireUser, async (req, res, next) => {
       const store = await db.query("SELECT id FROM stores WHERE id=$1 AND owner_id=$2 AND status='verified'", [parsed.data.storeId, req.session.user.id]);
       if (!store.rows[0]) return res.status(400).json({ error: 'Choose one of your verified stores.' });
     }
-    const result = await db.query(`UPDATE books SET store_id=$1,content_type=$2,title=$3,description=$4,price_cents=$5
-      WHERE id=$6 AND seller_id=$7 AND status='draft' RETURNING id`,
-    [parsed.data.storeId || null, parsed.data.contentType, parsed.data.title, parsed.data.description, parsed.data.priceCents, req.params.id, req.session.user.id]);
+    if (parsed.data.coverUrl) {
+      const cover = await db.query("SELECT id FROM media_files WHERE id=$1 AND user_id=$2 AND purpose='marketplace-media' AND mime_type LIKE 'image/%'", [parsed.data.coverUrl.split('/').pop(), req.session.user.id]);
+      if (!cover.rows[0]) return res.status(400).json({ error: 'Upload your cover image from this account.' });
+    }
+    const result = await db.query(`UPDATE books SET store_id=$1,content_type=$2,title=$3,description=$4,cover_url=COALESCE($5,cover_url),price_cents=$6
+      WHERE id=$7 AND seller_id=$8 AND status='draft' RETURNING id`,
+    [parsed.data.storeId || null, parsed.data.contentType, parsed.data.title, parsed.data.description, parsed.data.coverUrl || null, parsed.data.priceCents, req.params.id, req.session.user.id]);
     if (!result.rows[0]) return res.status(404).json({ error: 'Your book draft was not found.' });
+    res.json({ updated: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch('/api/books/:id/cover', requireUser, async (req, res, next) => {
+  const parsed = z.object({ coverUrl: z.string().regex(/^\/api\/media\/[A-Za-z0-9_-]+$/) }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Upload a valid publication cover image.' });
+  try {
+    const coverId = parsed.data.coverUrl.split('/').pop();
+    const cover = await db.query("SELECT id FROM media_files WHERE id=$1 AND user_id=$2 AND purpose='marketplace-media' AND mime_type LIKE 'image/%'", [coverId, req.session.user.id]);
+    if (!cover.rows[0]) return res.status(400).json({ error: 'Upload your cover image from this account.' });
+    const result = await db.query('UPDATE books SET cover_url=$1 WHERE id=$2 AND seller_id=$3 RETURNING id', [parsed.data.coverUrl, req.params.id, req.session.user.id]);
+    if (!result.rows[0]) return res.status(404).json({ error: 'Your publication was not found.' });
     res.json({ updated: true });
   } catch (error) {
     next(error);
@@ -152,7 +187,8 @@ router.post('/api/books/:id/files', requireUser, uploadPdf, async (req, res, nex
       await input.close();
     }
 
-    const name = req.file.originalname.split(/[\\/]/).pop().replace(/[\u0000-\u001f\u007f]/g, '').trim();
+    const decodedName = decodeUploadFilename(req.file.originalname);
+    const name = decodedName.split(/[\\/]/).pop().replace(/[\u0000-\u001f\u007f]/g, '').trim();
     if (!name || name.length > 255) return res.status(400).json({ error: 'The PDF filename must be between 1 and 255 characters.' });
 
     const mediaId = nanoid();
@@ -193,13 +229,17 @@ router.post('/api/books/:id/publish', requireUser, async (req, res, next) => {
   try {
     const result = await db.query(`UPDATE books b SET status='active',published_at=NOW()
       WHERE b.id=$1 AND b.seller_id=$2 AND b.status='draft'
+        AND b.cover_url IS NOT NULL
         AND EXISTS (SELECT 1 FROM book_files bf WHERE bf.book_id=b.id)
       RETURNING b.id,b.title,b.content_type AS "contentType",b.status,b.published_at AS "publishedAt"`,
     [req.params.id, req.session.user.id]);
     if (!result.rows[0]) {
       const draft = await findOwnedBook(req.params.id, req.session.user.id);
       if (!draft) return res.status(404).json({ error: 'Your book draft was not found.' });
-      return res.status(400).json({ error: 'Upload at least one PDF before publishing.' });
+      const files = await db.query('SELECT EXISTS (SELECT 1 FROM book_files WHERE book_id=$1) AS has_files, cover_url FROM books WHERE id=$1', [req.params.id]);
+      if (!files.rows[0].has_files) return res.status(400).json({ error: 'Upload at least one PDF before publishing.' });
+      if (!files.rows[0].cover_url) return res.status(400).json({ error: 'Upload a cover image before publishing.' });
+      return res.status(400).json({ error: 'This publication could not be published.' });
     }
     res.status(201).json({ book: result.rows[0] });
   } catch (error) {

@@ -13,7 +13,7 @@ A headless Node.js platform for freelancing, micro-tasking, and e-commerce.
 
 - Dashboard with earnings, task, store, and trust metrics.
 - Video task browser with a watch-time verification timer and reward credit.
-- Separate Books library for publishing books, articles, and newspapers with multiple PDF files; readers must sign in to download free publications, and paid downloads require purchase.
+- Separate Books library for publishing books, articles, and newspapers with cover images and multiple named PDF volumes; publication text and filenames support Unicode/RTL languages. Readers sign in to download free publications, and paid downloads require purchase.
 - Product listings remain for physical goods with image and video media.
 - Wallet with balance, activity history, and payout request state.
 - Profile with identity verification, two-factor status, and seller reputation.
