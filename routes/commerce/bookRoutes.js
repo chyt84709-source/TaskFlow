@@ -261,7 +261,7 @@ router.post('/api/books/:id/purchase', requireUser, async (req, res, next) => {
   }
 });
 
-router.get('/api/books/:id/files/:fileId/download', async (req, res, next) => {
+router.get('/api/books/:id/files/:fileId/download', requireUser, async (req, res, next) => {
   try {
     const result = await db.query(`SELECT b.seller_id AS "sellerId",b.price_cents AS "priceCents",b.status,
         bf.name,m.filename,m.purpose,m.mime_type AS "mimeType"
@@ -274,7 +274,7 @@ router.get('/api/books/:id/files/:fileId/download', async (req, res, next) => {
     const file = result.rows[0];
     if (!file || file.purpose !== 'book-download' || file.mimeType !== 'application/pdf') return res.status(404).end();
 
-    const viewer = req.session?.user;
+    const viewer = req.session.user;
     const ownerAccess = viewer?.id === file.sellerId;
     const adminAccess = viewer?.isAdmin || viewer?.role === 'admin';
     if (Number(file.priceCents) > 0 && !ownerAccess && !adminAccess) {
@@ -299,3 +299,5 @@ router.get('/api/books/:id/files/:fileId/download', async (req, res, next) => {
     next(error);
   }
 });
+
+export default router;
