@@ -218,7 +218,7 @@ async function migrateProductBooks() {
           AND EXISTS (SELECT 1 FROM book_files bf
             JOIN media_files m ON m.id=bf.media_id
             WHERE bf.book_id='legacy-book-' || p.id
-              AND m.id=substring(entry.item->>'url' from '^/api/media/([A-Za-z0-9_-]+)$'))))`);
+              AND m.id=substring(entry.item->>'url' from '^/api/media/([A-Za-z0-9_-]+)$')))`);
     await client.query('COMMIT');
   } catch (error) {
     await client.query('ROLLBACK');
