@@ -1868,10 +1868,10 @@
       close.textContent = 'Close';
       close.addEventListener('click', () => dialog.close());
       heading.append(close);
+      panel.insertBefore(trigger, form);
       modalPanel.append(heading, form);
       dialog.append(modalPanel);
       document.body.append(dialog);
-      panel.insertBefore(trigger, form);
       trigger.addEventListener('click', () => dialog.showModal());
       dialog.addEventListener('click', (event) => {
         if (event.target === dialog) dialog.close();
