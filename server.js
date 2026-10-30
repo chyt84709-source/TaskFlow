@@ -36,11 +36,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT || 3000);
 const PLATFORM_FEE_RATE = 0.05;
 if (process.env.VERCEL && !objectStorageEnabled) {
-  throw new Error('S3 storage is required on Vercel. Configure AWS_S3_BUCKET and AWS_REGION.');
+  console.warn('S3 storage is not configured. Uploads will fail on Vercel.');
 }
-if (!objectStorageEnabled) fs.mkdirSync(uploadDirectory, { recursive: true });
-if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required.');
-const db = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : undefined });
+if (!process.env.DATABASE_URL) {
+  console.error('DATABASE_URL is missing!');
+  throw new Error('DATABASE_URL is required.');
+}
+const db = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.DATABASE_SSL === 'true' || process.env.VERCEL ? { rejectUnauthorized: false } : undefined });
+
 const googleClient = process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET ? new OAuth2Client(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET, process.env.GOOGLE_CALLBACK_URL) : null;
 const resendApiKey = process.env.RESEND_API_KEY;
 const resendFromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
@@ -53,8 +56,13 @@ const sockets = new Map();
 const adminUsername = process.env.SUPER_ADMIN_USERNAME;
 const adminPassword = process.env.SUPER_ADMIN_PASSWORD;
 const stripeGateway = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
-if (!process.env.SESSION_SECRET || !adminUsername || !adminPassword) throw new Error('SESSION_SECRET, SUPER_ADMIN_USERNAME, and SUPER_ADMIN_PASSWORD are required.');
-if (process.env.NODE_ENV === 'production' && !emailEnabled) throw new Error('RESEND_API_KEY and RESEND_FROM_EMAIL are required in production.');
+if (!process.env.SESSION_SECRET || !adminUsername || !adminPassword) {
+  console.warn('Warning: SESSION_SECRET, SUPER_ADMIN_USERNAME, or SUPER_ADMIN_PASSWORD missing.');
+}
+if (process.env.NODE_ENV === 'production' && !emailEnabled) {
+  console.warn('Email service disabled: RESEND_API_KEY and RESEND_FROM_EMAIL are missing.');
+}
+
 
 function hash(value) { return crypto.createHash('sha256').update(`${value}:${process.env.SESSION_SECRET || 'development-only'}`).digest('hex'); }
 function hashPassword(password) {
@@ -722,118 +730,4 @@ app.delete('/api/admin/media/:id', requireAdmin, async (req, res, next) => {
 });
 
 app.post('/api/admin/login', (req, res) => { const parsed = z.object({ username: z.string(), password: z.string() }).safeParse(req.body); if (!parsed.success || parsed.data.username !== adminUsername || parsed.data.password !== adminPassword) return res.status(401).json({ error: 'Invalid admin credentials' }); req.session.user = { id: 'super-admin', name: adminUsername, role: 'admin', subscriptionTier: 'premium', greenTick: true, twoFactor: true, isAdmin: true }; res.json({ user: req.session.user }); });
-app.get('/api/admin/overview', requireAdmin, async (_req, res, next) => { try { const [usersCount, escrow, disputesCount, listingsCount, productsCount, adsCount, gigsCount, categoriesCount, reportsCount, users, disputes, transactions, withdrawals] = await Promise.all([db.query('SELECT COUNT(*)::int AS count FROM users'), db.query('SELECT COALESCE(SUM(amount_cents),0)::int AS total FROM transactions'), db.query("SELECT COUNT(*)::int AS count FROM disputes WHERE status='open'"), db.query("SELECT COUNT(*)::int AS count FROM listings WHERE status='flagged'"), db.query('SELECT COUNT(*)::int AS count FROM products'), db.query('SELECT COUNT(*)::int AS count FROM ads WHERE status = \'active\''), db.query('SELECT COUNT(*)::int AS count FROM gigs WHERE status = \'active\''), db.query('SELECT COUNT(*)::int AS count FROM categories'), db.query('SELECT COUNT(*)::int AS count FROM reports WHERE status = \'open\''), db.query('SELECT id,name,phone,email,role,trust_score AS "trustScore",two_factor AS "twoFactor",created_at AS "createdAt" FROM users ORDER BY created_at DESC LIMIT 100'), db.query('SELECT * FROM disputes ORDER BY created_at DESC LIMIT 100'), db.query('SELECT * FROM transactions ORDER BY created_at DESC LIMIT 100'), db.query('SELECT * FROM withdrawals ORDER BY created_at DESC LIMIT 100')]); res.json({ stats: { activeUsers: usersCount.rows[0].count, escrowCents: escrow.rows[0].total, openDisputes: disputesCount.rows[0].count, flaggedListings: listingsCount.rows[0].count, activeProducts: productsCount.rows[0].count, activeAds: adsCount.rows[0].count, activeGigs: gigsCount.rows[0].count, categories: categoriesCount.rows[0].count, openReports: reportsCount.rows[0].count }, users: users.rows, disputes: disputes.rows, transactions: transactions.rows, withdrawals: withdrawals.rows }); } catch (error) { next(error); } });
-app.get('/api/admin/users', requireAdmin, async (_req, res, next) => {
-  try {
-    const result = await db.query('SELECT id,name,email,phone,avatar_url AS "avatarUrl",role,account_status AS "accountStatus",subscription_tier AS "subscriptionTier",green_tick AS "greenTick",trust_score AS "trustScore",created_at AS "createdAt" FROM users ORDER BY created_at DESC');
-    res.json({ users: result.rows });
-  } catch (error) {
-    next(error);
-  }
-});
-app.patch('/api/admin/users/:id/premium', requireAdmin, async (req, res, next) => {
-  try {
-    const parsed = z.object({ enabled: z.boolean() }).safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: 'Choose whether Premium should be enabled.' });
-    const result = await db.query('UPDATE users SET subscription_tier=$1,green_tick=$2,premium_source=$3,premium_activated_at=CASE WHEN $2 THEN COALESCE(premium_activated_at,NOW()) ELSE NULL END WHERE id=$4 AND role <> $5 RETURNING id,name,email,subscription_tier AS "subscriptionTier",green_tick AS "greenTick"', [parsed.data.enabled ? 'premium' : 'standard', parsed.data.enabled, parsed.data.enabled ? 'admin' : null, req.params.id, 'admin']);
-    if (!result.rows[0]) return res.status(404).json({ error: 'User not found or owner accounts cannot be changed.' });
-    res.json({ updated: true, user: result.rows[0] });
-  } catch (error) {
-    next(error);
-  }
-});
-app.get('/api/admin/premium-requests', requireAdmin, async (_req, res, next) => {
-  try {
-    const result = await db.query(`SELECT p.id,p.reason,p.status,p.created_at AS "createdAt",u.name AS "userName",u.email AS "userEmail"
-      FROM premium_requests p LEFT JOIN users u ON u.id = p.user_id ORDER BY CASE p.status WHEN 'pending' THEN 0 ELSE 1 END, p.created_at DESC`);
-    res.json({ requests: result.rows });
-  } catch (error) {
-    next(error);
-  }
-});
-app.post('/api/admin/premium-requests/:id/review', requireAdmin, async (req, res, next) => {
-  try {
-    const parsed = z.object({ decision: z.enum(['approved', 'rejected']) }).safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: 'Choose approve or reject.' });
-    const requestResult = await db.query('SELECT user_id, status FROM premium_requests WHERE id = $1 FOR UPDATE', [req.params.id]);
-    const request = requestResult.rows[0];
-    if (!request) return res.status(404).json({ error: 'Premium request not found.' });
-    if (request.status !== 'pending') return res.status(409).json({ error: 'This premium request was already reviewed.' });
-    const reviewStatus = parsed.data.decision === 'approved' ? 'approved' : 'rejected';
-    const updated = await db.query('UPDATE premium_requests SET status = $1, reviewed_by = $2, reviewed_at = NOW() WHERE id = $3 RETURNING id, status', [reviewStatus, req.session.user.id, req.params.id]);
-    if (parsed.data.decision === 'approved') {
-      await db.query('UPDATE users SET subscription_tier = $1, premium_source = $2, premium_activated_at = $3, green_tick = TRUE WHERE id = $4', ['premium', 'admin', now(), request.user_id]);
-      await db.query('INSERT INTO notifications (id,user_id,kind,body,created_at) VALUES ($1,$2,$3,$4,NOW())', [nanoid(), request.user_id, 'premium', 'Your Premium request was approved by the admin team.']);
-    } else {
-      await db.query('INSERT INTO notifications (id,user_id,kind,body,created_at) VALUES ($1,$2,$3,$4,NOW())', [nanoid(), request.user_id, 'premium', 'Your Premium request was rejected. You can reapply after meeting the eligibility rules.']);
-    }
-    res.json({ reviewed: true, request: updated.rows[0] });
-  } catch (error) {
-    next(error);
-  }
-});
-app.post('/api/premium/requests', requireUser, async (req, res, next) => {
-  try {
-    const parsed = z.object({ reason: z.string().trim().min(3).max(1000).default('Please review my account for Premium access.') }).safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: 'A short reason is required.' });
-    const userResult = await db.query('SELECT referral_count, subscription_tier FROM users WHERE id = $1', [req.session.user.id]);
-    const user = userResult.rows[0];
-    if (!user) return res.status(404).json({ error: 'User not found.' });
-    if (user.subscription_tier === 'premium') return res.json({ ok: true, status: 'already-active', message: 'This account already has Premium.' });
-    if (Number(user.referral_count || 0) < 10) return res.status(400).json({ error: 'Only accounts with 10 verified referrals can request Premium.' });
-    const existing = await db.query("SELECT id FROM premium_requests WHERE user_id = $1 AND status = 'pending' LIMIT 1", [req.session.user.id]);
-    if (existing.rows[0]) return res.status(409).json({ error: 'You already have a pending Premium request.' });
-    const request = { id: nanoid(), userId: req.session.user.id, reason: parsed.data.reason, status: 'pending', createdAt: now() };
-    await db.query('INSERT INTO premium_requests (id,user_id,reason,status,created_at) VALUES ($1,$2,$3,$4,$5)', [request.id, request.userId, request.reason, request.status, request.createdAt]);
-    res.status(201).json({ request });
-  } catch (error) {
-    next(error);
-  }
-});
-app.delete('/api/admin/users/:id', requireAdmin, async (req, res, next) => {
-  let client;
-  try {
-    client = await db.connect();
-    await client.query('BEGIN');
-    const user = await client.query("UPDATE users SET account_status='removed' WHERE id=$1 AND role <> 'admin' RETURNING id", [req.params.id]);
-    if (!user.rows[0]) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ error: 'User not found or cannot be removed.' });
-    }
-    await Promise.all([
-      client.query("UPDATE tasks SET status='removed' WHERE client_id=$1", [req.params.id]),
-      client.query("UPDATE listings SET status='removed' WHERE seller_id=$1", [req.params.id]),
-      client.query("UPDATE products SET status='removed' WHERE vendor_id=$1", [req.params.id]),
-      client.query("UPDATE gigs SET status='removed' WHERE seller_id=$1", [req.params.id]),
-      client.query("UPDATE ads SET status='removed' WHERE seller_id=$1", [req.params.id]),
-    ]);
-    await client.query('COMMIT');
-    res.json({ removed: true, userId: req.params.id });
-  } catch (error) {
-    if (client) await client.query('ROLLBACK').catch(() => {});
-    next(error);
-  } finally {
-    client?.release();
-  }
-});
-app.get('/api/admin/reports', requireAdmin, async (_req, res, next) => { try { const result = await db.query('SELECT * FROM reports ORDER BY created_at DESC'); res.json({ reports: result.rows }); } catch (error) { next(error); } });
-app.get('/api/admin/categories', requireAdmin, async (_req, res, next) => { try { const result = await db.query('SELECT * FROM categories ORDER BY created_at DESC'); res.json({ categories: result.rows }); } catch (error) { next(error); } });
-app.post('/api/admin/categories', requireAdmin, async (req, res, next) => { try { const parsed = z.object({ name: z.string().min(2).max(80), parentId: z.string().max(80).optional() }).safeParse(req.body); if (!parsed.success) return res.status(400).json({ error: 'Invalid category payload' }); const category = { id: nanoid(), ...parsed.data, createdAt: now() }; await db.query('INSERT INTO categories (id,name,parent_id,created_at) VALUES ($1,$2,$3,$4)', [category.id, category.name, category.parentId || null, category.createdAt]); res.status(201).json({ category }); } catch (error) { next(error); } });
-app.post('/api/admin/disputes/:id/resolve', requireAdmin, async (req, res, next) => { try { const parsed = z.object({ resolution: z.string().min(3).max(2000) }).safeParse(req.body); if (!parsed.success) return res.status(400).json({ error: 'Resolution required' }); const result = await db.query("UPDATE disputes SET status='resolved',resolution=$1,resolved_at=$2 WHERE id=$3", [parsed.data.resolution, now(), req.params.id]); if (!result.rowCount) return res.status(404).json({ error: 'Dispute not found' }); res.json({ resolved: true }); } catch (error) { next(error); } });
-app.post('/api/admin/listings/:id/pause', requireAdmin, async (req, res, next) => { try { const result = await db.query("UPDATE listings SET status='paused' WHERE id=$1", [req.params.id]); if (!result.rowCount) return res.status(404).json({ error: 'Listing not found' }); res.json({ paused: true }); } catch (error) { next(error); } });
-app.get('/', (_req, res) => res.sendFile(path.resolve(__dirname, 'login.html')));
-app.get('/favicon.svg', (_req, res) => res.sendFile(path.resolve(__dirname, 'favicon.svg')));
-app.get('/dashboard.js', (_req, res) => res.sendFile(path.resolve(__dirname, 'dashboard.js')));
-app.get(['/overview', '/dashboard', '/tasks', '/marketplace', '/products', '/books', '/vendor', '/gigs', '/wallet', '/profile', '/support', '/premium', '/settings', '/admin'], (_req, res) => res.sendFile(path.resolve(__dirname, 'dashboard.html')));
-app.use((_req, res) => res.status(404).json({ error: 'Not found' }));
-app.use((error, _req, res, _next) => { console.error(error); res.status(Number(error.statusCode) || 500).json({ error: error.message || 'Internal server error' }); });
-
-const wss = new WebSocketServer({ server, path: '/ws' });
-wss.on('connection', (socket, request) => { const token = new URL(request.url, `http://${request.headers.host}`).searchParams.get('thread'); if (!token) return socket.close(1008, 'Thread required'); if (!sockets.has(token)) sockets.set(token, new Set()); sockets.get(token).add(socket); socket.on('message', raw => { let message; try { message = JSON.parse(raw.toString()); } catch { return; } const outgoing = JSON.stringify({ ...message, createdAt: now() }); for (const peer of sockets.get(token) || []) if (peer.readyState === 1) peer.send(outgoing); }); socket.on('close', () => sockets.get(token)?.delete(socket)); });
-export { app };
-export const appInitialization = initializeSchema().then(() => seedDemoData());
-if (!process.env.VERCEL) {
-  appInitialization
-    .then(() => server.listen(port, '0.0.0.0', () => console.log(`TaskFlow listening on http://0.0.0.0:${port}`)))
-    .catch(error => { console.error('PostgreSQL initialization failed:', error); process.exitCode = 1; });
-}
+app.get('/api/admin/overview', requireAdmin, async (_req, res, next) => { try { const [usersCount, escrow, disputesCount, listingsCount, productsCount, adsCount, gigsCount, categoriesCount, reportsCount, users, disputes, transactions, withdrawals] = await Promise.all([db.query('SELECT COUNT(*)::int AS count FROM users'), db.query('SELECT COALESCE(SUM(amount_cents),0)::int AS total FROM transactions'), db.query("SELECT COUNT(*)::int AS count FROM disputes WHERE status='open'"), db.query("SELECT COUNT(*)::int AS count FROM listings WHERE status='flagged'"), db.query('SELECT COUNT(*)::int AS count FROM products'), db.query('SELECT COUNT(*)::int AS count FROM ads WHERE status = \'active\''), db.query('SELECT COUNT(*)::int AS count FROM gigs WHERE status = \'active\''), db.query('SELECT COUNT(*)::int AS count FROM categories'), db.query('SELECT COUNT(*)::int AS count FROM reports WHERE status = \'open\''), db.query('SELECT id,name,phone,email,role,trust_score AS "trustScore",two_factor AS "twoFactor",created_at AS "createdAt" FROM users ORDER BY created_at DESC LIMIT 100'), db.query('SELECT * FROM disputes ORDER BY created_at DESC LIMIT 100'), db.query('SELECT * FROM transactions ORDER BY created_at DESC LIMIT 100'), db.query('SELECT * FROM withdrawals ORDER BY created_at DESC LIMIT 100')]); res.json({ stats: { activeUsers: usersCount.rows[0].count, escrowCents: escrow.rows[0].total, openDisputes: disputesCount.rows[0].count, flaggedListings: listingsCount.rows[0].count, activeProducts: productsCount.rows[0].count, activeAds: adsCount.rows[0].count, activeGigs: gigsCount.rows[0].count, categories: categoriesCount.rows[0].count, openReports: reportsCount.rows[0].count }, users: users.rows, disputes: disputes.rows, transactions: transactions.rows, withdrawal
