@@ -4,6 +4,7 @@ import { nanoid } from 'nanoid';
 import { db } from '../../config/database.js';
 import { requireUser } from '../../utils/helpers.js';
 import { decryptImage, processAndEncryptImage, readEncryptedImage, saveEncryptedImage } from '../../services/media.js';
+import { createObjectDownloadUrl, isS3Object } from '../../services/objectStorage.js';
 
 const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 }, fileFilter: (_req, file, callback) => callback(null, /^image\/(jpeg|png|webp|gif|avif|heic)$/.test(file.mimetype)) });
 const router = express.Router();
@@ -61,6 +62,10 @@ router.get('/api/media/:id', async (req, res, next) => {
     const ownerCanShare = sharedMedia && media.accountStatus === 'active';
     const publicAccess = ownerCanShare && Boolean(media?.publiclyLinked);
     if (!media || (!adminAccess && !ownerAccess && !publicAccess)) return res.status(404).end();
+    if (isS3Object(media.filename)) {
+      res.set('Cache-Control', 'private, no-store');
+      return res.redirect(302, await createObjectDownloadUrl(media.filename.slice(3)));
+    }
     try {
       const encrypted = await readEncryptedImage(media.filename);
       const payload = decryptImage(encrypted);

@@ -2014,6 +2014,49 @@
       return data;
     }
 
+    async function uploadFiles(files, purpose = 'marketplace-media') {
+      const selectedFiles = Array.from(files || []);
+      if (!selectedFiles.length) return [];
+      const request = await api('/api/uploads/presign', {
+        method: 'POST',
+        body: JSON.stringify({
+          purpose,
+          files: selectedFiles.map((file) => ({ name: file.name, mimeType: file.type, size: file.size }))
+        })
+      });
+      if (!request.direct) {
+        const formData = new FormData();
+        formData.append('purpose', purpose);
+        selectedFiles.forEach((file) => formData.append('files', file));
+        const response = await fetch('/api/uploads', { method: 'POST', body: formData, credentials: 'include' });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'Media upload failed.');
+        return data.files || [];
+      }
+
+      for (const [index, upload] of request.uploads.entries()) {
+        let response;
+        try {
+          response = await fetch(upload.url, {
+            method: 'PUT',
+            headers: upload.headers,
+            body: selectedFiles[index]
+          });
+        } catch {
+          throw new Error('Could not reach S3. Check the bucket CORS policy and the deployed site origin.');
+        }
+        if (!response.ok) throw new Error(`Upload failed for ${selectedFiles[index].name}. Check the S3 bucket CORS settings.`);
+      }
+      const completed = await api('/api/uploads/complete', {
+        method: 'POST',
+        body: JSON.stringify({
+          purpose,
+          files: request.uploads.map(({ id, key, name, mimeType, size }) => ({ id, key, name, mimeType, size }))
+        })
+      });
+      return completed.files || [];
+    }
+
     function escapeHtml(value) {
       return String(value || '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[ch]));
     }
@@ -2484,15 +2527,11 @@
         const [logoFile] = $('store-logo-file').files || [];
         const [coverFile] = $('store-cover-file').files || [];
         if (logoFile || coverFile) {
-          const formData = new FormData();
-          if (logoFile) formData.append('files', logoFile);
-          if (coverFile) formData.append('files', coverFile);
-          const uploadResponse = await fetch('/api/uploads', { method: 'POST', body: formData, credentials: 'include' });
-          const uploadData = await uploadResponse.json().catch(() => ({}));
-          if (!uploadResponse.ok) throw new Error(uploadData.error || 'Store photos could not be uploaded.');
+          const uploadFilesList = [logoFile, coverFile].filter(Boolean);
+          const uploadedFiles = await uploadFiles(uploadFilesList);
           let uploadIndex = 0;
-          if (logoFile) logoUrl = uploadData.files?.[uploadIndex++]?.url || '';
-          if (coverFile) coverUrl = uploadData.files?.[uploadIndex]?.url || '';
+          if (logoFile) logoUrl = uploadedFiles[uploadIndex++]?.url || '';
+          if (coverFile) coverUrl = uploadedFiles[uploadIndex]?.url || '';
         }
         if (!logoUrl || !coverUrl) throw new Error('Add a profile picture and cover photo before creating your store.');
         const result = await api('/api/store/me', { method: 'PUT', body: JSON.stringify({ businessName: $('store-business-name').value.trim(), category: $('store-category').value, description: $('store-description').value.trim(), logoUrl, coverUrl }) });
@@ -2882,19 +2921,8 @@
           submitButton.disabled = true;
           submitButton.textContent = 'Uploading product...';
         }
-        if (productFiles && productFiles.length) {
-          const formData = new FormData();
-          Array.from(productFiles).forEach((file) => formData.append('files', file));
-          const upload = await fetch('/api/uploads', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${document.cookie.split(';').find((part) => part.trim().startsWith('taskflow.sid=')) || ''}` },
-            body: formData,
-            credentials: 'include'
-          });
-          const uploadData = await upload.json();
-          mediaUrls = uploadData.files?.map((file) => ({ url: file.url, mimeType: file.mimeType })) || [];
-          if (!upload.ok) throw new Error(uploadData.error || 'Media upload failed');
-        }
+        const uploadedFiles = await uploadFiles(productFiles);
+        mediaUrls = uploadedFiles.map((file) => ({ url: file.url, mimeType: file.mimeType }));
         await api('/api/products', {
           method: 'POST',
           body: JSON.stringify({
@@ -2926,12 +2954,8 @@
       try {
         const mediaFiles = Array.from($('listing-media-upload').files || []);
         if (!mediaFiles.length) throw new Error('Upload at least one photo or video for this listing.');
-        const formData = new FormData();
-        mediaFiles.forEach((file) => formData.append('files', file));
-        const uploadResponse = await fetch('/api/uploads', { method: 'POST', body: formData, credentials: 'include' });
-        const uploadData = await uploadResponse.json();
-        if (!uploadResponse.ok) throw new Error(uploadData.error || 'Listing media upload failed');
-        const uploadedMedia = (uploadData.files || []).map((file, index) => ({ url: file.url, mimeType: file.mimeType || mediaFiles[index]?.type || 'application/octet-stream' }));
+        const uploadedFiles = await uploadFiles(mediaFiles);
+        const uploadedMedia = uploadedFiles.map((file, index) => ({ url: file.url, mimeType: file.mimeType || mediaFiles[index]?.type || 'application/octet-stream' }));
         await api('/api/listings', {
           method: 'POST',
           body: JSON.stringify({
@@ -2957,17 +2981,8 @@
       let portfolioMedia = [];
       try {
         if (gigFiles && gigFiles.length) {
-          const formData = new FormData();
-          Array.from(gigFiles).forEach((file) => formData.append('files', file));
-          const upload = await fetch('/api/uploads', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${document.cookie.split(';').find((part) => part.trim().startsWith('taskflow.sid=')) || ''}` },
-            body: formData,
-            credentials: 'include'
-          });
-          const uploadData = await upload.json();
-          portfolioMedia = uploadData.files?.map((file) => file.url) || [];
-          if (!upload.ok) throw new Error(uploadData.error || 'Portfolio upload failed');
+          const uploadedFiles = await uploadFiles(gigFiles);
+          portfolioMedia = uploadedFiles.map((file) => file.url);
         }
         await api('/api/gigs', {
           method: 'POST',
@@ -3329,16 +3344,8 @@
       const [file] = event.target.files || [];
       if (!file) return;
       try {
-        const formData = new FormData();
-        formData.append('file', file);
-        const uploadResponse = await fetch('/api/profile/avatar', {
-          method: 'POST',
-          body: formData,
-          credentials: 'include'
-        });
-        const uploadData = await uploadResponse.json();
-        if (!uploadResponse.ok) throw new Error(uploadData.error || 'Profile image upload failed');
-        const uploadedUrl = mediaUrl(uploadData.url);
+        const [uploaded] = await uploadFiles([file], 'profile-avatar');
+        const uploadedUrl = mediaUrl(uploaded?.url);
         if (!uploadedUrl) throw new Error('The server returned an invalid profile image URL.');
         if (uploadedUrl) {
           const uploadedImage = new Image();
@@ -3346,7 +3353,7 @@
           try {
             await uploadedImage.decode();
           } catch {
-            throw new Error('The image was saved but could not be displayed. Check that UPLOAD_DIR points to the mounted Railway volume.');
+            throw new Error('The image was uploaded but could not be displayed. Check the S3 bucket permissions and CORS settings.');
           }
           currentUser = { ...currentUser, avatarUrl: uploadedUrl, avatar_url: uploadedUrl };
           applyProfileToUi(currentUser, currentUser.profile || null);
@@ -3464,16 +3471,8 @@
         let mediaUrls = [];
 
         if (mediaFiles && mediaFiles.length) {
-          const formData = new FormData();
-          Array.from(mediaFiles).forEach((file) => formData.append('files', file));
-          const uploadResponse = await fetch('/api/uploads', {
-            method: 'POST',
-            body: formData,
-            credentials: 'include'
-          });
-          const uploadData = await uploadResponse.json();
-          if (!uploadResponse.ok) throw new Error(uploadData.error || 'Ad media upload failed');
-          mediaUrls = uploadData.files?.map((file) => file.url) || [];
+          const uploadedFiles = await uploadFiles(mediaFiles);
+          mediaUrls = uploadedFiles.map((file) => file.url);
         }
 
         if (!mediaUrls.length) {

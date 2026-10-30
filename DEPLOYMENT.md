@@ -2,6 +2,29 @@
 
 Railway is the recommended first host for this project because it provides a managed PostgreSQL database, private environment variables, HTTPS, and simple Node deployment in one project. Render is a good alternative if you prefer separate web-service and database resources.
 
+## Deploying to Vercel with Amazon S3
+
+The Express app can run as a Vercel Node function through `api/index.js`. Set the Vercel environment variables for the existing production integrations, including `DATABASE_URL`, `SESSION_SECRET`, `SUPER_ADMIN_USERNAME`, and `SUPER_ADMIN_PASSWORD`. Add `AWS_S3_BUCKET` and `AWS_REGION`; the S3 SDK uses the AWS credential variables provided by the Vercel integration (`AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`, and `AWS_SESSION_TOKEN` when supplied). The bucket setting also accepts `AWS_S3_BUCKET_NAME`, `S3_BUCKET_NAME`, `AWS_BUCKET_NAME`, or `S3_BUCKET`; region accepts `AWS_DEFAULT_REGION` or `S3_REGION`.
+
+Keep the bucket private with S3 Block Public Access enabled and default bucket-owner encryption enabled. The app uses short-lived presigned uploads, checks file size/type on completion, and stores media under `media/` and book PDFs under `books/`. It requires `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject`, and `s3:ListBucket` access for the configured bucket. Do not grant public-read access or put AWS credentials in browser code.
+
+Configure the bucket CORS policy to allow `PUT` from the exact production and Vercel preview origins you use. For example, replace the preview host below with the actual Vercel deployment domain:
+
+```json
+[
+  {
+    "AllowedOrigins": ["https://taskflow.monster", "https://your-project.vercel.app"],
+    "AllowedMethods": ["PUT"],
+    "AllowedHeaders": ["Content-Type", "x-amz-server-side-encryption"],
+    "MaxAgeSeconds": 3000
+  }
+]
+```
+
+The upload signature requires `x-amz-server-side-encryption: AES256`. Add an S3 lifecycle rule to delete abandoned objects under `pending/` and `book-pending/` after one day; completed uploads are moved out of those prefixes.
+
+The Vercel function handles API requests and serves the HTML/JS from the app. Grant only `s3:GetObject`, `s3:PutObject`, and `s3:DeleteObject` on the configured bucket and its objects. Vercel Functions do not provide the app's in-process WebSocket server, so real-time chat requires a separate WebSocket host/service. Set `APP_BASE_URL`, `CORS_ORIGIN`, and the Google callback URL to the actual Vercel production domain before enabling sign-in.
+
 ## 1. Configure secrets
 
 Copy `.env.example` to `.env` for local development and replace every placeholder. Set `DATABASE_URL` to the PostgreSQL connection string supplied by your host. In production, put all values in the host's secret manager; do not commit `.env` or paste secrets into source control.
@@ -10,7 +33,7 @@ Set `APP_BASE_URL`, `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, and `STRIPE_W
 
 Railway production stores every encrypted upload under `/app/upload`; mount the persistent volume at exactly that path and share it with every app instance. The production code pins this path so a stale `UPLOAD_DIR` value cannot route new uploads to the container filesystem. Local development uses `UPLOAD_DIR=./data/uploads`.
 
-Book, article, and newspaper PDFs are encrypted in the persistent upload volume. The Books library uploads each selected PDF individually, does not impose an app-level file-count or per-file-size cap, and resumes incomplete publications as drafts. Publications have a cover image, seller profile identity, and individual volume downloads; Unicode filenames are preserved for multilingual titles. Readers must sign in to download free PDFs; paid PDFs are available to the seller or a buyer with a completed publication purchase. Existing product-attached PDF files are migrated to the Books library at startup when their stored media records are present; product listings and encrypted media are not deleted. Normal product listings continue to use image and video media.
+Book, article, and newspaper PDFs are encrypted in the persistent upload volume on Railway. On Vercel, browser uploads go directly to the private S3 bucket using presigned URLs, avoiding the serverless request-body limit; book files are limited to S3's 5 GB single-upload limit. The Books library resumes incomplete publications as drafts and protects downloads with the existing purchase checks. Existing product-attached PDF files are migrated to the Books library at startup when their stored media records are present; product listings and encrypted media are not deleted. Normal product listings continue to use image and video media.
 
 ## Custom domain: taskflow.monster
 

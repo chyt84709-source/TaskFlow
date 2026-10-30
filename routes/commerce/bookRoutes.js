@@ -7,6 +7,15 @@ import { calculateInternationalTax, db } from '../../config/database.js';
 import { decryptFileToTemporaryStorage, deleteEncryptedMedia, encryptFileToStorage } from '../../services/media.js';
 import { ensureWalletReady, requireUser, updateTrustScoreOnSuccessfulTransaction } from '../../utils/helpers.js';
 import { uploadDirectory } from '../../config/storage.js';
+import {
+  createObjectDownloadUrl,
+  createObjectUploadUrl,
+  inspectObject,
+  isS3Object,
+  objectStorageEnabled,
+  promoteObject,
+  readObjectRange
+} from '../../services/objectStorage.js';
 
 const router = express.Router();
 const bookTypes = ['book', 'article', 'newspaper'];
@@ -167,6 +176,89 @@ router.patch('/api/books/:id/cover', requireUser, async (req, res, next) => {
   }
 });
 
+router.post('/api/books/:id/files/presign', requireUser, async (req, res, next) => {
+  if (!objectStorageEnabled) return res.json({ direct: false });
+  const parsed = z.object({
+    name: z.string().min(1).max(255),
+    size: z.number().int().positive().max(5 * 1024 * 1024 * 1024)
+  }).safeParse(req.body);
+  if (!parsed.success || !parsed.data.name.toLowerCase().endsWith('.pdf')) {
+    return res.status(400).json({ error: 'Choose a PDF file no larger than 5 GB.' });
+  }
+  try {
+    const book = await findOwnedBook(req.params.id, req.session.user.id);
+    if (!book) return res.status(404).json({ error: 'Your book draft was not found.' });
+    const uploadId = nanoid();
+    const key = `book-pending/${req.session.user.id}/${req.params.id}/${uploadId}`;
+    const signed = await createObjectUploadUrl(key, 'application/pdf');
+    res.json({ direct: true, uploadId, key, ...signed });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/api/books/:id/files/complete', requireUser, async (req, res, next) => {
+  const parsed = z.object({
+    uploadId: z.string().regex(/^[A-Za-z0-9_-]+$/),
+    key: z.string().min(1).max(500),
+    name: z.string().min(1).max(255),
+    size: z.number().int().positive().max(5 * 1024 * 1024 * 1024)
+  }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid PDF upload details.' });
+  const { uploadId, key, size } = parsed.data;
+  const expectedKey = `book-pending/${req.session.user.id}/${req.params.id}/${uploadId}`;
+  if (key !== expectedKey) return res.status(400).json({ error: 'Upload details do not match the signed PDF.' });
+
+  let destinationKey;
+  let client;
+  try {
+    const book = await findOwnedBook(req.params.id, req.session.user.id);
+    if (!book) return res.status(404).json({ error: 'Your book draft was not found.' });
+    const uploaded = await inspectObject(key);
+    if (uploaded.size !== size || uploaded.contentType !== 'application/pdf') {
+      return res.status(400).json({ error: 'The uploaded PDF size or type does not match.' });
+    }
+    const signature = Buffer.from(await readObjectRange(key, 'bytes=0-4'));
+    if (signature.toString('ascii') !== '%PDF-') {
+      return res.status(400).json({ error: 'The selected file is not a valid PDF.' });
+    }
+    const decodedName = decodeUploadFilename(parsed.data.name);
+    const name = decodedName.split(/[\\/]/).pop().replace(/[\u0000-\u001f\u007f]/g, '').trim();
+    if (!name || name.length > 255) return res.status(400).json({ error: 'The PDF filename must be between 1 and 255 characters.' });
+
+    destinationKey = `books/${req.session.user.id}/${req.params.id}/${uploadId}`;
+    await promoteObject(key, destinationKey, 'application/pdf');
+    const mediaId = nanoid();
+    const bookFileId = nanoid();
+    client = await db.connect();
+    await client.query('BEGIN');
+    const filePosition = await client.query('SELECT COALESCE(MAX(position)+1,0)::int AS position FROM book_files WHERE book_id=$1', [req.params.id]);
+    await client.query('INSERT INTO media_files (id,user_id,filename,mime_type,purpose) VALUES ($1,$2,$3,$4,$5)', [mediaId, req.session.user.id, `s3:${destinationKey}`, 'application/pdf', 'book-download']);
+    await client.query(`INSERT INTO book_files (id,book_id,media_id,name,size_bytes,position)
+      VALUES ($1,$2,$3,$4,$5,$6)`, [bookFileId, req.params.id, mediaId, name, size, filePosition.rows[0].position]);
+    await client.query('COMMIT');
+    destinationKey = null;
+    res.status(201).json({ file: { id: bookFileId, name, sizeBytes: size } });
+  } catch (error) {
+    if (client) await client.query('ROLLBACK').catch((rollbackError) => console.error('Book PDF upload rollback failed:', rollbackError));
+    if (destinationKey) {
+      try {
+        await deleteEncryptedMedia(`s3:${destinationKey}`);
+      } catch (cleanupError) {
+        console.error('Book S3 upload cleanup failed:', cleanupError);
+      }
+    }
+    next(error);
+  } finally {
+    client?.release();
+    try {
+      await deleteEncryptedMedia(`s3:${key}`);
+    } catch (cleanupError) {
+      console.error('Book staged S3 upload cleanup failed:', cleanupError);
+    }
+  }
+});
+
 router.post('/api/books/:id/files', requireUser, uploadPdf, async (req, res, next) => {
   let encryptedFilename;
   let client;
@@ -323,9 +415,12 @@ router.get('/api/books/:id/files/:fileId/download', requireUser, async (req, res
       if (!access.rows[0]) return res.status(403).json({ error: 'Purchase this publication before downloading it.' });
     }
 
-    const download = await decryptFileToTemporaryStorage(file.filename);
     const filename = String(file.name || 'publication.pdf').replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 255) || 'publication.pdf';
     res.set({ 'Content-Type': 'application/pdf', 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' });
+    if (isS3Object(file.filename)) {
+      return res.redirect(302, await createObjectDownloadUrl(file.filename.slice(3), 300, filename));
+    }
+    const download = await decryptFileToTemporaryStorage(file.filename);
     res.download(download.path, filename, async (error) => {
       try {
         await download.cleanup();

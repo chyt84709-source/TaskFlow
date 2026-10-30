@@ -22,13 +22,23 @@ import commerceRoutes from './routes/commerceRoutes.js';
 import { deleteEncryptedMedia, processAndEncryptImage, saveEncryptedImage } from './services/media.js';
 import { calculateInternationalTax } from './config/database.js';
 import { uploadDirectory } from './config/storage.js';
+import {
+  createObjectUploadUrl,
+  deleteObject,
+  inspectObject,
+  objectStorageEnabled,
+  promoteObject
+} from './services/objectStorage.js';
 
 const { Pool } = pg;
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT || 3000);
 const PLATFORM_FEE_RATE = 0.05;
-fs.mkdirSync(uploadDirectory, { recursive: true });
+if (process.env.VERCEL && !objectStorageEnabled) {
+  throw new Error('S3 storage is required on Vercel. Configure AWS_S3_BUCKET and AWS_REGION.');
+}
+if (!objectStorageEnabled) fs.mkdirSync(uploadDirectory, { recursive: true });
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required.');
 const db = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : undefined });
 const googleClient = process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET ? new OAuth2Client(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET, process.env.GOOGLE_CALLBACK_URL) : null;
@@ -37,6 +47,7 @@ const resendFromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev'
 const resendFromName = process.env.RESEND_FROM_NAME || 'TaskFlow';
 const emailEnabled = Boolean(resendApiKey && resendFromEmail);
 const app = express();
+if (process.env.VERCEL) app.set('trust proxy', 1);
 const server = http.createServer(app);
 const sockets = new Map();
 const adminUsername = process.env.SUPER_ADMIN_USERNAME;
@@ -384,16 +395,161 @@ function issueOtp(identifier) { const code = String(crypto.randomInt(100000, 100
 const reqOtp = new Map();
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'taskflow', time: now() }));
-app.post('/api/uploads', requireUser, upload.array('files', 10), async (req, res, next) => {
+const uploadPurposes = new Set(['marketplace-media', 'ad-media', 'profile-avatar', 'chat-media']);
+const acceptedMediaType = (type) => /^image\/(jpeg|png|webp|gif|avif|heic)$/.test(type)
+  || /^video\/(mp4|webm|quicktime|x-msvideo|x-matroska)$/.test(type);
+
+app.post('/api/uploads/presign', requireUser, async (req, res, next) => {
+  if (!objectStorageEnabled) return res.json({ direct: false });
+  const parsed = z.object({
+    purpose: z.enum(['marketplace-media', 'ad-media', 'profile-avatar', 'chat-media']).default('marketplace-media'),
+    files: z.array(z.object({
+      name: z.string().min(1).max(255),
+      mimeType: z.string().max(100),
+      size: z.number().int().positive()
+    })).min(1).max(10)
+  }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Choose valid image or video files.' });
+  const { purpose, files } = parsed.data;
+  if (purpose === 'ad-media' && !(req.session.user.isAdmin || req.session.user.role === 'admin')) {
+    return res.status(403).json({ error: 'Super-admin access required.' });
+  }
+  if (purpose === 'profile-avatar' && (files.length !== 1 || !files[0].mimeType.startsWith('image/') || files[0].size > 8 * 1024 * 1024)) {
+    return res.status(400).json({ error: 'Choose one image no larger than 8 MB.' });
+  }
+  if (files.some((file) => !acceptedMediaType(file.mimeType) || file.size > 16 * 1024 * 1024)) {
+    return res.status(400).json({ error: 'Each image or video must be no larger than 16 MB.' });
+  }
+  try {
+    const uploads = await Promise.all(files.map(async (file) => {
+      const id = nanoid();
+      const key = `pending/${req.session.user.id}/${id}`;
+      const signed = await createObjectUploadUrl(key, file.mimeType);
+      return { id, key, name: file.name, mimeType: file.mimeType, size: file.size, ...signed };
+    }));
+    res.json({ direct: true, uploads });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/uploads/complete', requireUser, async (req, res, next) => {
+  const parsed = z.object({
+    purpose: z.enum(['marketplace-media', 'ad-media', 'profile-avatar', 'chat-media']).default('marketplace-media'),
+    files: z.array(z.object({
+      id: z.string().regex(/^[A-Za-z0-9_-]+$/),
+      key: z.string().min(1).max(300),
+      name: z.string().min(1).max(255),
+      mimeType: z.string().max(100),
+      size: z.number().int().positive()
+    })).min(1).max(10)
+  }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid upload completion details.' });
+  if (!objectStorageEnabled) return res.status(503).json({ error: 'S3 storage is not configured.' });
+  const { purpose, files } = parsed.data;
+  if (purpose === 'ad-media' && !(req.session.user.isAdmin || req.session.user.role === 'admin')) {
+    return res.status(403).json({ error: 'Super-admin access required.' });
+  }
+  if (purpose === 'profile-avatar' && files.length !== 1) {
+    return res.status(400).json({ error: 'Upload one profile image at a time.' });
+  }
+  const completedObjects = [];
+  const stagedKeys = files
+    .filter((file) => file.key === `pending/${req.session.user.id}/${file.id}`)
+    .map((file) => file.key);
+  const invalidFile = files.find((file) => file.key !== `pending/${req.session.user.id}/${file.id}`
+    || !acceptedMediaType(file.mimeType)
+    || file.size > (purpose === 'profile-avatar' ? 8 : 16) * 1024 * 1024
+    || (purpose === 'profile-avatar' && !file.mimeType.startsWith('image/')));
+  if (invalidFile) {
+    await Promise.all(stagedKeys.map((key) => deleteObject(key).catch((cleanupError) => console.error('Invalid S3 upload cleanup failed:', cleanupError))));
+    return res.status(400).json({ error: 'The uploaded file exceeds the allowed size or type.' });
+  }
+  let client;
+  try {
+    for (const file of files) {
+      const stored = await inspectObject(file.key);
+      if (stored.size !== file.size || stored.contentType !== file.mimeType) {
+        throw Object.assign(new Error('The uploaded file size or type does not match.'), { statusCode: 400 });
+      }
+    }
+    for (const file of files) {
+      const destinationKey = `media/${req.session.user.id}/${file.id}`;
+      await promoteObject(file.key, destinationKey, file.mimeType);
+      completedObjects.push(destinationKey);
+    }
+
+    client = await db.connect();
+    await client.query('BEGIN');
+    const resultFiles = [];
+    for (let index = 0; index < files.length; index += 1) {
+      const file = files[index];
+      const id = file.id;
+      const filename = `s3:${completedObjects[index]}`;
+      const displayName = file.name.split(/[\\/]/).pop().replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 255);
+      if (!displayName) throw new Error('The uploaded file name is invalid.');
+      await client.query(
+        'INSERT INTO media_files (id,user_id,filename,mime_type,purpose) VALUES ($1,$2,$3,$4,$5)',
+        [id, req.session.user.id, filename, file.mimeType, purpose]
+      );
+      const url = `/api/media/${id}`;
+      resultFiles.push({ name: displayName, url, size: file.size, mimeType: file.mimeType });
+      if (purpose === 'profile-avatar') {
+        await client.query('UPDATE users SET avatar_url=$1 WHERE id=$2', [url, req.session.user.id]);
+        await client.query(
+          'INSERT INTO profiles (id,user_id,avatar_url,created_at) VALUES ($1,$2,$3,NOW()) ON CONFLICT (user_id) DO UPDATE SET avatar_url=EXCLUDED.avatar_url',
+          [nanoid(), req.session.user.id, url]
+        );
+      }
+    }
+    await client.query('COMMIT');
+    if (purpose === 'profile-avatar') {
+      req.session.user.avatarUrl = resultFiles[0].url;
+      req.session.user.avatar_url = resultFiles[0].url;
+    }
+    res.status(201).json({ files: resultFiles });
+  } catch (error) {
+    if (client) await client.query('ROLLBACK').catch((rollbackError) => console.error('Upload completion rollback failed:', rollbackError));
+    await Promise.all(completedObjects.map((key) => deleteObject(key).catch((cleanupError) => console.error('S3 upload cleanup failed:', cleanupError))));
+    next(error);
+  } finally {
+    client?.release();
+    await Promise.all(stagedKeys.map((key) => deleteObject(key).catch((cleanupError) => console.error('S3 staged upload cleanup failed:', cleanupError))));
+  }
+});
+
+app.post('/api/uploads', requireUser, (req, res, next) => {
+  if (objectStorageEnabled) return res.status(400).json({ error: 'Use the direct S3 upload flow.' });
+  next();
+}, upload.array('files', 10), async (req, res, next) => {
   const files = Array.isArray(req.files) ? req.files : [];
   try {
+    const requestedPurpose = req.body.purpose;
+    if (requestedPurpose && !uploadPurposes.has(requestedPurpose)) return res.status(400).json({ error: 'Invalid upload purpose.' });
+    const purpose = requestedPurpose || 'marketplace-media';
+    if (purpose === 'ad-media' && !(req.session.user.isAdmin || req.session.user.role === 'admin')) {
+      return res.status(403).json({ error: 'Super-admin access required.' });
+    }
+    if (purpose === 'profile-avatar' && files.length !== 1) {
+      return res.status(400).json({ error: 'Upload one profile image at a time.' });
+    }
     const savedFiles = [];
     for (const file of files) {
+      if (purpose === 'profile-avatar' && (!file.mimetype.startsWith('image/') || file.size > 8 * 1024 * 1024)) {
+        return res.status(400).json({ error: 'Choose one image no larger than 8 MB.' });
+      }
       const image = await processAndEncryptImage(file.buffer, file.mimetype || 'application/octet-stream');
       const id = nanoid();
       const filename = await saveEncryptedImage(image.payload, id);
-      await db.query('INSERT INTO media_files (id,user_id,filename,mime_type,purpose) VALUES ($1,$2,$3,$4,$5)', [id, req.session.user.id, filename, image.mimeType, 'marketplace-media']);
-      savedFiles.push({ name: file.originalname, url: `/api/media/${id}`, size: file.size, mimeType: image.mimeType });
+      const url = `/api/media/${id}`;
+      await db.query('INSERT INTO media_files (id,user_id,filename,mime_type,purpose) VALUES ($1,$2,$3,$4,$5)', [id, req.session.user.id, filename, image.mimeType, purpose]);
+      if (purpose === 'profile-avatar') {
+        await db.query('UPDATE users SET avatar_url=$1 WHERE id=$2', [url, req.session.user.id]);
+        await db.query('INSERT INTO profiles (id,user_id,avatar_url,created_at) VALUES ($1,$2,$3,NOW()) ON CONFLICT (user_id) DO UPDATE SET avatar_url=EXCLUDED.avatar_url', [nanoid(), req.session.user.id, url]);
+        req.session.user.avatarUrl = url;
+        req.session.user.avatar_url = url;
+      }
+      savedFiles.push({ name: file.originalname, url, size: file.size, mimeType: image.mimeType });
     }
     res.status(201).json({ files: savedFiles });
   } catch (error) {
@@ -674,7 +830,10 @@ app.use((error, _req, res, _next) => { console.error(error); res.status(Number(e
 
 const wss = new WebSocketServer({ server, path: '/ws' });
 wss.on('connection', (socket, request) => { const token = new URL(request.url, `http://${request.headers.host}`).searchParams.get('thread'); if (!token) return socket.close(1008, 'Thread required'); if (!sockets.has(token)) sockets.set(token, new Set()); sockets.get(token).add(socket); socket.on('message', raw => { let message; try { message = JSON.parse(raw.toString()); } catch { return; } const outgoing = JSON.stringify({ ...message, createdAt: now() }); for (const peer of sockets.get(token) || []) if (peer.readyState === 1) peer.send(outgoing); }); socket.on('close', () => sockets.get(token)?.delete(socket)); });
-initializeSchema()
-  .then(() => seedDemoData())
-  .then(() => server.listen(port, '0.0.0.0', () => console.log(`TaskFlow listening on http://0.0.0.0:${port}`)))
-  .catch(error => { console.error('PostgreSQL initialization failed:', error); process.exitCode = 1; });
+export { app };
+export const appInitialization = initializeSchema().then(() => seedDemoData());
+if (!process.env.VERCEL) {
+  appInitialization
+    .then(() => server.listen(port, '0.0.0.0', () => console.log(`TaskFlow listening on http://0.0.0.0:${port}`)))
+    .catch(error => { console.error('PostgreSQL initialization failed:', error); process.exitCode = 1; });
+}

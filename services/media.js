@@ -6,6 +6,7 @@ import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import sharp from 'sharp';
 import { uploadDirectory } from '../config/storage.js';
+import { deleteObject, isS3Object } from './objectStorage.js';
 
 const encryptionKey = crypto.createHash('sha256').update(process.env.UPLOAD_ENCRYPTION_KEY || process.env.SESSION_SECRET || 'development-only').digest();
 
@@ -117,6 +118,10 @@ export async function readEncryptedImage(filename) {
 }
 
 export async function deleteEncryptedMedia(filename) {
+  if (isS3Object(filename)) {
+    await deleteObject(filename.slice(3));
+    return;
+  }
   const safeName = path.basename(filename);
   await fs.rm(path.join(uploadDirectory, safeName), { force: true });
 }

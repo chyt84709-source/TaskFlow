@@ -976,12 +976,73 @@ function navigate(route) {
   renderRoute(route).catch((error) => notify(error.message));
 }
 
-async function uploadFiles(files) {
-  if (!files?.length) return [];
-  const form = new FormData();
-  Array.from(files).forEach((file) => form.append('files', file));
-  const result = await api('/api/uploads', { method: 'POST', body: form });
-  return result.files || [];
+async function uploadFiles(files, purpose = 'marketplace-media') {
+  const selectedFiles = Array.from(files || []);
+  if (!selectedFiles.length) return [];
+  const request = await api('/api/uploads/presign', {
+    method: 'POST',
+    body: JSON.stringify({
+      purpose,
+      files: selectedFiles.map((file) => ({ name: file.name, mimeType: file.type, size: file.size }))
+    })
+  });
+  if (!request.direct) {
+    const form = new FormData();
+    form.append('purpose', purpose);
+    selectedFiles.forEach((file) => form.append('files', file));
+    const result = await api('/api/uploads', { method: 'POST', body: form });
+    return result.files || [];
+  }
+
+  for (const [index, upload] of request.uploads.entries()) {
+    let response;
+    try {
+      response = await fetch(upload.url, {
+        method: 'PUT',
+        headers: upload.headers,
+        body: selectedFiles[index]
+      });
+    } catch {
+      throw new Error('Could not reach S3. Check the bucket CORS policy and the deployed site origin.');
+    }
+    if (!response.ok) throw new Error(`Upload failed for ${selectedFiles[index].name}. Check the S3 bucket CORS settings.`);
+  }
+  const completed = await api('/api/uploads/complete', {
+    method: 'POST',
+    body: JSON.stringify({
+      purpose,
+      files: request.uploads.map(({ id, key, name, mimeType, size }) => ({ id, key, name, mimeType, size }))
+    })
+  });
+  return completed.files || [];
+}
+
+async function uploadBookFile(bookId, file) {
+  const basePath = `/api/books/${encodeURIComponent(bookId)}/files`;
+  const request = await api(`${basePath}/presign`, {
+    method: 'POST',
+    body: JSON.stringify({ name: file.name, size: file.size })
+  });
+  if (!request.direct) {
+    const form = new FormData();
+    form.append('file', file);
+    return api(basePath, { method: 'POST', body: form });
+  }
+  let response;
+  try {
+    response = await fetch(request.url, {
+      method: 'PUT',
+      headers: request.headers,
+      body: file
+    });
+  } catch {
+    throw new Error('Could not reach S3. Check the bucket CORS policy and the deployed site origin.');
+  }
+  if (!response.ok) throw new Error(`PDF upload failed for ${file.name}. Check the S3 bucket CORS settings.`);
+  return api(`${basePath}/complete`, {
+    method: 'POST',
+    body: JSON.stringify({ uploadId: request.uploadId, key: request.key, name: file.name, size: file.size })
+  });
 }
 
 async function onSubmit(event) {
@@ -1085,9 +1146,7 @@ async function onSubmit(event) {
         for (const [index, file] of selectedFiles.entries()) {
           $('#book-upload-status').textContent = `Uploading PDF ${index + 1} of ${selectedFiles.length}: ${file.name}`;
           if (submitButton) submitButton.textContent = `Uploading PDF ${index + 1} of ${selectedFiles.length}...`;
-          const uploadForm = new FormData();
-          uploadForm.append('file', file);
-          await api(`/api/books/${encodeURIComponent(bookId)}/files`, { method: 'POST', body: uploadForm });
+          await uploadBookFile(bookId, file);
           const existingFiles = $('#book-existing-files');
           if (!existingFiles.querySelector('.book-file-list')) existingFiles.innerHTML = '<div class="book-file-list"></div>';
           existingFiles.querySelector('.book-file-list').insertAdjacentHTML('beforeend', `<div class="book-file"><i data-lucide="file-text"></i><span>${escapeHtml(file.name)}</span><small>${(file.size / 1048576).toFixed(1)} MB</small></div>`);
@@ -1161,7 +1220,7 @@ async function onSubmit(event) {
       notify(result.status === 'approved' ? 'Product feature approved and scheduled.' : result.status === 'quoted' ? 'Promotion quote sent to the customer.' : 'Promotion request declined.');
     } else if (form.id === 'admin-ad-form') {
       const [mediaFile] = $('#admin-ad-media', form).files || [];
-      const uploaded = await uploadFiles(mediaFile ? [mediaFile] : []);
+      const uploaded = await uploadFiles(mediaFile ? [mediaFile] : [], 'ad-media');
       if (!uploaded[0]?.url) throw new Error('Choose an image or video for the advertisement.');
       await api('/api/ads', { method: 'POST', body: JSON.stringify({ title: value('admin-ad-title'), description: value('admin-ad-description'), category: value('admin-ad-category'), location: value('admin-ad-placement'), priceCents: 1, placement: value('admin-ad-placement'), durationDays: Number(value('admin-ad-duration')), skipAllowed: value('admin-ad-skip') === 'true', media: [uploaded[0].url] }) });
       notify('Third-party ad published.');
@@ -1288,17 +1347,15 @@ document.addEventListener('click', async (event) => {
     const [file] = $('#profile-avatar-file').files || [];
     if (!file) { notify('Choose a profile picture first.'); return; }
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const result = await api('/api/profile/avatar', { method: 'POST', body: formData });
-      const uploadedUrl = mediaUrl(result.url);
+      const [result] = await uploadFiles([file], 'profile-avatar');
+      const uploadedUrl = mediaUrl(result?.url);
       if (!uploadedUrl) throw new Error('The server returned an invalid profile image URL.');
       const uploadedImage = new Image();
       uploadedImage.src = uploadedUrl;
       try {
         await uploadedImage.decode();
       } catch {
-        throw new Error('The image was saved but could not be displayed. Check that UPLOAD_DIR points to the mounted Railway volume.');
+        throw new Error('The image was uploaded but could not be displayed. Check the S3 bucket permissions and CORS settings.');
       }
       currentUser = { ...currentUser, avatarUrl: result.url, avatar_url: result.url };
       setShellUser(currentUser);
