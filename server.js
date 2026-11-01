@@ -838,6 +838,16 @@ const wss = new WebSocketServer({ server, path: '/ws' });
 wss.on('connection', (socket, request) => { const token = new URL(request.url, `http://${request.headers.host}`).searchParams.get('thread'); if (!token) return socket.close(1008, 'Thread required'); if (!sockets.has(token)) sockets.set(token, new Set()); sockets.get(token).add(socket); socket.on('message', raw => { let message; try { message = JSON.parse(raw.toString()); } catch { return; } const outgoing = JSON.stringify({ ...message, createdAt: now() }); for (const peer of sockets.get(token) || []) if (peer.readyState === 1) peer.send(outgoing); }); socket.on('close', () => sockets.get(token)?.delete(socket)); });
 export { app };
 export const appInitialization = initializeSchema().then(() => seedDemoData());
+export default async function handler(req, res) {
+  try {
+    await appInitialization;
+    return app(req, res);
+  } catch (error) {
+    console.error('Vercel app initialization failed:', error);
+    if (!res.headersSent) return res.status(500).json({ error: 'The service is temporarily unavailable.' });
+  }
+}
+
 if (!process.env.VERCEL) {
   appInitialization
     .then(() => server.listen(port, '0.0.0.0', () => console.log(`TaskFlow listening on http://0.0.0.0:${port}`)))
