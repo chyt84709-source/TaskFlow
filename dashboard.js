@@ -221,6 +221,7 @@ async function renderOverview() {
       <a class="metric" href="/products" data-route="products"><div class="metric-top"><span>Products</span><i data-lucide="package"></i></div><strong id="overview-product-count">0</strong><small>Browse products</small></a>
       <a class="metric" href="/vendor" data-route="vendor"><div class="metric-top"><span>Your stores</span><i data-lucide="building-2"></i></div><strong id="overview-store-count">0</strong><small>Store and order activity</small></a>
     </div>
+    <section class="panel onboarding-panel" id="onboarding-panel">${emptyState('Checking your setup...')}</section>
     <div class="dashboard-columns overview-content">
       <div class="column">
         <section class="panel"><div class="panel-head"><div><h2>Marketplace</h2><p class="panel-subtitle">Recently added listings.</p></div><a class="button-quiet" href="/marketplace" data-route="marketplace">View all</a></div><div class="cards-grid overview-cards" id="overview-marketplace">${emptyState('Loading marketplace items...')}</div></section>
@@ -235,22 +236,52 @@ async function renderOverview() {
     </div>`);
   moveCreateFormToDialog('quick-task-form', 'create-quick-task-dialog', 'Publish a task', 'Publish task');
   const [listingsResponse, tasksResponse, productsResponse, booksResponse, gigsResponse, storeResponse, ordersResponse, ads] = await Promise.all([
-    api('/api/listings').catch(() => ({ listings: [] })),
+    api('/api/listings').catch(() => null),
     api('/api/tasks').catch(() => ({ tasks: [] })),
-    api('/api/products').catch(() => ({ products: [] })),
+    api('/api/products').catch(() => null),
     api('/api/books').catch(() => ({ books: [] })),
-    api('/api/gigs').catch(() => ({ gigs: [] })),
-    api('/api/store/me').catch(() => ({ stores: [] })),
+    api('/api/gigs').catch(() => null),
+    api('/api/store/me').catch(() => null),
     api('/api/vendor/orders').catch(() => ({ orders: [] })),
     api('/api/ads').catch(() => ({ ads: [] }))
   ]);
-  const listings = listingsResponse.listings || [];
+  const listings = listingsResponse?.listings || [];
   const tasks = tasksResponse.tasks || [];
-  const products = productsResponse.products || [];
+  const products = productsResponse?.products || [];
   const books = booksResponse.books || [];
-  const gigs = gigsResponse.gigs || [];
-  const stores = storeResponse.stores || (storeResponse.store ? [storeResponse.store] : []);
+  const gigs = gigsResponse?.gigs || [];
+  const stores = storeResponse?.stores || (storeResponse?.store ? [storeResponse.store] : []);
   const orders = ordersResponse.orders || [];
+  const userId = String(currentUser?.id || '');
+  const owns = (item, ...keys) => keys.some((key) => item?.[key] != null && String(item[key]) === userId);
+  const ownGigs = gigs.filter((gig) => owns(gig, 'sellerId', 'seller_id'));
+  const ownListings = listings.filter((listing) => owns(listing, 'sellerId', 'seller_id'));
+  const ownProducts = products.filter((product) => owns(product, 'vendorId', 'vendor_id'));
+  const checklistAvailable = Array.isArray(listingsResponse?.listings)
+    && Array.isArray(productsResponse?.products)
+    && Array.isArray(gigsResponse?.gigs)
+    && (Array.isArray(storeResponse?.stores) || storeResponse?.store != null);
+  const profile = currentUser?.profile || {};
+  const profileComplete = Boolean(
+    currentUser?.name?.trim()
+    && mediaUrl(currentUser?.avatarUrl || currentUser?.avatar_url)
+    && (profile.bio || currentUser?.bio || '').trim()
+  );
+  const sellerSetupComplete = stores.length > 0 || ownGigs.length > 0;
+  const firstItemPublished = ownListings.length > 0 || ownProducts.length > 0;
+  const completedSteps = [profileComplete, sellerSetupComplete, firstItemPublished].filter(Boolean).length;
+  const checklistSteps = [
+    { title: 'Complete your profile', detail: 'Add a profile photo and a short bio so people know who they’re working with.', done: profileComplete, href: '/profile', label: 'Finish profile', icon: 'user-round' },
+    { title: 'Choose how you’ll sell', detail: 'Set up a storefront for products or publish a service you offer.', done: sellerSetupComplete, href: '/vendor', label: 'Set up a store', altHref: '/gigs', altLabel: 'Offer a service', icon: 'store' },
+    { title: 'Publish your first item', detail: 'Add a marketplace listing or product to start reaching customers.', done: firstItemPublished, href: '/marketplace', label: 'Create a listing', altHref: '/products', altLabel: 'Add a product', icon: 'package' }
+  ];
+  const onboardingPanel = $('#onboarding-panel');
+  if (!checklistAvailable) {
+    onboardingPanel.innerHTML = `<div class="onboarding-heading"><div><span class="eyebrow">GETTING STARTED</span><h2>Make TaskFlow yours</h2><p class="panel-subtitle">We couldn’t load your setup progress. Try refreshing the dashboard.</p></div><button class="button" type="button" data-refresh-overview><i data-lucide="refresh-cw"></i>Refresh</button></div>`;
+  } else {
+    onboardingPanel.innerHTML = `<div class="onboarding-heading"><div><span class="eyebrow">GETTING STARTED</span><h2>${completedSteps === checklistSteps.length ? 'You’re ready to get moving' : 'Your first steps on TaskFlow'}</h2><p class="panel-subtitle">${completedSteps === checklistSteps.length ? 'Your profile and seller setup are ready. Keep building your presence.' : 'A few quick steps will help you get started and make your profile easier to trust.'}</p></div><span class="onboarding-count">${completedSteps} of ${checklistSteps.length} complete</span></div><div class="onboarding-progress" role="progressbar" aria-label="Getting started progress" aria-valuemin="0" aria-valuemax="${checklistSteps.length}" aria-valuenow="${completedSteps}"><span style="width:${Math.round(completedSteps / checklistSteps.length * 100)}%"></span></div><div class="onboarding-steps">${checklistSteps.map((step) => `<article class="onboarding-step${step.done ? ' is-complete' : ''}"><span class="onboarding-step-icon"><i data-lucide="${step.done ? 'check' : step.icon}"></i></span><div class="onboarding-step-copy"><h3>${step.title}</h3><p>${step.detail}</p></div><div class="onboarding-step-actions"><a class="button${step.done ? '' : ' button-primary'}" href="${step.href}" data-route="${step.href.slice(1)}">${step.done ? 'Review' : step.label}<i data-lucide="arrow-up-right"></i></a>${!step.done && step.altHref ? `<a class="button onboarding-secondary-action" href="${step.altHref}" data-route="${step.altHref.slice(1)}">${step.altLabel}</a>` : ''}</div></article>`).join('')}</div>`;
+  }
+  window.lucide?.createIcons();
   $('#overview-listing-count').textContent = String(listings.length);
   $('#overview-task-count').textContent = String(tasks.length);
   $('#overview-product-count').textContent = String(products.length);
@@ -1198,7 +1229,13 @@ async function onSubmit(event) {
       const avatarFile = $('#profile-avatar-file', form).files?.[0];
       if (avatarFile) await saveProfileAvatar(avatarFile);
       await api('/api/profile', { method: 'PUT', body: JSON.stringify({ name: value('profile-name'), phone: value('profile-phone'), country: value('profile-country'), bio: value('profile-bio') }) });
-      currentUser = { ...currentUser, name: value('profile-name'), phone: value('profile-phone'), country: value('profile-country') };
+      currentUser = {
+        ...currentUser,
+        name: value('profile-name'),
+        phone: value('profile-phone'),
+        country: value('profile-country'),
+        profile: { ...currentUser?.profile, bio: value('profile-bio') }
+      };
       setShellUser(currentUser);
       notify(avatarFile ? 'Profile and picture saved successfully.' : 'Profile saved successfully.');
     } else if (form.id === 'support-form') {
