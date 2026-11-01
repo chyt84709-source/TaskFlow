@@ -17,11 +17,22 @@ const region = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || proce
 const accessKeyId = process.env.AWS_ACCESS_KEY_ID || process.env.AWS_S3_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY_ID;
 const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY || process.env.AWS_S3_SECRET_ACCESS_KEY || process.env.S3_SECRET_ACCESS_KEY;
 const sessionToken = process.env.AWS_SESSION_TOKEN || process.env.AWS_S3_SESSION_TOKEN;
+const endpoint = process.env.AWS_ENDPOINT_URL_S3
+  || process.env.AWS_S3_ENDPOINT
+  || process.env.S3_ENDPOINT_URL
+  || process.env.S3_ENDPOINT;
+const forcePathStyle = process.env.AWS_S3_FORCE_PATH_STYLE === 'true'
+  || process.env.S3_FORCE_PATH_STYLE === 'true';
+const serverSideEncryption = process.env.S3_SERVER_SIDE_ENCRYPTION === 'none'
+  ? undefined
+  : process.env.S3_SERVER_SIDE_ENCRYPTION || 'AES256';
 
 export const objectStorageEnabled = Boolean(bucket && region);
 
 const client = objectStorageEnabled ? new S3Client({
   region,
+  ...(endpoint ? { endpoint } : {}),
+  forcePathStyle,
   ...(accessKeyId && secretAccessKey ? {
     credentials: { accessKeyId, secretAccessKey, ...(sessionToken ? { sessionToken } : {}) }
   } : {})
@@ -44,14 +55,14 @@ export async function createObjectUploadUrl(key, contentType, expiresIn = 600) {
     Bucket: bucketName,
     Key: key,
     ContentType: contentType,
-    ServerSideEncryption: 'AES256'
+    ...(serverSideEncryption ? { ServerSideEncryption: serverSideEncryption } : {})
   });
   const url = await getSignedUrl(s3, command, { expiresIn });
   return {
     url,
     headers: {
       'Content-Type': contentType,
-      'x-amz-server-side-encryption': 'AES256'
+      ...(serverSideEncryption ? { 'x-amz-server-side-encryption': serverSideEncryption } : {})
     }
   };
 }
@@ -71,7 +82,7 @@ export async function promoteObject(sourceKey, destinationKey, contentType) {
     CopySource: copySource,
     ContentType: contentType,
     MetadataDirective: 'REPLACE',
-    ServerSideEncryption: 'AES256'
+    ...(serverSideEncryption ? { ServerSideEncryption: serverSideEncryption } : {})
   }));
   try {
     await s3.send(new DeleteObjectCommand({ Bucket: bucketName, Key: sourceKey }));

@@ -2,9 +2,11 @@
 
 Railway is the recommended first host for this project because it provides a managed PostgreSQL database, private environment variables, HTTPS, and simple Node deployment in one project. Render is a good alternative if you prefer separate web-service and database resources.
 
-## Deploying to Vercel with Amazon S3
+## Deploying to Vercel with S3-compatible storage
 
-The Express app can run as a Vercel Node function through `api/index.js`. Set the Vercel environment variables for the existing production integrations, including `DATABASE_URL`, `SESSION_SECRET`, `SUPER_ADMIN_USERNAME`, and `SUPER_ADMIN_PASSWORD`. Add `AWS_S3_BUCKET` and `AWS_REGION`; the S3 SDK uses the AWS credential variables provided by the Vercel integration (`AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`, and `AWS_SESSION_TOKEN` when supplied). The bucket setting also accepts `AWS_S3_BUCKET_NAME`, `S3_BUCKET_NAME`, `AWS_BUCKET_NAME`, or `S3_BUCKET`; region accepts `AWS_DEFAULT_REGION` or `S3_REGION`.
+The Express app runs as a Vercel Node function through `api/index.js`. Set the Vercel environment variables for the production integrations, including `DATABASE_URL`, `SESSION_SECRET`, `SUPER_ADMIN_USERNAME`, and `SUPER_ADMIN_PASSWORD`. For S3 storage, set the bucket and region, plus the access-key ID and secret supplied by the Vercel Marketplace integration (`AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`; also set `AWS_SESSION_TOKEN` if supplied). Bucket aliases include `AWS_S3_BUCKET`, `AWS_S3_BUCKET_NAME`, `S3_BUCKET_NAME`, `AWS_BUCKET_NAME`, and `S3_BUCKET`; region aliases include `AWS_REGION`, `AWS_DEFAULT_REGION`, and `S3_REGION`.
+
+For S3-compatible providers, set `AWS_S3_ENDPOINT` to the provider's endpoint URL. `AWS_ENDPOINT_URL_S3`, `S3_ENDPOINT_URL`, and `S3_ENDPOINT` are also recognized. If the provider requires path-style bucket addressing, set `AWS_S3_FORCE_PATH_STYLE=true` (or `S3_FORCE_PATH_STYLE=true`). Uploads and copies use AES256 server-side encryption by default; set `S3_SERVER_SIDE_ENCRYPTION=none` only when the provider does not support that header and provides its own at-rest encryption.
 
 Vercel builds run `npm run build`, which checks the server and function entry-point syntax before deployment. The Node runtime is pinned to 22.x so Vercel does not have to infer a version from a broad `>=20` range.
 
