@@ -2051,23 +2051,23 @@
             return false;
           }
         });
-        for (const link of approvedLinks) {
-          const platform = platforms[link.platform];
+        const approvedLinksByPlatform = new Map(approvedLinks.map((link) => [link.platform, link.url]));
+        for (const [platformName, platform] of Object.entries(platforms)) {
           const anchor = document.createElement('a');
           anchor.className = 'social-media-link';
-          anchor.href = link.url;
+          anchor.href = approvedLinksByPlatform.get(platformName) || platform.homeUrl;
           anchor.target = '_blank';
           anchor.rel = 'noopener noreferrer';
           anchor.setAttribute('aria-label', `Visit TaskFlow on ${platform.label}`);
           const icon = document.createElement('span');
-          icon.className = `social-media-icon social-media-icon-${link.platform}`;
+          icon.className = `social-media-icon social-media-icon-${platformName}`;
           icon.innerHTML = platform.icon;
           const label = document.createElement('span');
           label.textContent = platform.label;
           anchor.append(icon, label);
           container.append(anchor);
         }
-        section.hidden = approvedLinks.length === 0;
+        section.hidden = false;
       } catch (error) {
         console.error('Could not load approved social media links:', error);
       }
