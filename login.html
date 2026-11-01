@@ -2034,10 +2034,10 @@
       const container = $('social-media-links');
       if (!section || !container) return;
       const platforms = {
-        facebook: { label: 'Facebook', domains: ['facebook.com', 'fb.com'], icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M13.5 21v-8h2.7l.4-3h-3.1V8.1c0-.9.3-1.5 1.6-1.5h1.7V3.9c-.3 0-1.3-.1-2.5-.1-2.5 0-4.2 1.5-4.2 4.3V10H7.3v3h2.8v8h3.4Z"/></svg>' },
-        tiktok: { label: 'TikTok', domains: ['tiktok.com'], icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19.6 7.4a6.4 6.4 0 0 1-4-1.4v8.1a5.5 5.5 0 1 1-4.8-5.5v3.2a2.4 2.4 0 1 0 1.6 2.3V2.5h3.2c.2 2.2 1.8 3.9 4 4.2v.7Z"/></svg>' },
-        instagram: { label: 'Instagram', domains: ['instagram.com'], icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="18" cy="6" r="1" fill="currentColor" stroke="none"/></svg>' },
-        youtube: { label: 'YouTube', domains: ['youtube.com', 'youtu.be'], icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M23 7.2a3 3 0 0 0-2.1-2.1C19 4.6 12 4.6 12 4.6s-7 0-8.9.5A3 3 0 0 0 1 7.2 31 31 0 0 0 .5 12a31 31 0 0 0 .5 4.8 3 3 0 0 0 2.1 2.1c1.9.5 8.9.5 8.9.5s7 0 8.9-.5a3 3 0 0 0 2.1-2.1A31 31 0 0 0 23.5 12a31 31 0 0 0-.5-4.8ZM9.7 15.3V8.7l5.8 3.3-5.8 3.3Z"/></svg>' }
+        facebook: { label: 'Facebook', homeUrl: 'https://www.facebook.com/', domains: ['facebook.com', 'fb.com'], icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M13.5 21v-8h2.7l.4-3h-3.1V8.1c0-.9.3-1.5 1.6-1.5h1.7V3.9c-.3 0-1.3-.1-2.5-.1-2.5 0-4.2 1.5-4.2 4.3V10H7.3v3h2.8v8h3.4Z"/></svg>' },
+        tiktok: { label: 'TikTok', homeUrl: 'https://www.tiktok.com/', domains: ['tiktok.com'], icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19.6 7.4a6.4 6.4 0 0 1-4-1.4v8.1a5.5 5.5 0 1 1-4.8-5.5v3.2a2.4 2.4 0 1 0 1.6 2.3V2.5h3.2c.2 2.2 1.8 3.9 4 4.2v.7Z"/></svg>' },
+        instagram: { label: 'Instagram', homeUrl: 'https://www.instagram.com/', domains: ['instagram.com'], icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="18" cy="6" r="1" fill="currentColor" stroke="none"/></svg>' },
+        youtube: { label: 'YouTube', homeUrl: 'https://www.youtube.com/', domains: ['youtube.com', 'youtu.be'], icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M23 7.2a3 3 0 0 0-2.1-2.1C19 4.6 12 4.6 12 4.6s-7 0-8.9.5A3 3 0 0 0 1 7.2 31 31 0 0 0 .5 12a31 31 0 0 0 .5 4.8 3 3 0 0 0 2.1 2.1c1.9.5 8.9.5 8.9.5s7 0 8.9-.5a3 3 0 0 0 2.1-2.1A31 31 0 0 0 23.5 12a31 31 0 0 0-.5-4.8ZM9.7 15.3V8.7l5.8 3.3-5.8 3.3Z"/></svg>' }
       };
       try {
         const { links } = await api('/api/social-links');
