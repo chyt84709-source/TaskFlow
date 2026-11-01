@@ -1017,6 +1017,31 @@ async function uploadFiles(files, purpose = 'marketplace-media') {
   return completed.files || [];
 }
 
+async function saveProfileAvatar(file) {
+  const [result] = await uploadFiles([file], 'profile-avatar');
+  const uploadedUrl = mediaUrl(result?.url);
+  if (!uploadedUrl) throw new Error('The server returned an invalid profile image URL.');
+
+  const uploadedImage = new Image();
+  uploadedImage.src = uploadedUrl;
+  try {
+    await uploadedImage.decode();
+  } catch {
+    throw new Error('The image was uploaded but could not be displayed. Check the S3 bucket permissions and CORS settings.');
+  }
+
+  currentUser = { ...currentUser, avatarUrl: result.url, avatar_url: result.url };
+  setShellUser(currentUser);
+  const preview = $('#profile-avatar-preview');
+  if (preview) {
+    if (preview.dataset.previewUrl) URL.revokeObjectURL(preview.dataset.previewUrl);
+    delete preview.dataset.previewUrl;
+    preview.src = uploadedUrl;
+    preview.classList.remove('hidden');
+  }
+  $('#profile-avatar-file').value = '';
+}
+
 async function uploadBookFile(bookId, file) {
   const basePath = `/api/books/${encodeURIComponent(bookId)}/files`;
   const request = await api(`${basePath}/presign`, {
@@ -1170,10 +1195,12 @@ async function onSubmit(event) {
       await api('/api/gigs', { method: 'POST', body: JSON.stringify({ title: value('gig-title'), category: value('gig-category'), description: value('gig-description'), priceDollars: Number(value('gig-price')), deliveryDays: Number(value('gig-days')) }) });
       notify('Gig published successfully.');
     } else if (form.id === 'profile-form') {
+      const avatarFile = $('#profile-avatar-file', form).files?.[0];
+      if (avatarFile) await saveProfileAvatar(avatarFile);
       await api('/api/profile', { method: 'PUT', body: JSON.stringify({ name: value('profile-name'), phone: value('profile-phone'), country: value('profile-country'), bio: value('profile-bio') }) });
       currentUser = { ...currentUser, name: value('profile-name'), phone: value('profile-phone'), country: value('profile-country') };
       setShellUser(currentUser);
-      notify('Profile saved successfully.');
+      notify(avatarFile ? 'Profile and picture saved successfully.' : 'Profile saved successfully.');
     } else if (form.id === 'support-form') {
       const response = await api('/api/support/threads', { method: 'POST', body: JSON.stringify({ subject: value('support-subject'), body: value('support-message') }) });
       selectedSupportThreadId = response.thread.id;
@@ -1347,19 +1374,7 @@ document.addEventListener('click', async (event) => {
     const [file] = $('#profile-avatar-file').files || [];
     if (!file) { notify('Choose a profile picture first.'); return; }
     try {
-      const [result] = await uploadFiles([file], 'profile-avatar');
-      const uploadedUrl = mediaUrl(result?.url);
-      if (!uploadedUrl) throw new Error('The server returned an invalid profile image URL.');
-      const uploadedImage = new Image();
-      uploadedImage.src = uploadedUrl;
-      try {
-        await uploadedImage.decode();
-      } catch {
-        throw new Error('The image was uploaded but could not be displayed. Check the S3 bucket permissions and CORS settings.');
-      }
-      currentUser = { ...currentUser, avatarUrl: result.url, avatar_url: result.url };
-      setShellUser(currentUser);
-      $('#profile-avatar-preview').src = uploadedUrl;
+      await saveProfileAvatar(file);
       notify('Profile picture updated across your account.');
     } catch (error) { notify(error.message); }
     return;
