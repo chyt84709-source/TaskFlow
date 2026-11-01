@@ -87,6 +87,26 @@ const COUNTRY_CURRENCY = {
   BD: { code: 'BDT', symbol: '৳', rate: 108 },
   NG: { code: 'NGN', symbol: '₦', rate: 1500 }
 };
+const socialPlatformDomains = {
+  facebook: ['facebook.com', 'fb.com'],
+  tiktok: ['tiktok.com'],
+  instagram: ['instagram.com'],
+  youtube: ['youtube.com', 'youtu.be']
+};
+const socialPlatformSchema = z.enum(['facebook', 'tiktok', 'instagram', 'youtube']);
+
+function isValidSocialProfileUrl(platform, value) {
+  if (typeof value !== 'string' || value.length > 500) return false;
+  try {
+    const url = new URL(value);
+    const hostname = url.hostname.toLowerCase();
+    const matchesPlatform = (socialPlatformDomains[platform] || []).some((domain) => hostname === domain || hostname.endsWith(`.${domain}`));
+    return url.protocol === 'https:' && !url.username && !url.password && url.pathname !== '/' && matchesPlatform;
+  } catch {
+    return false;
+  }
+}
+
 function normalizeCountry(country) {
   const code = String(country || 'US').trim().toUpperCase();
   return COUNTRY_CURRENCY[code] ? code : 'US';
@@ -176,6 +196,14 @@ async function initializeSchema() {
     reviewed_by TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     reviewed_at TIMESTAMPTZ
+  )`);
+  await db.query(`CREATE TABLE IF NOT EXISTS social_media_links (
+    platform TEXT PRIMARY KEY CHECK (platform IN ('facebook', 'tiktok', 'instagram', 'youtube')),
+    url TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+    reviewed_by TEXT,
+    reviewed_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`);
   await db.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS account_status TEXT NOT NULL DEFAULT 'active'; ALTER TABLE tasks ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'General'; ALTER TABLE profiles ADD COLUMN IF NOT EXISTS category TEXT;");
   await db.query("ALTER TABLE wallet_cards ADD COLUMN IF NOT EXISTS card_type TEXT NOT NULL DEFAULT 'credit';");
@@ -567,6 +595,51 @@ app.get('/api/me', (req, res) => {
   if (!req.session.user) return res.json({ user: null });
   req.session.user = { ...req.session.user, ...hydrateSessionUser(req.session.user) };
   res.json({ user: req.session.user });
+});
+app.get('/api/social-links', async (_req, res, next) => {
+  try {
+    const result = await db.query("SELECT platform, url FROM social_media_links WHERE status = 'approved' ORDER BY platform");
+    res.json({ links: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+app.get('/api/admin/social-links', requireAdmin, async (_req, res, next) => {
+  try {
+    const result = await db.query('SELECT platform, url, status, reviewed_at AS "reviewedAt", updated_at AS "updatedAt" FROM social_media_links ORDER BY platform');
+    res.json({ links: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+app.post('/api/admin/social-links', requireAdmin, async (req, res, next) => {
+  try {
+    const parsed = z.object({ platform: socialPlatformSchema, url: z.string().min(1).max(500) }).safeParse(req.body);
+    if (!parsed.success || !isValidSocialProfileUrl(parsed.data?.platform, parsed.data?.url)) {
+      return res.status(400).json({ error: 'Enter a secure HTTPS profile link for the selected social platform.' });
+    }
+    const { platform, url } = parsed.data;
+    const result = await db.query(`INSERT INTO social_media_links (platform, url, status, reviewed_by, reviewed_at, updated_at)
+      VALUES ($1, $2, 'pending', NULL, NULL, NOW())
+      ON CONFLICT (platform) DO UPDATE SET url = EXCLUDED.url, status = 'pending', reviewed_by = NULL, reviewed_at = NULL, updated_at = NOW()
+      RETURNING platform, url, status`, [platform, url]);
+    res.json({ link: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+app.patch('/api/admin/social-links/:platform/review', requireAdmin, async (req, res, next) => {
+  try {
+    const platform = socialPlatformSchema.safeParse(req.params.platform);
+    const body = z.object({ decision: z.enum(['approved', 'rejected']) }).safeParse(req.body);
+    if (!platform.success || !body.success) return res.status(400).json({ error: 'Invalid social link review decision.' });
+    const result = await db.query(`UPDATE social_media_links SET status = $2, reviewed_by = $3, reviewed_at = NOW(), updated_at = NOW()
+      WHERE platform = $1 RETURNING platform, url, status`, [platform.data, body.data.decision, req.session.user.id]);
+    if (!result.rowCount) return res.status(404).json({ error: 'Save a social media link before reviewing it.' });
+    res.json({ link: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
 });
 app.get('/api/currency', requireUser, async (req, res, next) => { try { const result = await db.query('SELECT country, subscription_tier FROM users WHERE id = $1', [req.session.user.id]); const country = normalizeCountry(result.rows[0]?.country || req.session.user.country || 'US'); const meta = getCurrencyMeta(country); res.json({ country, code: meta.code, symbol: meta.symbol, rate: meta.rate }); } catch (error) { next(error); } });
 app.post('/api/auth/signup', async (req, res, next) => { try { const parsed = z.object({ email: z.string().email().max(320), password: z.string().min(6).max(128), name: z.string().min(1).max(100), role: z.enum(['worker', 'client']).default('worker'), subscriptionTier: z.enum(['standard', 'premium']).default('standard'), country: z.string().max(80).default('US') }).safeParse(req.body); if (!parsed.success) return res.status(400).json({ error: 'Valid name, email, password, and role are required' }); const email = parsed.data.email.toLowerCase(); const existing = await db.query('SELECT * FROM users WHERE email=$1', [email]); if (existing.rows[0]) return res.status(409).json({ error: 'An account with this email already exists. Please sign in instead.' }); const passwordHash = hashPassword(parsed.data.password); const user = { id: nanoid(), email, name: parsed.data.name.trim(), role: parsed.data.role, country: normalizeCountry(parsed.data.country), subscription_tier: parsed.data.subscriptionTier, trust_score: null, two_factor: false, password_hash: passwordHash, created_at: now() }; await db.query('INSERT INTO users (id,email,name,role,country,subscription_tier,trust_score,two_factor,password_hash,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [user.id, user.email, user.name, user.role, user.country, user.subscription_tier, user.trust_score, false, user.password_hash, user.created_at]); req.session.user = { id: user.id, name: user.name, email: user.email, role: user.role, country: user.country, subscriptionTier: user.subscription_tier, trustScore: user.trust_score, twoFactor: false, isAdmin: false }; res.status(201).json({ user: req.session.user }); } catch (error) { next(error); } });

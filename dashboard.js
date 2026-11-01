@@ -1144,8 +1144,8 @@ async function renderAdmin() {
     return;
   }
   pageFrame('admin', `<div class="metric-grid" id="admin-metrics">${['Users', 'Products', 'Listings', 'Gigs'].map((label) => `<article class="metric"><div class="metric-top"><span>${label}</span><i data-lucide="bar-chart-3"></i></div><strong>...</strong><small>Loading owner data</small></article>`).join('')}</div><div class="stack" id="admin-content"><section class="panel"><p class="empty">Loading complete platform control center...</p></section></div>`,'Owner control center');
-  const [overview, content, users, stores, support, reports, categories, ads, adMessages, premiumRequests, promotionRequests] = await Promise.all([
-    api('/api/admin/overview'), api('/api/admin/content'), api('/api/admin/users'), api('/api/admin/store-requests'), api('/api/admin/support/threads'), api('/api/admin/reports'), api('/api/admin/categories'), api('/api/admin/ads'), api('/api/admin/ad-messages'), api('/api/admin/premium-requests'), api('/api/admin/promotion-requests')
+  const [overview, content, users, stores, support, reports, categories, ads, adMessages, premiumRequests, promotionRequests, socialLinks] = await Promise.all([
+    api('/api/admin/overview'), api('/api/admin/content'), api('/api/admin/users'), api('/api/admin/store-requests'), api('/api/admin/support/threads'), api('/api/admin/reports'), api('/api/admin/categories'), api('/api/admin/ads'), api('/api/admin/ad-messages'), api('/api/admin/premium-requests'), api('/api/admin/promotion-requests'), api('/api/admin/social-links')
   ]);
   const stats = overview.stats || {};
   const metrics = [stats.activeUsers || 0, stats.activeProducts || 0, content.listings?.length || 0, stats.activeGigs || 0];
@@ -1174,7 +1174,21 @@ async function renderAdmin() {
     action: request.status === 'pending' ? `<form class="promotion-review-form" data-promotion-review-form><input type="hidden" name="requestId" value="${escapeHtml(request.id)}"><label>Feature days<input name="offeredDays" type="number" min="1" max="30" value="${Number(request.requestedDays) || 7}" required></label><label>Price (USD)<input name="priceDollars" type="number" min="0" step="0.01" value="0" required></label><label>Reply to customer<textarea name="reply" maxlength="1000" required placeholder="Explain the schedule and any terms."></textarea></label><div class="promotion-review-actions"><button class="button button-primary" type="submit" name="decision" value="approved">Approve / send quote</button><button class="button" type="submit" name="decision" value="rejected">Reject</button></div></form>` : '<span class="badge">Reviewed</span>'
   }));
   const premiumRows = (premiumRequests.requests || []).map((request) => ({ ...request, title: request.userName, ownerEmail: request.userEmail, action: request.status === 'pending' ? `<button class="button" type="button" data-premium-review="${escapeHtml(request.id)}" data-decision="approved">Approve</button> <button class="button" type="button" data-premium-review="${escapeHtml(request.id)}" data-decision="rejected">Reject</button>` : '<span class="badge">Reviewed</span>' }));
+  const socialPlatforms = [
+    { id: 'facebook', label: 'Facebook' },
+    { id: 'tiktok', label: 'TikTok' },
+    { id: 'instagram', label: 'Instagram' },
+    { id: 'youtube', label: 'YouTube' }
+  ];
+  const socialLinksByPlatform = new Map((socialLinks.links || []).map((link) => [link.platform, link]));
+  const socialSettingsMarkup = `<section class="panel social-links-admin"><div class="panel-head"><div><h2>Manage Social Media Links</h2><p class="panel-subtitle">Save account URLs as pending, then approve them to display icons on the signed-out login screen.</p></div><span class="badge">Admin approval required</span></div><div class="social-links-admin-grid">${socialPlatforms.map(({ id, label }) => {
+    const link = socialLinksByPlatform.get(id);
+    const status = link?.status || 'Not configured';
+    const reviewActions = link?.url ? `<div class="social-link-review"><button class="button button-primary" type="button" data-social-review="${id}" data-decision="approved">Approve for public display</button><button class="button" type="button" data-social-review="${id}" data-decision="rejected">Reject / hide</button></div>` : '';
+    return `<article class="social-link-admin-card"><div class="social-link-admin-heading"><strong>${label}</strong><span class="badge">${escapeHtml(status)}</span></div><form data-social-link-form><input type="hidden" name="platform" value="${id}"><div class="field"><label for="social-link-${id}">${label} profile URL</label><input id="social-link-${id}" name="url" type="url" maxlength="500" value="${escapeHtml(link?.url || '')}" placeholder="https://${id === 'youtube' ? 'youtube.com/@yourchannel' : `${id}.com/youraccount`}" required></div><button class="button" type="submit">Save link for review</button></form>${reviewActions}</article>`;
+  }).join('')}</div></section>`;
   $('#admin-content').innerHTML = `<section class="panel"><div class="panel-head"><div><h2>Create third-party ad</h2><p class="panel-subtitle">Upload a banner or video and choose where it appears.</p></div><span class="badge">Admin only</span></div><form id="admin-ad-form" class="form-grid"><div class="field"><label for="admin-ad-title">Campaign title</label><input id="admin-ad-title" required minlength="3" maxlength="120"></div><div class="field"><label for="admin-ad-category">Category</label><select id="admin-ad-category" required>${categoryOptions(categories.categories || [])}</select></div><div class="field"><label for="admin-ad-placement">Placement</label><select id="admin-ad-placement" required><option value="homepage-top">Homepage top</option><option value="sidebar">Sidebar</option><option value="featured">Featured</option></select></div><div class="field"><label for="admin-ad-duration">Campaign duration (days)</label><input id="admin-ad-duration" type="number" min="1" max="365" value="7" required></div><div class="field field-full"><label for="admin-ad-description">Description</label><textarea id="admin-ad-description" required minlength="5"></textarea></div><div class="field"><label for="admin-ad-media">Picture or video</label><input id="admin-ad-media" type="file" accept="image/*,video/*" required></div><div class="field"><label for="admin-ad-skip">Skip ad</label><select id="admin-ad-skip"><option value="true">Allow skip after 3 seconds</option><option value="false">Do not allow skip</option></select></div><div class="field-full"><button class="button button-primary" type="submit">Publish ad</button></div></form></section>${adminTable('Product homepage feature requests', promotionRows, 'No product promotion requests.')}${adminTable('Premium requests', premiumRows, 'No Premium requests.')}${adminTable('Users', userRows, 'No registered users.')}${adminTable('Tasks', taskRows)}${adminTable('Products', productRows)}${adminTable('Marketplace listings', listingRows)}${adminTable('Gigs', gigRows)}${adminTable('Advertisement review', adRows, 'No ads awaiting or needing review.')}${adminTable('Advertisement messages', adMessageRows, 'No ad messages.')}${adminTable('Store requests', storeRows)}${adminTable('Support inbox', support.threads || [])}${adminTable('Reports', reports.reports || [])}${adminTable('Categories', categories.categories || [])}<section class="panel"><div class="panel-head"><div><h2>Platform totals</h2><p class="panel-subtitle">Owner-only operational visibility.</p></div><span class="badge">Protected API</span></div><div class="rows"><div class="data-row"><strong>Open disputes</strong><span>${Number(stats.openDisputes || 0)}</span></div><div class="data-row"><strong>Open reports</strong><span>${Number(stats.openReports || 0)}</span></div><div class="data-row"><strong>Active ads</strong><span>${Number(stats.activeAds || 0)}</span></div><div class="data-row"><strong>Categories</strong><span>${Number(stats.categories || 0)}</span></div></div></section>`;
+  $('#admin-content').insertAdjacentHTML('afterbegin', socialSettingsMarkup);
 }
 
 async function renderRoute(route) {
@@ -1313,7 +1327,13 @@ async function onSubmit(event) {
   event.preventDefault();
   const value = (id) => $(`#${id}`, form)?.value?.trim() || '';
   try {
-    if (form.id === 'password-change-form') {
+    if (form.matches('[data-social-link-form]')) {
+      const platform = form.elements.platform.value;
+      await api('/api/admin/social-links', { method: 'POST', body: JSON.stringify({ platform, url: value(`social-link-${platform}`) }) });
+      notify(`${platform[0].toUpperCase()}${platform.slice(1)} link saved and sent for approval.`);
+      await renderAdmin();
+      return;
+    } else if (form.id === 'password-change-form') {
       const newPassword = $('#new-password', form).value;
       if (newPassword !== $('#confirm-password', form).value) throw new Error('The new passwords do not match.');
       await api('/api/auth/password/change', { method: 'POST', body: JSON.stringify({ currentPassword: $('#current-password', form).value, newPassword }) });
@@ -1800,6 +1820,16 @@ document.addEventListener('click', async (event) => {
     try {
       await api(`/api/admin/ad-messages/${encodeURIComponent(adMessageReview.dataset.adMessageReview)}/review`, { method: 'PATCH', body: JSON.stringify({ decision: adMessageReview.dataset.decision }) });
       notify(adMessageReview.dataset.decision === 'approved' ? 'Message approved.' : 'Message rejected.');
+      await renderAdmin();
+    } catch (error) { notify(error.message); }
+    return;
+  }
+  const socialLinkReview = event.target.closest('[data-social-review]');
+  if (socialLinkReview) {
+    const decision = socialLinkReview.dataset.decision;
+    try {
+      await api(`/api/admin/social-links/${encodeURIComponent(socialLinkReview.dataset.socialReview)}/review`, { method: 'PATCH', body: JSON.stringify({ decision }) });
+      notify(decision === 'approved' ? 'Social media link approved and visible on the signed-out login screen.' : 'Social media link rejected and hidden.');
       await renderAdmin();
     } catch (error) { notify(error.message); }
     return;

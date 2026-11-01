@@ -114,6 +114,17 @@
     .overview-primary, .overview-aside { display: grid; gap: 18px; min-width: 0; }
     .quick-task-form .field { margin-bottom: 10px; }
     .quick-task-form input, .quick-task-form select, .quick-task-form textarea { padding: 10px 12px; border-radius: 8px; font-size: 13px; }
+    .social-media-login { margin-top: 20px; padding-top: 16px; border-top: 1px solid #e5e7eb; text-align: center; }
+    .social-media-login > p { margin: 0 0 12px; color: #64748b; font-size: 12px; font-weight: 600; }
+    .social-media-links { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; }
+    .social-media-link { display: inline-flex; align-items: center; gap: 8px; min-height: 38px; padding: 7px 12px; border: 1px solid #e2e8f0; border-radius: 999px; background: #fff; color: #334155; font-size: 12px; font-weight: 650; transition: border-color .15s ease, transform .15s ease; }
+    .social-media-link:hover { border-color: #0f766e; transform: translateY(-1px); }
+    .social-media-icon { display: grid; place-items: center; width: 20px; height: 20px; color: #0f766e; }
+    .social-media-icon svg { width: 20px; height: 20px; }
+    .social-media-icon-facebook { color: #1877f2; }
+    .social-media-icon-tiktok { color: #111827; }
+    .social-media-icon-instagram { color: #c13584; }
+    .social-media-icon-youtube { color: #ff0033; }
     .overview-notifications { display: grid; gap: 12px; }
     .notification-row { display: grid; grid-template-columns: 8px 1fr; gap: 10px; align-items: start; }
     .notification-dot { width: 7px; height: 7px; margin-top: 6px; border-radius: 50%; background: #0f766e; }
@@ -966,6 +977,10 @@
           <a href="/forgot-password" class="tiny-link">Forgot Password?</a>
           <button type="submit" class="primary-btn full">Sign in</button>
           <button type="button" class="secondary-btn full" id="google" style="margin-top: 10px;">Continue with Google</button>
+          <section class="social-media-login" id="social-media-login" hidden aria-label="TaskFlow social media">
+            <p>Follow TaskFlow</p>
+            <div class="social-media-links" id="social-media-links"></div>
+          </section>
         </form>
 
         <form id="register" class="hidden">
@@ -2012,6 +2027,50 @@
       const data = response.status === 204 ? null : await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data?.error || 'Request failed');
       return data;
+    }
+
+    async function loadPublicSocialLinks() {
+      const section = $('social-media-login');
+      const container = $('social-media-links');
+      if (!section || !container) return;
+      const platforms = {
+        facebook: { label: 'Facebook', domains: ['facebook.com', 'fb.com'], icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M13.5 21v-8h2.7l.4-3h-3.1V8.1c0-.9.3-1.5 1.6-1.5h1.7V3.9c-.3 0-1.3-.1-2.5-.1-2.5 0-4.2 1.5-4.2 4.3V10H7.3v3h2.8v8h3.4Z"/></svg>' },
+        tiktok: { label: 'TikTok', domains: ['tiktok.com'], icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19.6 7.4a6.4 6.4 0 0 1-4-1.4v8.1a5.5 5.5 0 1 1-4.8-5.5v3.2a2.4 2.4 0 1 0 1.6 2.3V2.5h3.2c.2 2.2 1.8 3.9 4 4.2v.7Z"/></svg>' },
+        instagram: { label: 'Instagram', domains: ['instagram.com'], icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="18" cy="6" r="1" fill="currentColor" stroke="none"/></svg>' },
+        youtube: { label: 'YouTube', domains: ['youtube.com', 'youtu.be'], icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M23 7.2a3 3 0 0 0-2.1-2.1C19 4.6 12 4.6 12 4.6s-7 0-8.9.5A3 3 0 0 0 1 7.2 31 31 0 0 0 .5 12a31 31 0 0 0 .5 4.8 3 3 0 0 0 2.1 2.1c1.9.5 8.9.5 8.9.5s7 0 8.9-.5a3 3 0 0 0 2.1-2.1A31 31 0 0 0 23.5 12a31 31 0 0 0-.5-4.8ZM9.7 15.3V8.7l5.8 3.3-5.8 3.3Z"/></svg>' }
+      };
+      try {
+        const { links } = await api('/api/social-links');
+        const approvedLinks = (Array.isArray(links) ? links : []).filter((link) => {
+          const platform = platforms[link.platform];
+          if (!platform) return false;
+          try {
+            const url = new URL(link.url);
+            return url.protocol === 'https:' && platform.domains.some((domain) => url.hostname === domain || url.hostname.endsWith(`.${domain}`)) && url.pathname !== '/';
+          } catch {
+            return false;
+          }
+        });
+        for (const link of approvedLinks) {
+          const platform = platforms[link.platform];
+          const anchor = document.createElement('a');
+          anchor.className = 'social-media-link';
+          anchor.href = link.url;
+          anchor.target = '_blank';
+          anchor.rel = 'noopener noreferrer';
+          anchor.setAttribute('aria-label', `Visit TaskFlow on ${platform.label}`);
+          const icon = document.createElement('span');
+          icon.className = `social-media-icon social-media-icon-${link.platform}`;
+          icon.innerHTML = platform.icon;
+          const label = document.createElement('span');
+          label.textContent = platform.label;
+          anchor.append(icon, label);
+          container.append(anchor);
+        }
+        section.hidden = approvedLinks.length === 0;
+      } catch (error) {
+        console.error('Could not load approved social media links:', error);
+      }
     }
 
     async function uploadFiles(files, purpose = 'marketplace-media') {
@@ -3530,6 +3589,7 @@
 
     $('sidebar-logout').addEventListener('click', () => $('logout').click());
     if (window.lucide) window.lucide.createIcons();
+    loadPublicSocialLinks();
     initializeAppShell();
   </script>
 </body>
