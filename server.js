@@ -838,14 +838,21 @@ const wss = new WebSocketServer({ server, path: '/ws' });
 wss.on('connection', (socket, request) => { const token = new URL(request.url, `http://${request.headers.host}`).searchParams.get('thread'); if (!token) return socket.close(1008, 'Thread required'); if (!sockets.has(token)) sockets.set(token, new Set()); sockets.get(token).add(socket); socket.on('message', raw => { let message; try { message = JSON.parse(raw.toString()); } catch { return; } const outgoing = JSON.stringify({ ...message, createdAt: now() }); for (const peer of sockets.get(token) || []) if (peer.readyState === 1) peer.send(outgoing); }); socket.on('close', () => sockets.get(token)?.delete(socket)); });
 export { app };
 export const appInitialization = initializeSchema().then(() => seedDemoData());
-export default async function handler(req, res) {
-  try {
-    await appInitialization;
-    return app(req, res);
-  } catch (error) {
-    console.error('Vercel app initialization failed:', error);
-    if (!res.headersSent) return res.status(500).json({ error: 'The service is temporarily unavailable.' });
+const appInitializationResult = appInitialization.then(
+  () => ({ ready: true }),
+  (error) => {
+    console.error('PostgreSQL initialization failed:', error);
+    return { ready: false };
   }
+);
+
+export default async function handler(req, res) {
+  const initialization = await appInitializationResult;
+  const requestPath = new URL(req.url || '/', 'http://localhost').pathname;
+  if (!initialization.ready && requestPath.startsWith('/api/')) {
+    return res.status(503).json({ error: 'The database is temporarily unavailable.' });
+  }
+  return app(req, res);
 }
 
 if (!process.env.VERCEL) {
