@@ -129,6 +129,11 @@ function emptyState(message) {
   return `<p class="empty">${escapeHtml(message)}</p>`;
 }
 
+function overviewError(resource) {
+  const label = escapeHtml(resource);
+  return `<div class="overview-error" role="alert"><span>Couldn’t load ${label}. Your data may still be available.</span><button class="button" type="button" data-refresh-overview aria-label="Retry loading ${label}"><i data-lucide="refresh-cw"></i>Retry</button></div>`;
+}
+
 function storePlanBadge(tier, greenTick) {
   const premium = tier === 'premium';
   const badge = document.createElement('span');
@@ -216,10 +221,10 @@ async function renderOverview() {
   pageFrame('overview', `
     <div class="ad-slot" id="ad-slot"></div>
     <div class="metric-grid overview-metrics">
-      <a class="metric" href="/marketplace" data-route="marketplace"><div class="metric-top"><span>Marketplace items</span><i data-lucide="store"></i></div><strong id="overview-listing-count">0</strong><small>Browse current listings</small></a>
-      <a class="metric" href="/tasks" data-route="tasks"><div class="metric-top"><span>Active tasks</span><i data-lucide="list-checks"></i></div><strong id="overview-task-count">0</strong><small>Available opportunities</small></a>
-      <a class="metric" href="/products" data-route="products"><div class="metric-top"><span>Products</span><i data-lucide="package"></i></div><strong id="overview-product-count">0</strong><small>Browse products</small></a>
-      <a class="metric" href="/vendor" data-route="vendor"><div class="metric-top"><span>Your stores</span><i data-lucide="building-2"></i></div><strong id="overview-store-count">0</strong><small>Store and order activity</small></a>
+      <a class="metric" href="/marketplace" data-route="marketplace"><div class="metric-top"><span>Marketplace items</span><i data-lucide="store"></i></div><strong id="overview-listing-count">0</strong><small id="overview-listing-status">Browse current listings</small></a>
+      <a class="metric" href="/tasks" data-route="tasks"><div class="metric-top"><span>Active tasks</span><i data-lucide="list-checks"></i></div><strong id="overview-task-count">0</strong><small id="overview-task-status">Available opportunities</small></a>
+      <a class="metric" href="/products" data-route="products"><div class="metric-top"><span>Products</span><i data-lucide="package"></i></div><strong id="overview-product-count">0</strong><small id="overview-product-status">Browse products</small></a>
+      <a class="metric" href="/vendor" data-route="vendor"><div class="metric-top"><span>Your stores</span><i data-lucide="building-2"></i></div><strong id="overview-store-count">0</strong><small id="overview-store-status">Store and order activity</small></a>
     </div>
     <section class="panel onboarding-panel" id="onboarding-panel">${emptyState('Checking your setup...')}</section>
     <div class="dashboard-columns overview-content">
@@ -237,30 +242,35 @@ async function renderOverview() {
   moveCreateFormToDialog('quick-task-form', 'create-quick-task-dialog', 'Publish a task', 'Publish task');
   const [listingsResponse, tasksResponse, productsResponse, booksResponse, gigsResponse, storeResponse, ordersResponse, ads] = await Promise.all([
     api('/api/listings').catch(() => null),
-    api('/api/tasks').catch(() => ({ tasks: [] })),
+    api('/api/tasks').catch(() => null),
     api('/api/products').catch(() => null),
-    api('/api/books').catch(() => ({ books: [] })),
+    api('/api/books').catch(() => null),
     api('/api/gigs').catch(() => null),
     api('/api/store/me').catch(() => null),
-    api('/api/vendor/orders').catch(() => ({ orders: [] })),
-    api('/api/ads').catch(() => ({ ads: [] }))
+    api('/api/vendor/orders').catch(() => null),
+    api('/api/ads').catch(() => null)
   ]);
-  const listings = listingsResponse?.listings || [];
-  const tasks = tasksResponse.tasks || [];
-  const products = productsResponse?.products || [];
-  const books = booksResponse.books || [];
-  const gigs = gigsResponse?.gigs || [];
-  const stores = storeResponse?.stores || (storeResponse?.store ? [storeResponse.store] : []);
-  const orders = ordersResponse.orders || [];
+  const listingsAvailable = Array.isArray(listingsResponse?.listings);
+  const tasksAvailable = Array.isArray(tasksResponse?.tasks);
+  const productsAvailable = Array.isArray(productsResponse?.products);
+  const booksAvailable = Array.isArray(booksResponse?.books);
+  const gigsAvailable = Array.isArray(gigsResponse?.gigs);
+  const storesAvailable = Array.isArray(storeResponse?.stores) || (storeResponse?.store != null && typeof storeResponse.store === 'object');
+  const ordersAvailable = Array.isArray(ordersResponse?.orders);
+  const adsAvailable = Array.isArray(ads?.ads);
+  const listings = listingsAvailable ? listingsResponse.listings : [];
+  const tasks = tasksAvailable ? tasksResponse.tasks : [];
+  const products = productsAvailable ? productsResponse.products : [];
+  const books = booksAvailable ? booksResponse.books : [];
+  const gigs = gigsAvailable ? gigsResponse.gigs : [];
+  const stores = Array.isArray(storeResponse?.stores) ? storeResponse.stores : (storeResponse?.store ? [storeResponse.store] : []);
+  const orders = ordersAvailable ? ordersResponse.orders : [];
   const userId = String(currentUser?.id || '');
   const owns = (item, ...keys) => keys.some((key) => item?.[key] != null && String(item[key]) === userId);
   const ownGigs = gigs.filter((gig) => owns(gig, 'sellerId', 'seller_id'));
   const ownListings = listings.filter((listing) => owns(listing, 'sellerId', 'seller_id'));
   const ownProducts = products.filter((product) => owns(product, 'vendorId', 'vendor_id'));
-  const checklistAvailable = Array.isArray(listingsResponse?.listings)
-    && Array.isArray(productsResponse?.products)
-    && Array.isArray(gigsResponse?.gigs)
-    && (Array.isArray(storeResponse?.stores) || storeResponse?.store != null);
+  const checklistAvailable = listingsAvailable && productsAvailable && gigsAvailable && storesAvailable;
   const profile = currentUser?.profile || {};
   const profileComplete = Boolean(
     currentUser?.name?.trim()
@@ -281,23 +291,37 @@ async function renderOverview() {
   } else {
     onboardingPanel.innerHTML = `<div class="onboarding-heading"><div><span class="eyebrow">GETTING STARTED</span><h2>${completedSteps === checklistSteps.length ? 'You’re ready to get moving' : 'Your first steps on TaskFlow'}</h2><p class="panel-subtitle">${completedSteps === checklistSteps.length ? 'Your profile and seller setup are ready. Keep building your presence.' : 'A few quick steps will help you get started and make your profile easier to trust.'}</p></div><span class="onboarding-count">${completedSteps} of ${checklistSteps.length} complete</span></div><div class="onboarding-progress" role="progressbar" aria-label="Getting started progress" aria-valuemin="0" aria-valuemax="${checklistSteps.length}" aria-valuenow="${completedSteps}"><span style="width:${Math.round(completedSteps / checklistSteps.length * 100)}%"></span></div><div class="onboarding-steps">${checklistSteps.map((step) => `<article class="onboarding-step${step.done ? ' is-complete' : ''}"><span class="onboarding-step-icon"><i data-lucide="${step.done ? 'check' : step.icon}"></i></span><div class="onboarding-step-copy"><h3>${step.title}</h3><p>${step.detail}</p></div><div class="onboarding-step-actions"><a class="button${step.done ? '' : ' button-primary'}" href="${step.href}" data-route="${step.href.slice(1)}">${step.done ? 'Review' : step.label}<i data-lucide="arrow-up-right"></i></a>${!step.done && step.altHref ? `<a class="button onboarding-secondary-action" href="${step.altHref}" data-route="${step.altHref.slice(1)}">${step.altLabel}</a>` : ''}</div></article>`).join('')}</div>`;
   }
-  window.lucide?.createIcons();
-  $('#overview-listing-count').textContent = String(listings.length);
-  $('#overview-task-count').textContent = String(tasks.length);
-  $('#overview-product-count').textContent = String(products.length);
-  $('#overview-store-count').textContent = String(stores.length);
-  $('#overview-marketplace').innerHTML = listings.length ? listings.slice(0, 4).map((item) => `<article class="listing-card">${mediaMarkup(item)}<div class="listing-body"><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.category || item.type || 'Marketplace listing')}</p><div class="listing-meta"><span class="badge">${escapeHtml(item.type || 'Listing')}</span><strong>${money(item.priceCents || item.price_cents)}</strong></div></div></article>`).join('') : emptyState('No marketplace listings yet.');
-  $('#overview-products').innerHTML = products.length ? products.slice(0, 4).map((item) => `<article class="listing-card product-card">${mediaMarkup(item)}<div class="listing-body"><span class="badge">${escapeHtml(item.category || 'Product')}</span><h3>${escapeHtml(item.title)}</h3><div class="listing-meta"><span class="product-rating">${item.store_name ? escapeHtml(item.store_name) : 'New arrival'}</span><strong>${money(item.price_cents || item.priceCents)}</strong></div></div></article>`).join('') : emptyState('No products listed yet.');
-  $('#overview-books').innerHTML = books.length ? books.slice(0, 4).map((book) => publicationCard(book)).join('') : emptyState('No publications listed yet.');
-  $('#overview-gigs').innerHTML = gigs.length ? gigs.slice(0, 4).map((gig) => `<article class="listing-card"><div class="listing-body"><h3>${escapeHtml(gig.title)}</h3><p>${escapeHtml(gig.description || '')}</p><div class="listing-meta"><span class="badge">${escapeHtml(gig.category || 'Service')}</span><strong>${money(gig.price_cents || gig.priceCents)}</strong></div></div></article>`).join('') : emptyState('No gigs are available yet.');
-  $('#overview-tasks').innerHTML = tasks.length ? tasks.slice(0, 6).map((task) => `<div class="data-row"><div><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(task.category || 'General')}</small></div><span>${money(task.payoutCents || task.payout_cents)}</span></div>`).join('') : emptyState('No active tasks right now.');
+  const updateMetric = (countId, statusId, data, available, status) => {
+    $(`#${countId}`).textContent = available ? String(data.length) : '—';
+    $(`#${statusId}`).textContent = available ? status : 'Could not load';
+  };
+  updateMetric('overview-listing-count', 'overview-listing-status', listings, listingsAvailable, 'Browse current listings');
+  updateMetric('overview-task-count', 'overview-task-status', tasks, tasksAvailable, 'Available opportunities');
+  updateMetric('overview-product-count', 'overview-product-status', products, productsAvailable, 'Browse products');
+  updateMetric('overview-store-count', 'overview-store-status', stores, storesAvailable, 'Store and order activity');
+  $('#overview-marketplace').innerHTML = listingsAvailable ? (listings.length ? listings.slice(0, 4).map((item) => `<article class="listing-card">${mediaMarkup(item)}<div class="listing-body"><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.category || item.type || 'Marketplace listing')}</p><div class="listing-meta"><span class="badge">${escapeHtml(item.type || 'Listing')}</span><strong>${money(item.priceCents || item.price_cents)}</strong></div></div></article>`).join('') : emptyState('No marketplace listings yet.')) : overviewError('marketplace listings');
+  $('#overview-products').innerHTML = productsAvailable ? (products.length ? products.slice(0, 4).map((item) => `<article class="listing-card product-card">${mediaMarkup(item)}<div class="listing-body"><span class="badge">${escapeHtml(item.category || 'Product')}</span><h3>${escapeHtml(item.title)}</h3><div class="listing-meta"><span class="product-rating">${item.store_name ? escapeHtml(item.store_name) : 'New arrival'}</span><strong>${money(item.price_cents || item.priceCents)}</strong></div></div></article>`).join('') : emptyState('No products listed yet.')) : overviewError('products');
+  $('#overview-books').innerHTML = booksAvailable ? (books.length ? books.slice(0, 4).map((book) => publicationCard(book)).join('') : emptyState('No publications listed yet.')) : overviewError('books and publications');
+  $('#overview-gigs').innerHTML = gigsAvailable ? (gigs.length ? gigs.slice(0, 4).map((gig) => `<article class="listing-card"><div class="listing-body"><h3>${escapeHtml(gig.title)}</h3><p>${escapeHtml(gig.description || '')}</p><div class="listing-meta"><span class="badge">${escapeHtml(gig.category || 'Service')}</span><strong>${money(gig.price_cents || gig.priceCents)}</strong></div></div></article>`).join('') : emptyState('No gigs are available yet.')) : overviewError('gigs');
+  $('#overview-tasks').innerHTML = tasksAvailable ? (tasks.length ? tasks.slice(0, 6).map((task) => `<div class="data-row"><div><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(task.category || 'General')}</small></div><span>${money(task.payoutCents || task.payout_cents)}</span></div>`).join('') : emptyState('No active tasks right now.')) : overviewError('active tasks');
   const activity = [
     ...stores.map((store) => `<div class="data-row"><div><strong>${escapeHtml(store.businessName)}</strong><small>Store review · ${escapeHtml(store.reviewNote || store.status)}</small></div><span class="badge">${escapeHtml(store.status)}</span></div>`),
     ...orders.slice(0, 5).map((order) => `<div class="data-row"><div><strong>${escapeHtml(order.productTitle)}</strong><small>Incoming order · ${escapeHtml(order.status)}</small></div><span>${money(order.amountCents)}</span></div>`)
   ];
-  $('#overview-vendor-activity').innerHTML = activity.length ? activity.slice(0, 8).join('') : emptyState('No store activity yet.');
-  const topAd = (ads.ads || []).find((ad) => ['premium-product', 'premium-store', 'homepage-top', 'featured'].includes(ad.placement)) || (ads.ads || [])[0];
-  showAd(topAd);
+  const vendorErrors = [
+    !storesAvailable ? overviewError('your stores') : '',
+    !ordersAvailable ? overviewError('store orders') : ''
+  ].join('');
+  $('#overview-vendor-activity').innerHTML = `${activity.length ? activity.slice(0, 8).join('') : (storesAvailable && ordersAvailable ? emptyState('No store activity yet.') : '')}${vendorErrors}`;
+  if (adsAvailable) {
+    const topAd = ads.ads.find((ad) => ['premium-product', 'premium-store', 'homepage-top', 'featured'].includes(ad.placement)) || ads.ads[0];
+    showAd(topAd);
+  } else {
+    const adSlot = $('#ad-slot');
+    adSlot.innerHTML = overviewError('sponsored content');
+    adSlot.classList.add('is-visible');
+  }
+  window.lucide?.createIcons();
 }
 
 async function renderTasks() {
